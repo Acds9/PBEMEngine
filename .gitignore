@@ -1,0 +1,17 @@
+# Compiled
+*.dll
+*.pdb
+*.obj
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.ipa
+
+# Folders
+bin/*
+examples/*
+modules/*
+content/*
