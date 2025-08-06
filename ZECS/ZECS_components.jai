@@ -34,3 +34,4 @@ Archetype :: struct (components: [$N]Type){
 Archetype_Ship :: Archetype(Type.[Position, Rotation, Scale]).{
 	chunk_size = 32
 }; 
+

@@ -2,7 +2,8 @@
 #import "Compiler";
 #import "String";
 #import "Process";
-#load "ZECS_meta.jai";
+#load "ZECS/ZECS_components_meta.jai";
+#load "ZECS/ZECS_archetypes_meta.jai";
 
 
 success := false;
@@ -43,10 +44,9 @@ setup_build_options :: (w: Workspace) {
 
 add_source_files :: (w: Workspace) {
     add_build_file("main.jai", w);   
-    add_build_file("ZECS_main.jai", w);
-    add_build_file("ZECS_types.jai", w);
-    add_build_file("ZECS_components.jai", w);
-    add_build_file("ZECS_meta.jai", w);
+    add_build_file("ZECS/ZECS_main.jai", w);
+    add_build_file("ZECS/ZECS_types.jai", w);
+    add_build_file("ZECS/ZECS_components.jai", w);
 }
 
 process_compilation :: (w: Workspace) -> bool {
@@ -203,6 +203,8 @@ generate_all_code :: (w: Workspace, entity_comps: []string, arch_comps: []string
 		code = generate_archetype_initializer_switch(archetypes, "entity_initializer_switch");
 		add_build_string(code, w);
 		code = generate_archetype_initializers(archetypes);
+		add_build_string(code, w);
+		code = generate_archetype_e_c_storage_mappings(archetypes);
 		add_build_string(code, w);
 	}
 }

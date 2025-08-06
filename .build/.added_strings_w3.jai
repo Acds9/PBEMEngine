@@ -76,3 +76,21 @@ Initializer_Archetype_Ship :: (as: *Archetype_Storage, idx: u32) {
 	Rotation_ptr := cast(*Rotation) (as.entity_components[get_entity_component_index(Rotation)].data.data + idx * as.entity_components[get_entity_component_index(Rotation)].stride);
 	Scale_ptr := cast(*Scale) (as.entity_components[get_entity_component_index(Scale)].data.data + idx * as.entity_components[get_entity_component_index(Scale)].stride);
 }
+
+//
+// String added via add_build_string() from H:/PBEMJai/build.jai:208.
+//
+
+get_e_c_storage_ptr :: (world: *ZWorld, arch: Type, $T: Type) -> *Entity_Component_Storage {
+	if arch =={
+		case type_of(Archetype_Ship);
+			a_s := *world.world_archetypes[get_arch_index(Archetype_Ship)];
+			if T =={
+				case Position; return *a_s.entity_components[0];
+				case Rotation; return *a_s.entity_components[1];
+				case Scale; return *a_s.entity_components[2];
+				case; return null;
+			}
+		case; return null;
+	}
+}

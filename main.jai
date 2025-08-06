@@ -8,6 +8,11 @@ main :: () {
 	rl.InitWindow(size_x, size_y, "ZEngine");
 	//defer rl.CloseWindow();
 
+	world := create_zworld();
+
+//	init_archetype(world, type_of(Archetype_Ship)); // Manual for now
+//	create_entity(world, type_of(Archetype_Ship));
+
 	Camera : rl.Camera3D;
 	Camera.position = Vector3.{ 0, 10, 10 };
 	Camera.target = Vector3.{ 0,0,0 };

@@ -97,21 +97,35 @@
 				<IncludeFilesWithoutExt>false</IncludeFilesWithoutExt>
 				<Children></Children>
 			</Folder>
-			<File>
-				<Path>ZECS_components.jai</Path>
-			</File>
-			<File>
-				<Path>ZECS_main.jai</Path>
-			</File>
-			<File>
-				<Path>ZECS_memory.jai</Path>
-			</File>
-			<File>
-				<Path>ZECS_meta.jai</Path>
-			</File>
-			<File>
-				<Path>ZECS_types.jai</Path>
-			</File>
+			<Folder>
+				<Path>ZECS</Path>
+				<IncludeFilter>*.c,*.cc,*.cpp,*.c++,*.cp,*.cxx,*.h,*.hh,*.hpp,*.h++,*.hp,*.hxx,*.inl,*.cs,*.rs,*.java,*.jav,*.js,*.jsc,*.jsx,*.json,*.cls,*.py,*.rpy,*.php,*.php3,*.phl,*.phtml,*.rhtml,*.tpl,*.phps,*.lua,*.html,*.html5,*.htm,*.xml,*.xaml,*.css,*.ssi,*.haml,*.yaml,*.bat,*.wbf,*.wbt,*.txt,*.cmake,*.make,*.makefile,*.mak,*.mk,*.sh,*.bash,*.csv,*.asp,*.pl,*.mac,*.ws,*.vbs,*.perl,*.src,*.rss,*.inc,*.f,*.go,*.prl,*.plx,*.rb,*.lsp,*.lpx,*.ps1,*.command,*.cbl,*.cob,*.qs,*.wxs,*.ph,*.msc,*.glsl,*.hlsl,*.fx,*.vert,*.tesc,*.tese,*.geom,*.frag,*.comp,*.pssl,*.scons,*.cu,*.jai,</IncludeFilter>
+				<ExcludeFilter></ExcludeFilter>
+				<SyncFiles>false</SyncFiles>
+				<Recursive>true</Recursive>
+				<ShowEmptyFolders>true</ShowEmptyFolders>
+				<IncludeFilesWithoutExt>false</IncludeFilesWithoutExt>
+				<Children>
+					<File>
+						<Path>ZECS/ZECS_components.jai</Path>
+					</File>
+					<File>
+						<Path>ZECS/ZECS_main.jai</Path>
+					</File>
+					<File>
+						<Path>ZECS/ZECS_memory.jai</Path>
+					</File>
+					<File>
+						<Path>ZECS/ZECS_types.jai</Path>
+					</File>
+					<File>
+						<Path>ZECS/ZECS_archetypes_meta.jai</Path>
+					</File>
+					<File>
+						<Path>ZECS/ZECS_components_meta.jai</Path>
+					</File>
+				</Children>
+			</Folder>
 			<File>
 				<Path>build.jai</Path>
 			</File>
