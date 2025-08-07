@@ -10,8 +10,13 @@ main :: () {
 
 	world := create_zworld();
 
-//	init_archetype(world, type_of(Archetype_Ship)); // Manual for now
-//	create_entity(world, type_of(Archetype_Ship));
+	init_archetype(world, Archetype_Ship); // Manual for now
+	create_entity(world, Archetype_Ship);
+	entity := world.world_entities[0];
+	position := get_entity_component(world, entity, Position).pos;
+
+
+	print("Entity Scale: %\n", position);
 
 	Camera : rl.Camera3D;
 	Camera.position = Vector3.{ 0, 10, 10 };

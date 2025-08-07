@@ -2,8 +2,6 @@
 #import "Compiler";
 #import "Sort";
 
-
-
 generate_ZECS_constants :: (entity_comp_count: s64, arch_comp_count: s64, tag_count: s64) -> string {
 	builder: String_Builder;
 
@@ -14,24 +12,6 @@ generate_ZECS_constants :: (entity_comp_count: s64, arch_comp_count: s64, tag_co
 	print_to_builder(*builder, "\n");
 
 	return builder_to_string(*builder);	
-}
-
-generate_archetype_initializers :: (arch_const_names: []string) -> string {
-	builder: String_Builder;
-	/*
-	quick_sort(arch_const_names, compare_strings);
-
-	print_to_builder(*builder, "\n");
-	print_to_builder(*builder, "// Archetype Initializers \n");
-
-	for arch_const_names {
-		print_to_builder(*builder, "init_arch_% :: (storage: *Archetype_Storage, entity_index: u32) {\n", it);  
-		print_to_builder(*builder, "", it, it_index);  
-
-	}
-	print_to_builder(*builder, "\n");*/
-
-	return builder_to_string(*builder);
 }
 
 generate_component_switch :: (comp_names: []string, fn_name_type_idx: string, fn_name_idx_type: string, fn_name_type_size: string) -> string {

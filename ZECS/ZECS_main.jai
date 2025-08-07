@@ -56,7 +56,7 @@ get_storage_capacity :: (storage: *Entity_Component_Storage) -> u32 {
 
 Archetype_Component_Storage :: struct {
 	type			: Type;
-	data			: [..]u8;	// Stores 1 component, no more
+	data			: Any;	// Stores 1 component, no more
 }
 
 // Archetypes
@@ -64,12 +64,12 @@ Archetype_Component_Storage :: struct {
 Archetype_Storage :: struct {
 	entity_components 			: [..]Entity_Component_Storage;
 	entity_component_mask 		: Bit_Field(MAX_ENTITY_COMPONENTS);
-/*
+	
 	archetype_components		: [..]Archetype_Component_Storage;
 	archetype_component_mask	: Bit_Field(MAX_ARCH_COMPONENTS);
 
-	tags						: Bit_Field(MAX_TAGS);
-*/	
+//	tags						: Bit_Field(MAX_TAGS);
+	
 	// Entities
 	num_entities			: u32;
 	free_indices			: [..]u32; // Free-list for indices
@@ -81,7 +81,7 @@ Archetype_Storage :: struct {
 
 // Unsafe, assumes component exists
 get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T {
-	comp_storage := get_e_c_storage_ptr(world, entity.archetype, T);
+	comp_storage := get_e_c_storage_ptr(world, get_index_arch(entity.archetype), T);
 	offset := entity.index * comp_storage.stride;
 	return cast(*T) *comp_storage.data[offset];
 }
@@ -110,29 +110,26 @@ reset_world :: (world: *ZWorld) {
     // All allocations are now invalid, arrays need to be reinitialized next turn
 }
 
-init_archetype :: (world: *ZWorld, archetype: Archetype) {
-	
-	arch_idx : u16 = get_arch_index(type_of(archetype)); 			
-
-	arch := *world.world_archetypes[arch_idx];
-	arch.entity_component_mask = make_component_mask(archetype.entity_components);						
-	arch.chunk_size = archetype.chunk_size; 
-	
-	allocator := Allocator.{flat_pool_allocator_proc, *world.world_pool};
+init_archetype :: (world: *ZWorld, $arch_type: Type) {
+    arch_idx := get_arch_index(arch_type);
+    arch := *world.world_archetypes[arch_idx];
+    
+    allocator := Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
+    
+    // Now we can access the constants directly at compile time!
+    arch.entity_component_mask = make_component_mask(arch_type.ENTITY_COMPONENTS);
+    arch.chunk_size = arch_type.CHUNK_SIZE;
+    
+    // Rest of initialization...
     arch.entity_components.allocator = allocator;
-    array_resize(*arch.entity_components, archetype.entity_components.count);
-	
-	for arch.entity_component_mask {
-        storage := *arch.entity_components[it];
-        storage.type = get_entity_component_type(it);
-        storage.stride = get_entity_component_size(storage.type);
-		storage.data.allocator = allocator;
-
-		// Align stride to cache line for components >= 32 bytes
-        if storage.stride >= 32 {
-            storage.stride = (storage.stride + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1);
-		}
-    };
+    array_resize(*arch.entity_components, arch_type.ENTITY_COMPONENTS.count);
+    
+    for comp_type, comp_idx: arch_type.ENTITY_COMPONENTS {
+        storage := *arch.entity_components[comp_idx];
+        storage.type = comp_type;
+        storage.stride = cast(u32)get_entity_component_size(comp_type);
+        storage.data.allocator = allocator;
+    }
 }
 
 // TODO: 
@@ -178,6 +175,8 @@ create_entity :: (world: *ZWorld, arch: Type, idx : u32 = 0, gen : u16 = 0) -> Z
 
 	// Ensure component storage is allocated
     ensure_component_capacity(world, arch_storage, entity_idx + 1);
+
+	init_entity_components(arch, arch_storage, entity_idx);
 
 	entity := ZEntity.{
 		index = entity_idx,

@@ -14,10 +14,16 @@ Rotation :: struct{
 
 Scale :: struct{
 	using #as entity_component: Entity_Component;
-	scale : Vector3 = VECTOR_ONE;
+	scale : Vector3 = .{1,1,1};
 }
 
 Archetype_Component :: struct{}
+
+Mesh_Rep :: struct {
+	using #as archetype_component: Archetype_Component;
+
+	mesh_name		: string; // String for now, maybe should be an autogenned enum?
+}
 
 Tag_Component :: struct{} // Maybe this should just be an enum
 
@@ -25,13 +31,17 @@ Tag_Component :: struct{} // Maybe this should just be an enum
 // Archetypes, move this out to its own file
 
 
-Archetype :: struct (components: [$N]Type){
-	chunk_size 					:	u32 = 32; 	// 32 default AKA "cold", raise to 64-256 for "hotter" archetypes;
-
-	entity_components			:= 	components;
+Archetype :: struct{
 }
 
-Archetype_Ship :: Archetype(Type.[Position, Rotation, Scale]).{
-	chunk_size = 32
-}; 
+Archetype_Ship :: struct{
+	using #as archetype: Archetype;
 
+	ENTITY_COMPONENTS    	:: Type.[Position, Rotation, Scale];
+    ARCHETYPE_COMPONENTS 	:: Type.[Mesh_Rep];
+	TAGS					:: u64;
+
+	DEFAULT_MESH_REP		:: Mesh_Rep.{mesh_name = "Test"};  // Could put some sort of insert macro that adds DEFAULT_ automatically to tagged vars? 
+
+	CHUNK_SIZE				: u32 : 32;
+}; 

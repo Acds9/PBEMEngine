@@ -2,6 +2,8 @@
 #import "Compiler";
 #import "String";
 #import "Process";
+#import "File";
+#import "Text_File_Handler";
 #load "ZECS/ZECS_components_meta.jai";
 #load "ZECS/ZECS_archetypes_meta.jai";
 
@@ -28,7 +30,8 @@ build :: () {
 	compiler_end_intercept(w);
     if success {            
         print("[SUCCESS!]\n");
-        //run_command(sprint("%/%", target_options.output_path, target_options.output_executable_name));  
+		options := get_build_options(w);
+        run_command(sprint("%/%", options.output_path, options.output_executable_name));  
     }    
 }
 
@@ -106,107 +109,48 @@ gather_component_types :: (typechecked: *Message_Typechecked, entity_comps: *[..
     }
 }
 
-gather_archetypes :: (typechecked: *Message_Typechecked) -> [..]Archetype_Build_Metadata {
-	archetypes : [..]Archetype_Build_Metadata;
-	for typechecked.declarations {
-        decl := it.expression;
-        
-        if decl.flags & .IS_CONSTANT {
-            info := decl.type;
-            if (info.type == .STRUCT) {
-                struct_info := cast(*Type_Info_Struct) info;
-                
-                if struct_info.polymorph_source_struct && struct_info.polymorph_source_struct.name == "Archetype" {
-                    
-					archetype : Archetype_Build_Metadata;
-					archetype.name = decl.name;
-                    for member: struct_info.members {
-                        if member.name == "entity_components" {
-                            array_type := cast(*Type_Info_Array) member.type;
-                            
-                            // Create an Any pointing to the member data
-                            any: Any;
-                            any.type = member.type;
-                            
-                            // Get the value pointer - this depends on where the data actually is
-                            if member.offset_into_constant_storage >= 0 {
-                                any.value_pointer = struct_info.constant_storage.data + member.offset_into_constant_storage;
-                            } else {
-                                // Try using offset_in_bytes
-                                any.value_pointer = struct_info.constant_storage.data + member.offset_in_bytes;
-                            }
-                            
-                            // Now extract array data like print_array does
-                            if array_type.array_type == .FIXED {
-                                count := array_type.array_count;
-                                data := any.value_pointer;  // For FIXED arrays, data is directly here
-                                
-                                for i: 0..count-1 {
-                                    pointer := data + array_type.element_type.runtime_size * i;
-                                    
-                                    // Create Any for each element
-                                    item: Any;
-                                    item.type = array_type.element_type;
-                                    item.value_pointer = pointer;
-                                    
-                                    // Now extract the Type (*Type_Info)
-                                    type_ptr := (.*) cast(**Type_Info_Struct) item.value_pointer;
-                                    if type_ptr {
-										type := <<type_ptr;
-										array_add(*archetype.entity_components, type.name);
-                                    }
-                                }
-                            }
-                        }
-                    }
-					print("Detected Archetype: %\n", archetype);
-					array_add(*archetypes, archetype);
-                }
-            }
-        }
-    }
-
-	return archetypes;
-}
-
 generate_all_code :: (w: Workspace, entity_comps: []string, arch_comps: []string, tags: []string, archetypes: []Archetype_Build_Metadata) {
 
 	constants_code := generate_ZECS_constants(entity_comps.count, arch_comps.count, tags.count);
-	add_build_string(constants_code, w);
 
-	
-    // Generate entity component switch
+	constants_file_builder: String_Builder;
+	append(*constants_file_builder, constants_code);
+	write_entire_file("ZECS/generated/ZECS_constants_gen.jai", builder_to_string(*constants_file_builder));
+	add_build_file("ZECS/generated/ZECS_constants_gen.jai", w);
+	print("Generated ZECS constants file: ZECS/generated/ZECS_constants_gen.jai\n");
+
+    components_file_builder: String_Builder;
     if entity_comps.count > 0 {
         code := generate_component_switch(entity_comps, "get_entity_component_index", "get_entity_component_type", "get_entity_component_size");
-        add_build_string(code, w);
+        append(*components_file_builder, code);
         print("Generated entity component switch with % components\n", entity_comps.count);
     }
     
-    // Generate archetype component switch
     if arch_comps.count > 0 {
         code := generate_component_switch(arch_comps, "get_archetype_component_index", "get_archetype_component_type", "get_archetype_component_size");
-        add_build_string(code, w);
+        append(*components_file_builder, code);
         print("Generated archetype component switch with % components\n", arch_comps.count);
     }
     
-    // Generate tag switch
     if tags.count > 0 {
         code := generate_component_switch(tags, "get_tag_index", "get_tag_type", "");
-        add_build_string(code, w);
+        append(*components_file_builder, code);
         print("Generated tag switch with % tags\n", tags.count);
     }
 
+	write_entire_file("ZECS/generated/ZECS_components_gen.jai", builder_to_string(*components_file_builder));
+	add_build_file("ZECS/generated/ZECS_components_gen.jai", w);
+	print("Generated ZECS components file: ZECS/generated/ZECS_components_gen.jai\n");
+
+	archetypes_file_builder: String_Builder;
 	if archetypes.count > 0 {
-		code := generate_archetype_switch(get_arch_names(archetypes), "get_arch_index");
-		add_build_string(code, w);
-		print("Generated archetype switch with % archetypes\n", archetypes.count);
-		code = generate_archetype_initializer_switch(archetypes, "entity_initializer_switch");
-		add_build_string(code, w);
-		code = generate_archetype_initializers(archetypes);
-		add_build_string(code, w);
-		code = generate_archetype_e_c_storage_mappings(archetypes);
-		add_build_string(code, w);
+		code := generate_archetype_code(archetypes);
+		append(*archetypes_file_builder, code);
 	}
+
+	write_entire_file("ZECS/generated/ZECS_archetypes_gen.jai", builder_to_string(*archetypes_file_builder));
+	add_build_file("ZECS/generated/ZECS_archetypes_gen.jai", w);
+	print("Generated ZECS archetypes file: ZECS/generated/ZECS_archetypes_gen.jai\n");
 }
 
 main :: (){}
