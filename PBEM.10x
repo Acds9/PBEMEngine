@@ -9,7 +9,7 @@
 		<IncludeFilesWithoutExt>false</IncludeFilesWithoutExt>
 		<IsFolder>false</IsFolder>
 		<UseVisualStudioEnvBat>false</UseVisualStudioEnvBat>
-		<CaptureExeOutput>true</CaptureExeOutput>
+		<CaptureExeOutput>false</CaptureExeOutput>
 		<Configurations>
 			<Configuration>Debug</Configuration>
 			<Configuration>Release</Configuration>

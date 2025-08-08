@@ -1,22 +1,8 @@
 #import "Basic";
 #import "Compiler";
 #import "Sort";
-
-Archetype_Build_Metadata :: struct {
-    name                : string;
-    entity_components   : [..]string;
-    arch_components     : [..]string;
-	a_c_defaults		: [..]Archetype_Component_Default;
-    tags                : string;  
-    chunk_size          : u32 = 32;
-}
-
-Archetype_Component_Default :: struct {
-	comp_type_name		: string;
-	data_type			: *Type_Info;
-	data_ptr			: *u8;
-	data_size			: u32;
-}
+#load "ZECS_archetypes.jai";
+#load "generated/ZECS_components_gen.jai";
 
 //
 // Helper Functions
@@ -125,7 +111,8 @@ generate_entity_component_initializers :: (metadata: []Archetype_Build_Metadata)
         print_to_builder(*builder, "init_entity_components_% :: (storage: *Archetype_Storage, entity_index: u32) {\n", arch.name);
         
         for comp: arch.entity_components {
-            comp_idx := sprint("get_entity_component_index(%)", comp);
+            comp_type := get_entity_component_type(comp);
+			comp_idx := get_entity_component_index(comp_type);
             print_to_builder(*builder, "\t%_ptr := cast(*%) (storage.entity_components[%].data.data + entity_index * storage.entity_components[%].stride);\n", comp, comp, comp_idx, comp_idx);
             print_to_builder(*builder, "\t<<%_ptr = %.{};\n", comp, comp);
         }
@@ -157,149 +144,130 @@ generate_entity_initializer_dispatch :: (metadata: []Archetype_Build_Metadata) -
     return builder_to_string(*builder);
 }
 
-//
-// Main Generation Entry Point
-//
-
-generate_archetype_code :: (metadata: []Archetype_Build_Metadata) -> string {
-    builder: String_Builder;
-    
-	// Database
-	append(*builder, generate_archetype_database(metadata));
-
-    // Core lookup functions
-    append(*builder, generate_archetype_index_lookup(metadata));
-	append(*builder, generate_index_archetype_lookup(metadata));
-    append(*builder, generate_component_storage_getter(metadata));
-    
-    // Entity initialization
-    append(*builder, generate_entity_component_initializers(metadata));
-    append(*builder, generate_entity_initializer_dispatch(metadata));
-    
-    return builder_to_string(*builder);
-}
-
-
-gather_archetypes :: (typechecked: *Message_Typechecked) -> [..]Archetype_Build_Metadata {
-	archetypes : [..]Archetype_Build_Metadata;
-	
-	for typechecked.structs {
-        info := it.expression.defined_type;
-        
-        if is_subclass_of(info, "Archetype") && info.name != "Archetype" {
-			archetype : Archetype_Build_Metadata;
-			archetype.name = info.name;
-
-			for member: info.members {
-				if(member.flags & .CONSTANT) {
-					if(member.name == "ENTITY_COMPONENTS") {
-						// We know it's an array
-						array_type := cast(*Type_Info_Array)member.type;
-						count := array_type.array_count;
-						
-						any: Any;
-						any.type = member.type;
-
-						if(member.offset_into_constant_storage >= 0) {
-							any.value_pointer = info.constant_storage.data + member.offset_into_constant_storage;
-						}
-						else {
-							any.value_pointer = info.constant_storage.data + member.offset_in_bytes;
-						}
-
-						// we know array type is fixed
-						data := any.value_pointer; // So the data is right here
-						for i: 0..count-1 {
-							pointer := data + array_type.element_type.runtime_size * i;
-
-							item: Any;
-							item_type:= array_type.element_type;
-							item.value_pointer = pointer;
-
-							// Extract
-							type_ptr := (.*) cast(**Type_Info_Struct) item.value_pointer;
-							if type_ptr {
-								type := <<type_ptr;
-								array_add(*archetype.entity_components, type.name);
-							}
-						}
-					}
-					else if (member.name == "ARCHETYPE_COMPONENTS") {
-						array_type := cast(*Type_Info_Array)member.type;
-						count := array_type.array_count;
-						
-						any: Any;
-						any.type = member.type;
-
-						if(member.offset_into_constant_storage >= 0) {
-							any.value_pointer = info.constant_storage.data + member.offset_into_constant_storage;
-						}
-						else {
-							any.value_pointer = info.constant_storage.data + member.offset_in_bytes;
-						}
-
-						// we know array type is fixed
-						data := any.value_pointer; // So the data is right here
-						for i: 0..count-1 {
-							pointer := data + array_type.element_type.runtime_size * i;
-
-							item: Any;
-							item_type:= array_type.element_type;
-							item.value_pointer = pointer;
-
-							// Extract
-							type_ptr := (.*) cast(**Type_Info_Struct) item.value_pointer;
-							if type_ptr {
-								type := <<type_ptr;
-								array_add(*archetype.arch_components, type.name);
-							}
-						}
-					}
-					else if (member.name == "TAGS") {
-						// Just extract the u64 value directly
-						tags_value := <<cast(*u64)(info.constant_storage.data + member.offset_into_constant_storage);
-						
-						builder: String_Builder;
-						print_to_builder(*builder, "%", tags_value);
-
-						archetype.tags = builder_to_string(*builder);  // Store as u64 in metadata
-						
-					}
-					else if (starts_with(member.name, "DEFAULT_"))
-					{
-						_,_,comp_name := split_from_left(member.name, "_");  // Skip "DEFAULT_"
-
-						print("%\n", comp_name);
-
-						default_value: Archetype_Component_Default;
-						default_value.comp_type_name = comp_name;
-						default_value.data_type = member.type;
-						default_value.data_ptr = info.constant_storage.data + member.offset_into_constant_storage;
-						default_value.data_size = cast(u32)member.type.runtime_size;
-
-						array_add(*archetype.a_c_defaults, default_value);
-					}
-				}
-			}
-			array_add(*archetypes, archetype);
-        }
-    }
-	return archetypes;
-}
-
 generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string {
 	builder: String_Builder;
-    /*
+    
     print_to_builder(*builder, "\n// Database of all archetype data\n");
     print_to_builder(*builder, "ARCHETYPE_DATABASE :: struct {\n");
     
     for arch: metadata {
         print_to_builder(*builder, "\t%_Data :: struct {\n", arch.name);
 
-		print_to_builder(*builder, "\t\tEntity_Component_Mask	: Bit_Field(MAX_ENTITY_COMPONENTS) = make_bit_field(MAX_ENTITY_COMPONENTS, u32.[0, 1, 2])\n");
+		e_c_array: [..]Type;
+		e_c_size_array: [..]u32;
+		e_c_stride_array: [..]u32;
+		e_c_mask: Bit_Field(MAX_ENTITY_COMPONENTS);
+		for comp: arch.entity_components {
+			comp_type := get_entity_component_type(comp);
+			comp_idx := get_entity_component_index(comp_type);
+
+			array_add(*e_c_array, comp_type);
+			array_add(*e_c_size_array, get_entity_component_size(comp_type));
+			array_add(*e_c_stride_array, get_entity_component_size(comp_type)); // For now it's identical we can adjust for alignement later if needed
+			bit_set(*e_c_mask, comp_idx);
+		}
+
+		entity_data_array := bit_field_as_u64_array(e_c_mask);
+
+		print_to_builder(*builder, "\t\tEntity_Component_Mask		: Bit_Field(MAX_ENTITY_COMPONENTS) : .{.%};\n", entity_data_array);
+
+		a_c_array: [..]Type;
+		a_c_mask: Bit_Field(MAX_ENTITY_COMPONENTS);
+		for comp: arch.arch_components {
+			comp_type := get_arch_component_type(comp);
+			comp_idx := get_archetype_component_index(comp_type);
+
+			array_add(*a_c_array, comp_type);
+			bit_set(*a_c_mask, comp_idx);
+		}
+
+		arch_data_array := bit_field_as_u64_array(a_c_mask);
+
+		print_to_builder(*builder, "\t\tArchetype_Component_Mask	: Bit_Field(MAX_ARCH_COMPONENTS) : .{.%};\n", arch_data_array);
+		print_to_builder(*builder, "\n");
+		
+		print_to_builder(*builder, "\t\tEntity_Components			: [%]Type : .%;\n", e_c_array.count, e_c_array);
+		print_to_builder(*builder, "\t\tEntity_Components_sizes		: [%]u32 : .%;\n", e_c_array.count, e_c_size_array);
+		print_to_builder(*builder, "\t\tEntity_Components_strides	: [%]u32 : .%;\n", e_c_array.count, e_c_stride_array);
+		print_to_builder(*builder, "\n");
+
+		print_to_builder(*builder, "\t\tArchetype_Components		: [%]Type : .%;\n", a_c_array.count, a_c_array);
+		print_to_builder(*builder, "\n");
+
+		print_to_builder(*builder, "\t\tTags						: ZTags : cast,no_check(ZTags)%;\n", arch.tags); // TODO: change to actual names to see what it is?
+		
+		print_to_builder(*builder, "\t\tchunk_size					: u32 : %;\n", arch.chunk_size); 
+
+		print_to_builder(*builder, "\t\tinitializer					: u32 : %;\n", arch.chunk_size); 
+
+		// We do not need to add defaults, they are already initialized constants in the component definition, just refer to them directly
+
 		print_to_builder(*builder, "\t}\n");
     }
     print_to_builder(*builder, "}\n");
-    */
+    
     return builder_to_string(*builder);
+}
+
+generate_archetype_initializers :: (metadata: []Archetype_Build_Metadata) -> string {
+	builder: String_Builder;
+
+	for arch: metadata {
+		print_to_builder(*builder, "\n// Archetype Storage initializer for %\n", arch.name);
+		print_to_builder(*builder, "initialize_storage_% :: (alloc: Allocator) -> Archetype_Storage {\n", arch.name);
+
+			print_to_builder(*builder, "\tstorage: Archetype_Storage;\n");
+			print_to_builder(*builder, "\n");
+
+			print_to_builder(*builder, "\tstorage.entity_components.allocator = alloc;\n");
+			print_to_builder(*builder, "\tstorage.archetype_components.allocator = alloc;\n");
+			print_to_builder(*builder, "\tstorage.free_indices.allocator = alloc;\n");
+			print_to_builder(*builder, "\tstorage.generations.allocator = alloc;\n");
+			print_to_builder(*builder, "\n");
+
+			print_to_builder(*builder, "\tstorage.entity_component_mask = ARCHETYPE_DATABASE.%_Data.Entity_Component_Mask;\n", arch.name);
+			print_to_builder(*builder, "\tstorage.archetype_component_mask = ARCHETYPE_DATABASE.%_Data.Archetype_Component_Mask;\n", arch.name);
+			print_to_builder(*builder, "\n");
+
+			print_to_builder(*builder, "\tarray_resize(*storage.entity_components, ARCHETYPE_DATABASE.%_Data.Entity_Components.count);\n", arch.name);
+			print_to_builder(*builder, "\tarray_resize(*storage.archetype_components, ARCHETYPE_DATABASE.%_Data.Entity_Components.count);\n", arch.name);
+			print_to_builder(*builder, "\n");
+
+			print_to_builder(*builder, "\tfor ARCHETYPE_DATABASE.%_Data.Entity_Components {\n", arch.name);
+				print_to_builder(*builder, "\t\tstorage.entity_components[it_index].type = it;\n");
+				print_to_builder(*builder, "\t\tstorage.entity_components[it_index].stride = get_entity_component_size(it);\n"); // Size, stride? 
+			print_to_builder(*builder, "\t}\n");
+			print_to_builder(*builder, "\n");
+
+			for arch.a_c_defaults {
+				print_to_builder(*builder, "\tstorage.archetype_components[%].type = %;\n", it_index, it.comp_type_name);
+				print_to_builder(*builder, "\tstorage.archetype_components[%].data = Any.{type = type_info(%), value_pointer = cast(*void)(*%.DEFAULT_%)};\n", it_index, it.comp_type_name, arch.name, it.comp_type_name);
+			}
+
+			print_to_builder(*builder, "\tstorage.tags = ARCHETYPE_DATABASE.%_Data.Tags;\n", arch.name);
+			
+			print_to_builder(*builder, "\tstorage.chunk_size = ARCHETYPE_DATABASE.%_Data.chunk_size;\n", arch.name);
+
+		print_to_builder(*builder, "\treturn storage;\n");
+		print_to_builder(*builder, "}\n");
+	}
+    return builder_to_string(*builder);
+}
+
+generate_archetype_initializer_getter :: (metadata: []Archetype_Build_Metadata) -> string {
+	builder: String_Builder;
+
+	print_to_builder(*builder, "\n// Archetype Storage Initializer getter\n");
+	print_to_builder(*builder, "get_archetype_initializer :: (t: Type) -> Arch_Storage_Initializer  {\n");
+		
+		print_to_builder(*builder, "\tif t == {\n");
+		for arch: metadata {
+			print_to_builder(*builder, "\tcase %; return initialize_storage_%;\n", arch.name, arch.name);
+			print_to_builder(*builder, "\tcase; return null;\n");
+		}
+		print_to_builder(*builder, "\t}\n");
+
+	print_to_builder(*builder, "}\n");
+	
+	return builder_to_string(*builder);
 }

@@ -52,3 +52,35 @@ get_archetype_component_size :: (T: Type) -> u32 {
 		case; return 0;
 	}
 }
+
+// Get the component storage index for the given Type
+get_tag_index :: (t: Type) -> u32 {
+	if t == {
+		case; return 0;
+	}
+}
+
+// Get the component Type for the given index
+get_tag_type :: (idx: u32) -> Type {
+	if idx == {
+		case; return Type;
+	}
+}
+
+// Get the entity_component Type from a string name
+get_entity_component_type :: (name: string) -> Type {
+	if name == {
+		case "Position"; return Position;
+		case "Rotation"; return Rotation;
+		case "Scale"; return Scale;
+		case; return Position;
+	}
+}
+
+// Get the arch component Type from a string name
+get_arch_component_type :: (name: string) -> Type {
+	if name == {
+		case "Mesh_Rep"; return Mesh_Rep;
+		case; return Position;
+	}
+}

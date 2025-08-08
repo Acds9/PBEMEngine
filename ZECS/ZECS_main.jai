@@ -60,15 +60,16 @@ Archetype_Component_Storage :: struct {
 }
 
 // Archetypes
-
+Arch_Storage_Initializer :: #type (alloc: Allocator) -> Archetype_Storage;
 Archetype_Storage :: struct {
+	initialized					: bool;
 	entity_components 			: [..]Entity_Component_Storage;
 	entity_component_mask 		: Bit_Field(MAX_ENTITY_COMPONENTS);
 	
 	archetype_components		: [..]Archetype_Component_Storage;
 	archetype_component_mask	: Bit_Field(MAX_ARCH_COMPONENTS);
 
-//	tags						: Bit_Field(MAX_TAGS);
+	tags						: ZTags;
 	
 	// Entities
 	num_entities			: u32;
@@ -100,7 +101,9 @@ create_zworld :: (pool_size: s64 = DEFAULT_POOL_SIZE) -> *ZWorld {
 	world := New(ZWorld);
 
 	fp.init(*world.world_pool, pool_size);
-	world.world_entities.allocator = Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
+	allocator := Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
+
+	world.world_entities.allocator = allocator;
 
 	return world;
 }
@@ -110,52 +113,30 @@ reset_world :: (world: *ZWorld) {
     // All allocations are now invalid, arrays need to be reinitialized next turn
 }
 
-init_archetype :: (world: *ZWorld, $arch_type: Type) {
-    arch_idx := get_arch_index(arch_type);
-    arch := *world.world_archetypes[arch_idx];
-    
+init_archetype :: (world: *ZWorld, archetype: Type) {
     allocator := Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
-    
-    // Now we can access the constants directly at compile time!
-    arch.entity_component_mask = make_component_mask(arch_type.ENTITY_COMPONENTS);
-    arch.chunk_size = arch_type.CHUNK_SIZE;
-    
-    // Rest of initialization...
-    arch.entity_components.allocator = allocator;
-    array_resize(*arch.entity_components, arch_type.ENTITY_COMPONENTS.count);
-    
-    for comp_type, comp_idx: arch_type.ENTITY_COMPONENTS {
-        storage := *arch.entity_components[comp_idx];
-        storage.type = comp_type;
-        storage.stride = cast(u32)get_entity_component_size(comp_type);
-        storage.data.allocator = allocator;
-    }
+	storage := get_archetype_storage(world, archetype);
+	<<storage = get_archetype_initializer(archetype)(allocator);
+	storage.initialized = true;
 }
 
-// TODO: 
-// 1) Add archetype component logic
-// 2) try to get an entity spawned and rendering
-
-make_component_mask :: (components: []Type) -> Bit_Field(MAX_ENTITY_COMPONENTS) {
-	bit_field : Bit_Field(MAX_ENTITY_COMPONENTS) = .{};
-	for components {
-		idx := get_entity_component_index(it);
-
-		bit_set(*bit_field, idx);
-	}
-
-	return bit_field;
+get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage {
+	return *world.world_archetypes[get_arch_index(archetype)];
 }
 
 // Entities
 
 // idx and gen can be used to force a specific index and gen onto the entity for deserialization
 create_entity :: (world: *ZWorld, arch: Type, idx : u32 = 0, gen : u16 = 0) -> ZEntity {
-	arch_idx := get_arch_index(arch);
+	arch_storage := get_archetype_storage(world, arch);
+	if !arch_storage.initialized {
+		init_archetype(world, arch);
+		arch_storage = get_archetype_storage(world, arch); // Re-get, may be invalid
+	}
 
-	arch_storage := *world.world_archetypes[arch_idx];
 	entity_idx : u32;
 	entity_gen : u16;
+
 	if(idx != 0) {
 		// Assumes there are already allocated slots
 		entity_idx = idx;
@@ -163,6 +144,7 @@ create_entity :: (world: *ZWorld, arch: Type, idx : u32 = 0, gen : u16 = 0) -> Z
 	} else {
 		if arch_storage.free_indices {
 			entity_idx = pop(*arch_storage.free_indices);
+            entity_gen = arch_storage.generations[entity_idx];
 		} else {
 			entity_idx = arch_storage.num_entities;
 			arch_storage.num_entities += 1; 
@@ -180,12 +162,81 @@ create_entity :: (world: *ZWorld, arch: Type, idx : u32 = 0, gen : u16 = 0) -> Z
 
 	entity := ZEntity.{
 		index = entity_idx,
-		gen = arch_storage.generations[entity_idx],
-		archetype = cast(u16)arch_idx
+		gen = entity_gen,
+		archetype = get_arch_index(arch)
 	};
 
 	array_add(*world.world_entities, entity);
 	return entity;
+}
+
+create_entity_batch :: (world: *ZWorld, $arch_type: Type, count: u32) -> []ZEntity {
+    if count == 0 return .[];
+
+    arch_idx := get_arch_index(arch_type);
+    arch_storage := *world.world_archetypes[arch_idx];
+    
+    // Initialize archetype if needed
+    if arch_storage.entity_component_mask.data[0] == 0 {
+        init_world_archetype(world, arch_type);
+        arch_storage = *world.world_archetypes[arch_idx];
+    }
+    
+    entities: [..]ZEntity;
+    array_reserve(*entities, count);
+    
+    // Pre-allocate all storage at once
+    start_idx := arch_storage.num_entities;
+    needed_capacity := start_idx + count;
+    
+    // Handle free list first
+    while arch_storage.free_indices && entities.count < count {
+        entity_idx := pop(*arch_storage.free_indices);
+        entity_gen := arch_storage.generations[entity_idx];
+        
+        entity := ZEntity.{
+            index = entity_idx,
+            gen = entity_gen,
+            archetype = cast(u16)arch_idx
+        };
+        
+        array_add(*entities, entity);
+        init_entity_components(arch_type, arch_storage, entity_idx);
+    }
+    
+    // Allocate new entities for the rest
+    remaining := count - cast(u32)entities.count;
+    if remaining > 0 {
+        // Ensure capacity for all new entities at once
+        ensure_component_capacity(world, arch_storage, arch_storage.num_entities + remaining);
+        
+        if arch_storage.generations.count < arch_storage.num_entities + remaining {
+            array_resize(*arch_storage.generations, arch_storage.num_entities + remaining);
+        }
+        
+        // Create all remaining entities
+        for i: 0..remaining-1 {
+            entity_idx := arch_storage.num_entities;
+            arch_storage.num_entities += 1;
+            
+            entity := ZEntity.{
+                index = entity_idx,
+                gen = arch_storage.generations[entity_idx],
+                archetype = cast(u16)arch_idx
+            };
+            
+            array_add(*entities, entity);
+            init_entity_components(arch_type, arch_storage, entity_idx);
+        }
+    }
+    
+    // Add all to world entities
+    array_reserve(*world.world_entities, world.world_entities.count + count);
+    for entities {
+        array_add(*world.world_entities, it);
+    }
+    
+    return entities;
 }
 
 destroy_entity :: (world: *ZWorld, entity: ZEntity) {

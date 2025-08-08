@@ -69,3 +69,43 @@ generate_component_switch :: (comp_names: []string, fn_name_type_idx: string, fn
 
 	return builder_to_string(*builder);
 }
+
+generate_string_to_entity_comp_type :: (comp_names: []string) -> string {
+	builder: String_Builder;
+
+	quick_sort(comp_names, compare_strings);
+
+	print_to_builder(*builder, "\n");
+	print_to_builder(*builder, "// Get the entity_component Type from a string name\n");
+	print_to_builder(*builder, "get_entity_component_type :: (name: string) -> Type {\n");
+	print_to_builder(*builder, "\tif name == {\n");
+
+	for comp_names {
+		print_to_builder(*builder, "\t\tcase \"%\"; return %;\n", it, it);
+	}
+	print_to_builder(*builder, "\t\tcase; return Position;\n");
+	print_to_builder(*builder, "\t}\n");
+	print_to_builder(*builder, "}\n");
+
+	return builder_to_string(*builder);
+}
+
+generate_string_to_arch_comp_type :: (comp_names: []string) -> string {
+	builder: String_Builder;
+
+	quick_sort(comp_names, compare_strings);
+
+	print_to_builder(*builder, "\n");
+	print_to_builder(*builder, "// Get the arch component Type from a string name\n");
+	print_to_builder(*builder, "get_arch_component_type :: (name: string) -> Type {\n");
+	print_to_builder(*builder, "\tif name == {\n");
+
+	for comp_names {
+		print_to_builder(*builder, "\t\tcase \"%\"; return %;\n", it, it);
+	}
+	print_to_builder(*builder, "\t\tcase; return Position;\n");
+	print_to_builder(*builder, "\t}\n");
+	print_to_builder(*builder, "}\n");
+
+	return builder_to_string(*builder);
+}

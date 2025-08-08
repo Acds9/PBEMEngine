@@ -13,6 +13,7 @@ make_bit_field :: ($N: u32, bits: [..]u32) -> Bit_Field(N) {
 	for bits {
 		bit_set(*field, it);
 	}
+	return field;
 }
 
 // Set a bit in the bitfield
@@ -77,17 +78,11 @@ operator ~ :: (a: Bit_Field($N)) -> Bit_Field(N) {
 operator [] :: inline (field: Bit_Field($N), bit: int) -> bool {
     return bit_test(field, bit);
 }
-/*
-for_expansion :: (field: Bit_Field($N), body: Code, flags: For_Flags) #expand {
-    #assert(flags == 0);
-    
-    for `it: 0..N-1 {
 
-        if bit_test(field, it) {
-            #insert body;
-        }
-    }
-}*/
+bit_field_as_u64_array :: inline (field: Bit_Field($N)) -> []u64 {
+    return field.data;
+}
+
 
 for_expansion :: (field: Bit_Field($N), body: Code, flags: For_Flags) #expand {
     #assert(flags == 0);
@@ -102,7 +97,6 @@ for_expansion :: (field: Bit_Field($N), body: Code, flags: For_Flags) #expand {
         }
     }
 }
-
 // Usage:
 /*
 	for_bits(component_mask, (bit) {
