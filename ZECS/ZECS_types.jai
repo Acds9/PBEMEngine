@@ -17,23 +17,23 @@ make_bit_field :: ($N: u32, bits: [..]u32) -> Bit_Field(N) {
 }
 
 // Set a bit in the bitfield
-bit_set :: inline (field: *Bit_Field($N), bit: int) {
+bit_set :: inline (field: *Bit_Field($N), bit: u32) {
     assert(bit >= 0 && bit < N);
     word := bit / 64;
     offset := bit % 64;
-    field.data[word] |= cast(u64)(1 << offset);
+    field.data[word] |= cast,no_check(u64)(1 << offset);
 }
 
 // Clear a bit in the bitfield (set to 0)
-bit_clear :: inline (field: *Bit_Field($N), bit: int) {
+bit_clear :: inline (field: *Bit_Field($N), bit: u32) {
     assert(bit >= 0 && bit < N);
     word := bit / 64;
     offset := bit % 64;
-    field.data[word] &= ~(1 << offset);
+    field.data[word] &= cast,no_check(u64)~(1 << offset);
 }
 
 // Returns true if bit == 1
-bit_test :: inline (field: Bit_Field($N), bit: int) -> bool {
+bit_test :: inline (field: Bit_Field($N), bit: u32) -> bool {
     assert(bit >= 0 && bit < N);
     word := bit / 64;
     offset := bit % 64;
@@ -75,7 +75,7 @@ operator ~ :: (a: Bit_Field($N)) -> Bit_Field(N) {
 }
 
 // Check if bit is set with [] operator
-operator [] :: inline (field: Bit_Field($N), bit: int) -> bool {
+operator [] :: inline (field: Bit_Field($N), bit: u32) -> bool {
     return bit_test(field, bit);
 }
 

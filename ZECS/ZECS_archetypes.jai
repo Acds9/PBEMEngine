@@ -1,6 +1,7 @@
 ZTags :: enum_flags u64 {
-	NONE;
 	SHIP;
+	PROJECTILE;
+	COMPONENT;
 }
 
 
@@ -12,7 +13,7 @@ Archetype_Ship :: struct{
 
 	ENTITY_COMPONENTS    	:: Type.[Position, Rotation, Scale];
     ARCHETYPE_COMPONENTS 	:: Type.[Mesh_Rep];
-	TAGS					:: ZTags.NONE | ZTags.SHIP;
+	TAGS					:: ZTags.SHIP;
 
 	DEFAULT_Mesh_Rep		:: Mesh_Rep.{mesh_name = "Test"};  // Could put some sort of insert macro that adds DEFAULT_ automatically to tagged vars? 
 

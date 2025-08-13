@@ -17,6 +17,15 @@ Scale :: struct{
 	scale : Vector3 = .{1,1,1};
 }
 
+Representation_Flags :: enum_flags u8 {
+	TRANSFORM_DIRTY;
+}
+
+Entity_Representation_Flags :: struct {
+	using #as entity_component: Entity_Component;
+	flags : Representation_Flags;
+}
+
 Archetype_Component :: struct{}
 
 Mesh_Rep :: struct {

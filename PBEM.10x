@@ -32,7 +32,7 @@
 		<ConfigProperties>
 			<ConfigAndPlatform>
 				<Name>Debug:x64</Name>
-				<BuildCommand>jai build.jai</BuildCommand>
+				<BuildCommand>H:\PBEMJai\build_and_run.bat</BuildCommand>
 				<RebuildCommand>jai build.jai -rebuild</RebuildCommand>
 				<BuildFileCommand>jai build.jai</BuildFileCommand>
 				<CleanCommand>jai build.jai -clean</CleanCommand>
@@ -41,8 +41,8 @@
 				<Exe>H:\PBEMJai\bin\PBEM.exe</Exe>
 				<Args></Args>
 				<WorkingDirectory></WorkingDirectory>
-				<DebugCommand>jai build.jai -debugger</DebugCommand>
-				<DebuggerExe></DebuggerExe>
+				<DebugCommand>H:\PBEMJai\build_and_debug.bat</DebugCommand>
+				<DebuggerExe>raddbg</DebuggerExe>
 				<DebugSln></DebugSln>
 				<Defines></Defines>
 				<ForceIncludes></ForceIncludes>
@@ -122,6 +122,9 @@
 			</File>
 			<File>
 				<Path>main.jai</Path>
+			</File>
+			<File>
+				<Path>mesh_rendering.jai</Path>
 			</File>
 			<WorkspaceReference>
 				<Path>../Jai/Jai.10x</Path>
