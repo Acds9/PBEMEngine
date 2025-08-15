@@ -2,9 +2,21 @@
 #import "Compiler";
 #import "Sort";
 
-//
-// Helper Functions
-//
+generate_file_loads :: () -> string {
+	builder: String_Builder;
+   	
+	files := string.[
+		"ZECS/ZECS_types.jai",
+		"ZECS/generated/ZECS_constants_gen.jai",
+	];
+   
+   	for files {
+		print_to_builder(*builder, "#load \"%\"\n", it);
+	}
+ 
+    
+    return builder_to_string(*builder);
+}
 
 get_archetype_names :: (metadata: []Archetype_Build_Metadata) -> [..]string {
     names : [..]string;
@@ -24,6 +36,7 @@ generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string 
 
 		print_to_builder(*builder, "\tname: string;\n");
 		print_to_builder(*builder, "\tindex: u16;\n");
+		print_to_builder(*builder, "\ttype: Type;\n");
 
 		print_to_builder(*builder, "\tentity_component_mask: Bit_Field(MAX_ENTITY_COMPONENTS);\n");
 		print_to_builder(*builder, "\tarchetype_component_mask: Bit_Field(MAX_ARCH_COMPONENTS);\n");
@@ -49,6 +62,7 @@ generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string 
 		print_to_builder(*builder, "\t.{\n");
         print_to_builder(*builder, "\t\tname = \"%\",\n", arch.name);
 		print_to_builder(*builder, "\t\tindex = %,\n", it_index);
+		print_to_builder(*builder, "\t\ttype = %,\n", arch.name);
 		print_to_builder(*builder, "\n");
 		e_c_array: [..]Type;
 		e_c_size_array: [..]u32;
@@ -159,7 +173,7 @@ generate_index_archetype_lookup :: (metadata: []Archetype_Build_Metadata) -> str
         print_to_builder(*builder, "\t\tcase %; return %;\n", it_index, it);
     }
     
-    print_to_builder(*builder, "\t\tcase; return Archetype;\n");
+    print_to_builder(*builder, "\t\tcase; return void;\n");
     print_to_builder(*builder, "\t}\n");
     print_to_builder(*builder, "}\n");
     
@@ -179,7 +193,7 @@ generate_string_to_arch_type :: (arch_names: []string) -> string {
 	for arch_names {
 		print_to_builder(*builder, "\t\tcase \"%\"; return %;\n", it, it);
 	}
-	print_to_builder(*builder, "\t\tcase; return Archetype;\n");
+	print_to_builder(*builder, "\t\tcase; return void;\n");
 	print_to_builder(*builder, "\t}\n");
 	print_to_builder(*builder, "}\n");
 
@@ -325,6 +339,7 @@ generate_archetype_component_index_getters :: (metadata: []Archetype_Build_Metad
 			print_to_builder(*builder, "\t\tcase; return 0;\n");
 		}
 		print_to_builder(*builder, "\t}\n");
+	
 	print_to_builder(*builder, "}\n");
 
 	print_to_builder(*builder, "get_archetype_component_index :: (archetype: Type, archetype_component: Type) -> u16 {\n");
@@ -372,3 +387,8 @@ generate_archetype_component_index_getters :: (metadata: []Archetype_Build_Metad
 	
 	return builder_to_string(*builder);
 }
+
+#load "ZECS_types.jai";
+#load "generated/ZECS_constants_gen.jai";
+#load "ZECS_components.jai";
+#load "generated/ZECS_components_gen.jai";

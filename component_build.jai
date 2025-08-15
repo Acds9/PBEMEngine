@@ -79,9 +79,7 @@ code_generation :: (w: Workspace) -> bool {
 generate_component_code :: (w: Workspace, entity_comps: []string, arch_comps: []string, tags: []string){
 	constants_file_builder: String_Builder;
 
-	#load "ZECS/ZECS_components_meta.jai";
-	constants_code := generate_ZECS_constants(entity_comps.count, arch_comps.count, tags.count); // Maybe this shouldn't be here?
-	append(*constants_file_builder, constants_code);
+	append(*constants_file_builder, generate_ZECS_constants(entity_comps.count, arch_comps.count, tags.count));
 	write_entire_file(ZECS_CONSTANTS_GEN_PATH, builder_to_string(*constants_file_builder));
 	add_build_file(ZECS_CONSTANTS_GEN_PATH, w);
 	print("Generated ZECS constants file: %\n", ZECS_CONSTANTS_GEN_PATH);
@@ -92,17 +90,12 @@ generate_component_code :: (w: Workspace, entity_comps: []string, arch_comps: []
 	quick_sort(tags, compare_strings);
 
     components_file_builder: String_Builder;
-
-	code := generate_entity_component_switches(entity_comps);
-	append(*components_file_builder, code);
-
-	code = generate_archetype_component_switches(arch_comps);
-	append(*components_file_builder, code);
-    
-	code = generate_string_to_entity_comp_type(entity_comps);
-	append(*components_file_builder, code);
-	code = generate_string_to_arch_comp_type(arch_comps);
-	append(*components_file_builder, code);
+	
+	append(*components_file_builder, generate_file_loads());
+	append(*components_file_builder, generate_entity_component_switches(entity_comps));
+	append(*components_file_builder, generate_archetype_component_switches(arch_comps));
+	append(*components_file_builder, generate_string_to_entity_comp_type(entity_comps));
+	append(*components_file_builder, generate_string_to_arch_comp_type(arch_comps));
 	
 	write_entire_file(ZECS_COMPONENTS_GEN_PATH, builder_to_string(*components_file_builder));
 	add_build_file(ZECS_COMPONENTS_GEN_PATH, w);
@@ -113,3 +106,5 @@ generate_component_code :: (w: Workspace, entity_comps: []string, arch_comps: []
 main :: () {}
 
 #run build();
+
+#load "ZECS/ZECS_components_meta.jai";

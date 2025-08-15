@@ -10,6 +10,7 @@ ZECS_ARCHETYPES_GEN_PATH 	:: "ZECS/generated/ZECS_archetypes_gen.jai";
 
 build_archetypes			: [..]Archetype_Build_Metadata;
 
+arch_gen := false;
 build :: () {
 	set_build_options_dc(.{do_output=false});
 
@@ -21,12 +22,24 @@ build :: () {
 		return;
 	}
 
+	
+
 	archetypes_options := get_build_options(w_generation);
+
+	args := archetypes_options.compile_time_command_line;  
+    for args {                                         
+        if it == {
+            case "arch_gen";
+                arch_gen = true;
+        }
+    }
+
 	archetypes_options.output_type = .NO_OUTPUT;
 	archetypes_options.backend = .X64;
 	archetypes_options.array_bounds_check = .ON; 
     set_optimization(*archetypes_options, Optimization_Type.DEBUG, true);	
 	set_build_options(archetypes_options, w_generation);
+	
 	
 	generation_success := code_generation(w_generation);
 	if !generation_success {
@@ -40,13 +53,20 @@ code_generation :: (w: Workspace) -> bool {
 
 	generated := false;
 	add_build_file("ZECS/ZECS_types.jai", w);
-	add_build_file("ZECS/generated/ZECS_constants_gen.jai", w);
-	add_build_file("ZECS/generated/ZECS_components_gen.jai", w);
 	add_build_file("ZECS/ZECS_build_types.jai", w);
 	add_build_file("ZECS/ZECS_components.jai", w);
 	add_build_file("ZECS/ZECS_archetypes.jai", w);
+	add_build_file("ZECS/ZECS_world.jai", w);
 	add_build_file("ZECS/ZECS_observers.jai", w);
 	add_build_file("ZECS/ZECS_main.jai", w);
+	add_build_file("ZECS/generated/ZECS_constants_gen.jai", w);
+	add_build_file("ZECS/generated/ZECS_components_gen.jai", w);
+	add_build_file("ZECS/ZECS_storage.jai", w);
+	if arch_gen {
+        add_build_string("arch_gen :: true;", w);
+    } else {
+        add_build_string("arch_gen :: false;", w);
+    }
 
 	
 	while true {                     
@@ -56,7 +76,6 @@ code_generation :: (w: Workspace) -> bool {
         if message.kind == {
             case .TYPECHECKED;
                 typechecked := cast(*Message_Typechecked)message;
-				#load "ZECS/ZECS_build_types.jai";
                 gather_archetypes(typechecked, *build_archetypes);
             case .PHASE;
                 phase := cast(*Message_Phase) message;
@@ -77,28 +96,16 @@ code_generation :: (w: Workspace) -> bool {
 
 generate_archetype_code :: (w: Workspace, archetypes: [..]Archetype_Build_Metadata){
     archetypes_file_builder: String_Builder;
-
+	
 	quick_sort(archetypes, compare_build_metadata);
-	#load "ZECS/ZECS_archetypes.jai";
-	#load "ZECS/ZECS_archetypes_meta.jai";
-	#load "ZECS/ZECS_components.jai";
-	#load "ZECS/generated/ZECS_constants_gen.jai";
-	#load "ZECS/generated/ZECS_components_gen.jai";
-	#load "ZECS/ZECS_types.jai";
-	#load "ZECS/ZECS_observers.jai";
-	#load "ZECS/ZECS_main.jai";
+
+	
 	append(*archetypes_file_builder, generate_archetype_database(archetypes));
-	//append(*archetypes_file_builder, generate_archetype_initializers(archetypes));
-	//append(*archetypes_file_builder, generate_archetype_initializer_getter(archetypes));
-
-
 	append(*archetypes_file_builder, generate_archetype_index_lookup(archetypes));
 	append(*archetypes_file_builder, generate_index_archetype_lookup(archetypes));
 	append(*archetypes_file_builder, generate_component_storage_getter(archetypes));
 	append(*archetypes_file_builder, generate_string_to_arch_type(get_archetype_names(archetypes)));
 	append(*archetypes_file_builder, generate_archetype_component_index_getters(archetypes));
-    
-
 	append(*archetypes_file_builder, generate_entity_component_initializers(archetypes));
 	append(*archetypes_file_builder, generate_entity_initializer_dispatch(archetypes));
 
@@ -111,3 +118,6 @@ generate_archetype_code :: (w: Workspace, archetypes: [..]Archetype_Build_Metada
 main :: () {}
 
 #run build();
+
+#load "ZECS/ZECS_build_types.jai";
+#load "ZECS/ZECS_archetypes_meta.jai";

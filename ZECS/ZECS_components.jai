@@ -1,4 +1,4 @@
-math :: #import "Math";
+#import "Math";
 
 Entity_Component :: struct{}
 

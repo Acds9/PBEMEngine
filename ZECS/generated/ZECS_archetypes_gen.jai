@@ -3,6 +3,7 @@
 Archetype_Data :: struct {
 	name: string;
 	index: u16;
+	type: Type;
 	entity_component_mask: Bit_Field(MAX_ENTITY_COMPONENTS);
 	archetype_component_mask: Bit_Field(MAX_ARCH_COMPONENTS);
 	entity_components: []Type;
@@ -19,6 +20,7 @@ ARCHETYPE_DATABASE :: Archetype_Data.[
 	.{
 		name = "Archetype_Ship",
 		index = 0,
+		type = Archetype_Ship,
 
 		entity_component_mask		= .{.[14]},
 		archetype_component_mask	= .{.[1]},
@@ -55,7 +57,7 @@ get_arch_index :: (t: Type) -> u16 {
 get_index_arch :: (idx: u16) -> Type {
 	if idx == {
 		case 0; return Archetype_Ship;
-		case; return Archetype;
+		case; return void;
 	}
 }
 
@@ -78,7 +80,7 @@ get_e_c_storage_ptr :: (world: *ZWorld, arch: Type, $T: Type) -> *Entity_Compone
 get_arch_type :: (name: string) -> Type {
 	if name == {
 		case "Archetype_Ship"; return Archetype_Ship;
-		case; return Archetype;
+		case; return void;
 	}
 }
 
