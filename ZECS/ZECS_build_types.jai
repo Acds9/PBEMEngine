@@ -1,3 +1,18 @@
+#import "Compiler";
+#import "String";
+#import "Sort";
+
+compare_build_metadata :: (a: Archetype_Build_Metadata, b: Archetype_Build_Metadata) -> s64 {
+	return compare_strings(a.name, b.name);
+}
+
+compare_build_metadata :: (a: Query_Build_Metadata, b: Query_Build_Metadata) -> s64 {
+	return compare_strings(a.name, b.name);
+}
+
+compare_build_metadata :: (a: Observer_Build_Metadata, b: Observer_Build_Metadata) -> s64 {
+	return compare_strings(a.name, b.name);
+}
 
 Archetype_Build_Metadata :: struct {
     name                : string;
@@ -33,27 +48,24 @@ Observer_Build_Metadata :: struct {
 	priority				: u8;
 }
 
-gather_component_types :: (typechecked: *Message_Typechecked) -> entity_comps: [..]string, arch_comps: [..]string, tags: [..]string {
-	entity_comps 	: [..]string;
-	arch_comps 		: [..]string;
-	tags 			: [..]string;
+gather_component_types :: (typechecked: *Message_Typechecked, entity_comps: *[..]string, arch_comps: *[..]string, tags: *[..]string) -> bool {
+	
 	x := typechecked.declarations;
     for typechecked.structs{
 		info := it.expression.defined_type;
         
         if is_subclass_of(info, "Entity_Component") {
-            array_add(*entity_comps, info.name);
+            array_add(entity_comps, info.name);
         } else if is_subclass_of(info, "Archetype_Component") {
-            array_add(*arch_comps, info.name);
+            array_add(arch_comps, info.name);
         } else if is_subclass_of(info, "Tag") {
-            array_add(*tags, info.name);
+            array_add(tags, info.name);
         }
     }
-	return entity_comps, arch_comps, tags;
+	return entity_comps || arch_comps || tags;
 }
 
-gather_archetypes :: (typechecked: *Message_Typechecked) -> [..]Archetype_Build_Metadata {
-	archetypes : [..]Archetype_Build_Metadata;
+gather_archetypes :: (typechecked: *Message_Typechecked, metadata: *[..]Archetype_Build_Metadata) {
 	
 	for typechecked.structs {
         info := it.expression.defined_type;
@@ -159,15 +171,12 @@ gather_archetypes :: (typechecked: *Message_Typechecked) -> [..]Archetype_Build_
 					}
 				}
 			}
-			array_add(*archetypes, archetype);
+			array_add(metadata, archetype);
         }
     }
-	return archetypes;
 }
 
-gather_queries :: (typechecked: *Message_Typechecked) -> [..]Query_Build_Metadata {
-	queries: [..]Query_Build_Metadata;
-
+gather_queries :: (typechecked: *Message_Typechecked, queries: *[..]Query_Build_Metadata) {
 	for typechecked.structs {
 		info := it.expression.defined_type;
         
@@ -270,10 +279,9 @@ gather_queries :: (typechecked: *Message_Typechecked) -> [..]Query_Build_Metadat
 					}
 				}
 			}
-			array_add(*queries, query);
+			array_add(queries, query);
 		}
 	}
-	return queries;
 }
 
 

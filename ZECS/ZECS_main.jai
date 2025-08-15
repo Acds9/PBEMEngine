@@ -7,8 +7,8 @@ MAX_ARCHETYPES          	::  128; // Generate this
 DEFAULT_ENTITY_CHUNK_SIZE 	:: 64;
 HOT_ARCHETYPE_CHUNK_SIZE 	:: 256;
 COLD_ARCHETYPE_CHUNK_SIZE 	:: 32;
-DEFAULT_POOL_SIZE 			:: 40 * 1024 * 1024;  // 40KB per archetype pool
-MAX_ENTITIES_PER_ARCHETYPE	:: 2048000;
+DEFAULT_POOL_SIZE 			:: 40 * 1024;  // 40KB per archetype pool
+MAX_ENTITIES_PER_ARCHETYPE	:: 2048;
 
 ZEntity :: struct
 {
@@ -81,13 +81,13 @@ reset_world :: (world: *ZWorld) {
 init_archetype :: (world: *ZWorld, archetype: Type) {
     allocator := Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
 	storage := get_archetype_storage(world, archetype);
-	<<storage = get_archetype_initializer(archetype)(allocator);
+	<<storage = initialize_archetype_storage(archetype, allocator);
 	storage.initialized = true;
 }
-/*
+
 get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage {
 	return *world.world_archetypes[get_arch_index(archetype)];
-}*/
+}
 
 tick_world :: (world: *ZWorld, delta_time: float64) {
 	flush_observers(world);

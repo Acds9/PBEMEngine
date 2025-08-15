@@ -1,5 +1,4 @@
 @echo off
-jai build.jai
-if %ERRORLEVEL% == 0 (
-    bin\PBEM.exe
-)
+jai component_build.jai
+jai archetype_build.jai
+jai query_build.jai

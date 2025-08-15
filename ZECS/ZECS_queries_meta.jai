@@ -2,24 +2,24 @@
 //#load "generated/ZECS_archetypes_gen.jai";
 
 // TODO: we use the metadata, maybe we should use the database instead so it's single source of truth?
-generate_queries :: (archetypes: []Archetype_Build_Metadata, queries: []Query_Build_Metadata) -> string {
+generate_queries :: (queries: []Query_Build_Metadata) -> string {
 	
 	builder: String_Builder;
 
 	// First we find the archetypes that match
-	matching_archetypes : [..]Archetype_Build_Metadata;
+	matching_archetypes : [..]u16;
 	for query: queries {
 		print("Query:%\n", query);
-		for arch: archetypes {
-			// Currently we can't really use bitmasks due to the different formats (queries don't have them)
-			// TODO: if not even queries use bitmasks, why are we even using them?
+		for arch: ARCHETYPE_DATABASE {
+			arch_entity_comp_strings := to_string_array(arch.entity_components);
+			arch_arch_comp_strings := to_string_array(arch.archetype_components);
 			for query.entity_components {
-				if !(array_find(arch.entity_components, it)) break arch;
+				if !(array_find(arch_entity_comp_strings, it)) break arch;
 			}
 			for query.archetype_components {
-				if !(array_find(arch.arch_components, it)) break arch;
+				if !(array_find(arch_arch_comp_strings, it)) break arch;
 			}
-			if (query.tags &arch.tags) != query.tags break arch; // is query tags NOT a subset of arch tags
+			if (query.tags &cast,no_check(u64)arch.tags) != query.tags break arch; // is query tags NOT a subset of arch tags
 			array_add(*matching_archetypes, arch);
 		}
 		if !matching_archetypes break query;

@@ -1,0 +1,113 @@
+#import "Basic";
+#import "Compiler";
+#import "String";
+#import "Process";
+#import "File";
+#import "File_Utilities";
+#import "Text_File_Handler";
+
+ZECS_ARCHETYPES_GEN_PATH 	:: "ZECS/generated/ZECS_archetypes_gen.jai";
+
+build_archetypes			: [..]Archetype_Build_Metadata;
+
+build :: () {
+	set_build_options_dc(.{do_output=false});
+
+	file_delete(ZECS_ARCHETYPES_GEN_PATH);
+	
+	w_generation := compiler_create_workspace("Archetype Generation Workspace");
+	if !w_generation {
+		print("Archetype Generation Workspace creation failed.\n");
+		return;
+	}
+
+	archetypes_options := get_build_options(w_generation);
+	archetypes_options.output_type = .NO_OUTPUT;
+	archetypes_options.backend = .X64;
+	archetypes_options.array_bounds_check = .ON; 
+    set_optimization(*archetypes_options, Optimization_Type.DEBUG, true);	
+	set_build_options(archetypes_options, w_generation);
+	
+	generation_success := code_generation(w_generation);
+	if !generation_success {
+	 	print("ERROR: Code generation failed.\n");
+        return;
+	}
+}
+
+code_generation :: (w: Workspace) -> bool {
+	compiler_begin_intercept(w);
+
+	generated := false;
+	add_build_file("ZECS/ZECS_types.jai", w);
+	add_build_file("ZECS/generated/ZECS_constants_gen.jai", w);
+	add_build_file("ZECS/generated/ZECS_components_gen.jai", w);
+	add_build_file("ZECS/ZECS_build_types.jai", w);
+	add_build_file("ZECS/ZECS_components.jai", w);
+	add_build_file("ZECS/ZECS_archetypes.jai", w);
+	add_build_file("ZECS/ZECS_observers.jai", w);
+	add_build_file("ZECS/ZECS_main.jai", w);
+
+	
+	while true {                     
+        message := compiler_wait_for_message();  
+        if !message break; 
+        
+        if message.kind == {
+            case .TYPECHECKED;
+                typechecked := cast(*Message_Typechecked)message;
+				#load "ZECS/ZECS_build_types.jai";
+                gather_archetypes(typechecked, *build_archetypes);
+            case .PHASE;
+                phase := cast(*Message_Phase) message;
+                if phase.phase == .TYPECHECKED_ALL_WE_CAN && !generated {
+                    generate_archetype_code(w, build_archetypes);
+                    generated = true;
+                }
+            case .COMPLETE;          
+                print(" >> %\n", <<message);
+                message_complete := cast(*Message_Complete) message;  
+				compiler_end_intercept(w);
+                return message_complete.error_code == 0;
+        }
+    }
+	compiler_end_intercept(w);
+	return false;
+}
+
+generate_archetype_code :: (w: Workspace, archetypes: [..]Archetype_Build_Metadata){
+    archetypes_file_builder: String_Builder;
+
+	quick_sort(archetypes, compare_build_metadata);
+	#load "ZECS/ZECS_archetypes.jai";
+	#load "ZECS/ZECS_archetypes_meta.jai";
+	#load "ZECS/ZECS_components.jai";
+	#load "ZECS/generated/ZECS_constants_gen.jai";
+	#load "ZECS/generated/ZECS_components_gen.jai";
+	#load "ZECS/ZECS_types.jai";
+	#load "ZECS/ZECS_observers.jai";
+	#load "ZECS/ZECS_main.jai";
+	append(*archetypes_file_builder, generate_archetype_database(archetypes));
+	//append(*archetypes_file_builder, generate_archetype_initializers(archetypes));
+	//append(*archetypes_file_builder, generate_archetype_initializer_getter(archetypes));
+
+
+	append(*archetypes_file_builder, generate_archetype_index_lookup(archetypes));
+	append(*archetypes_file_builder, generate_index_archetype_lookup(archetypes));
+	append(*archetypes_file_builder, generate_component_storage_getter(archetypes));
+	append(*archetypes_file_builder, generate_string_to_arch_type(get_archetype_names(archetypes)));
+	append(*archetypes_file_builder, generate_archetype_component_index_getters(archetypes));
+    
+
+	append(*archetypes_file_builder, generate_entity_component_initializers(archetypes));
+	append(*archetypes_file_builder, generate_entity_initializer_dispatch(archetypes));
+
+    
+	write_entire_file(ZECS_ARCHETYPES_GEN_PATH, builder_to_string(*archetypes_file_builder));
+	add_build_file(ZECS_ARCHETYPES_GEN_PATH, w);
+	print("Generated ZECS archetypes file: %\n", ZECS_ARCHETYPES_GEN_PATH);
+}
+
+main :: () {}
+
+#run build();

@@ -118,6 +118,9 @@
 				<Children></Children>
 			</Folder>
 			<File>
+				<Path>archetype_build.jai</Path>
+			</File>
+			<File>
 				<Path>build.jai</Path>
 			</File>
 			<File>
@@ -125,6 +128,15 @@
 			</File>
 			<File>
 				<Path>mesh_rendering.jai</Path>
+			</File>
+			<File>
+				<Path>component_build.jai</Path>
+			</File>
+			<File>
+				<Path>archetype_build.jai</Path>
+			</File>
+			<File>
+				<Path>query_build.jai</Path>
 			</File>
 			<WorkspaceReference>
 				<Path>../Jai/Jai.10x</Path>

@@ -8,8 +8,6 @@
 
 #load	"ZECS/ZECS_types.jai";
 #load	"ZECS/ZECS_build_types.jai";
-#load	"ZECS/ZECS_components_meta.jai";
-#load	"ZECS/ZECS_archetypes_meta.jai";
 
 ZECS_CONSTANTS_GEN_PATH 	:: "ZECS/generated/ZECS_constants_gen.jai";
 ZECS_COMPONENTS_GEN_PATH 	:: "ZECS/generated/ZECS_components_gen.jai";
@@ -23,16 +21,14 @@ generated_archetype_files 	: [..]string;
 generated_query_files 		: [..]string;
 generated_observer_files	: [..]string;
 
-build_entity_components		: [..]string;
+/*build_entity_components		: [..]string;
 build_archetype_components	: [..]string;
-build_tags					: [..]string;
+build_tags					: [..]string;*/
 build_archetypes			: [..]Archetype_Build_Metadata;
 build_queries				: [..]Query_Build_Metadata;
 build_observers				: [..]Observer_Build_Metadata;
 
 build :: () {
-
-	set_build_options_dc(.{do_output=false});
 	
 	file_delete("bin/PBEM.exe");
 	file_delete(ZECS_CONSTANTS_GEN_PATH);
@@ -49,6 +45,7 @@ build :: () {
 	array_reset(*generated_observer_files);
 	
 	w_generation := compiler_create_workspace("Code Generation Workspace");
+	//set_build_options_dc(.{do_output=false});
 	if !w_generation {
 		print("Code Generation Workspace creation failed.\n");
 		return;
@@ -119,8 +116,8 @@ code_generation :: (w: Workspace) -> bool {
                 if phase.phase == .TYPECHECKED_ALL_WE_CAN && !generated {
                     generate_component_code(w, build_entity_components, generated_archetype_files, build_tags);
 					generate_archetype_code(w, build_archetypes);
-					generate_query_code(w, build_queries);
-					generate_observer_code(w, build_observers);
+					//generate_query_code(w, build_queries);
+					//generate_observer_code(w, build_observers);
                     generated = true;
                 }
                 
@@ -168,10 +165,11 @@ component_compilation :: (w: Workspace) -> bool {
 	compiler_end_intercept(w);
 	return false;
 }
-*/
+*//*
 generate_component_code :: (w: Workspace, entity_comps: []string, arch_comps: []string, tags: []string){
 	constants_file_builder: String_Builder;
 
+	#load "ZECS/ZECS_components_meta.jai";
 	constants_code := generate_ZECS_constants(entity_comps.count, arch_comps.count, tags.count); // Maybe this shouldn't be here?
 	append(*constants_file_builder, constants_code);
 	write_entire_file(ZECS_CONSTANTS_GEN_PATH, builder_to_string(*constants_file_builder));
@@ -195,7 +193,7 @@ generate_component_code :: (w: Workspace, entity_comps: []string, arch_comps: []
 	//add_build_file(ZECS_COMPONENTS_GEN_PATH, w);
 	print("Generated ZECS components file: %\n", ZECS_COMPONENTS_GEN_PATH);
 	array_add(*generated_component_files, ZECS_COMPONENTS_GEN_PATH);
-}
+}*/
 /*
 archetype_compilation :: (w: Workspace) -> bool {
 	compiler_begin_intercept(w);
@@ -241,6 +239,7 @@ archetype_compilation :: (w: Workspace) -> bool {
 generate_archetype_code :: (w: Workspace, archetypes: []Archetype_Build_Metadata) {
 	archetypes_file_builder: String_Builder;
 
+	#load "ZECS/ZECS_archetypes_meta.jai";
 	append(*archetypes_file_builder, generate_archetype_database(archetypes));
 	append(*archetypes_file_builder, generate_archetype_initializers(archetypes));
 	append(*archetypes_file_builder, generate_archetype_initializer_getter(archetypes));
@@ -310,7 +309,7 @@ query_compilation :: (w: Workspace) -> bool {
 }
 */
 generate_query_code :: (w: Workspace, metadata: []Query_Build_Metadata) {
-	#load "ZECS/ZECS_queries_meta.jai";
+	
 	queries_file_builder: String_Builder;
 
 	append(*queries_file_builder, generate_queries(build_archetypes, metadata));
@@ -367,7 +366,7 @@ observer_compilation :: (w: Workspace) -> bool {
 }
 */
 generate_observer_code :: (w: Workspace, metadata: []Observer_Build_Metadata) {
-	#load "ZECS/ZECS_observers_meta.jai";
+	
 	observers_file_builder: String_Builder;
 
 	append(*observers_file_builder, generate_observers(build_archetypes, metadata));
