@@ -6,18 +6,18 @@
 #import "File_Utilities";
 #import "Text_File_Handler";
 
-ZECS_QUERIES_GEN_PATH		:: "src/ZECS/generated/ZECS_queries_gen.jai";
+ZECS_OBSERVER_GEN_PATH		:: "src/ZECS/generated/ZECS_observers_gen.jai";
 
-build_queries				: [..]Query_Build_Metadata;
+build_observers				: [..]Observer_Build_Metadata;
 
 build :: () {
 	set_build_options_dc(.{do_output=false});
 
-	file_delete(ZECS_QUERIES_GEN_PATH);
+	file_delete(ZECS_OBSERVER_GEN_PATH);
 	
-	w_generation := compiler_create_workspace("Query Generation Workspace");
+	w_generation := compiler_create_workspace("Observer Generation Workspace");
 	if !w_generation {
-		print("Query Generation Workspace creation failed.\n");
+		print("Observer Generation Workspace creation failed.\n");
 		return;
 	}
 
@@ -30,7 +30,7 @@ build :: () {
 	
 	generation_success := code_generation(w_generation);
 	if !generation_success {
-	 	print("ERROR: Query generation failed.\n");
+	 	print("ERROR: Observer generation failed.\n");
         return;
 	}
 }
@@ -46,7 +46,7 @@ code_generation :: (w: Workspace) -> bool {
 	add_build_file("src/ZECS/ZECS_build_types.jai", w);
 	add_build_file("src/ZECS/ZECS_components.jai", w);
 	add_build_file("src/ZECS/ZECS_archetypes.jai", w);
-	add_build_file("src/ZECS/ZECS_queries.jai", w);
+	add_build_file("src/ZECS/ZECS_observers.jai", w);
 	add_build_file("src/ZECS/stub/ZECS_queries_meta_stub.jai", w);
 
 
@@ -58,11 +58,11 @@ code_generation :: (w: Workspace) -> bool {
             case .TYPECHECKED;
                 typechecked := cast(*Message_Typechecked)message;
 				#load "src/ZECS/ZECS_build_types.jai";
-                gather_queries(typechecked, *build_queries);
+                gather_observers(typechecked, *build_observers);
             case .PHASE;
                 phase := cast(*Message_Phase) message;
                 if phase.phase == .TYPECHECKED_ALL_WE_CAN && !generated {
-                    generate_query_code(w, build_queries);
+                    generate_observer_code(w, build_observers);
                     generated = true;
                 }
             case .COMPLETE;          
@@ -75,12 +75,11 @@ code_generation :: (w: Workspace) -> bool {
 	compiler_end_intercept(w);
 	return false;
 }
-// TODO: dump the Archetype_Build_Metadata array into the archetypes_gen file and be done with it
-generate_query_code :: (w: Workspace, query_metadata: []Query_Build_Metadata) {
+
+generate_observer_code :: (w: Workspace, observer_metadata: []Observer_Build_Metadata) {
 	
-	queries_file_builder: String_Builder;
+	observers_file_builder: String_Builder;
 	
-	#load "src/ZECS/ZECS_queries_meta.jai";
 	#load "src/ZECS/generated/ZECS_archetypes_gen.jai";
 	#load "src/ZECS/generated/ZECS_components_gen.jai";
 	#load "src/ZECS/generated/ZECS_constants_gen.jai";
@@ -88,11 +87,12 @@ generate_query_code :: (w: Workspace, query_metadata: []Query_Build_Metadata) {
 	#load "src/ZECS/ZECS_archetypes.jai";
 	#load "src/ZECS/ZECS_types.jai";
 	#load "src/ZECS/stub/ZECS_queries_meta_stub.jai";
-	append(*queries_file_builder, generate_queries(query_metadata));
+	#load "src/ZECS/ZECS_observers_meta.jai";
+	append(*observers_file_builder, generate_observers(observer_metadata));
     
-	write_entire_file(ZECS_QUERIES_GEN_PATH, builder_to_string(*queries_file_builder));
-	add_build_file(ZECS_QUERIES_GEN_PATH, w);
-	print("Generated ZECS queries file: %\n", ZECS_QUERIES_GEN_PATH);
+	write_entire_file(ZECS_OBSERVER_GEN_PATH, builder_to_string(*observers_file_builder));
+	add_build_file(ZECS_OBSERVER_GEN_PATH, w);
+	print("Generated ZECS queries file: %\n", ZECS_OBSERVER_GEN_PATH);
 }
 
 main :: () {}

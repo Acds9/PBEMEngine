@@ -6,8 +6,8 @@
 #import "File_Utilities";
 #import "Text_File_Handler";
 
-ZECS_CONSTANTS_GEN_PATH 	:: "ZECS/generated/ZECS_constants_gen.jai";
-ZECS_COMPONENTS_GEN_PATH 	:: "ZECS/generated/ZECS_components_gen.jai";
+ZECS_CONSTANTS_GEN_PATH 	:: "src/ZECS/generated/ZECS_constants_gen.jai";
+ZECS_COMPONENTS_GEN_PATH 	:: "src/ZECS/generated/ZECS_components_gen.jai";
 generated_constants_files 	: [..]string;
 generated_component_files 	: [..]string;
 
@@ -42,9 +42,9 @@ code_generation :: (w: Workspace) -> bool {
 	compiler_begin_intercept(w);
 
 	generated := false;
-	add_build_file("ZECS/ZECS_types.jai", w);
-	add_build_file("ZECS/ZECS_build_types.jai", w);
-	add_build_file("ZECS/ZECS_components.jai", w);
+	add_build_file("src/ZECS/ZECS_types.jai", w);
+	add_build_file("src/ZECS/ZECS_build_types.jai", w);
+	add_build_file("src/ZECS/ZECS_components.jai", w);
 
 	build_entity_components		: [..]string;
 	build_archetype_components	: [..]string;
@@ -57,7 +57,7 @@ code_generation :: (w: Workspace) -> bool {
         if message.kind == {
             case .TYPECHECKED;
                 typechecked := cast(*Message_Typechecked)message;
-				#load "ZECS/ZECS_build_types.jai";
+				#load "src/ZECS/ZECS_build_types.jai";
                 gather_component_types(typechecked, *build_entity_components, *build_archetype_components, *build_tags);
             case .PHASE;
                 phase := cast(*Message_Phase) message;
@@ -107,4 +107,4 @@ main :: () {}
 
 #run build();
 
-#load "ZECS/ZECS_components_meta.jai";
+#load "src/ZECS/ZECS_components_meta.jai";

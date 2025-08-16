@@ -1,6 +1,6 @@
 #import "Basic";
 #import "Math";
-rl	:: #import "raylib";
+ht :: #import "Hash_Table";
 
 MESH_ASSET_COUNT :: 128; // Calculate this?
 
@@ -23,4 +23,4 @@ Mesh_Instance :: struct {
 }
 
 // Maps an entity's u64 tp a mesh proxy instance
-Mesh_Instance_Table :: Table(u64, Mesh_Instance, null, LOAD_FACTOR_PERCENT=70);
+Mesh_Instance_Table :: ht.Table(u64, Mesh_Instance, null, LOAD_FACTOR_PERCENT=70);

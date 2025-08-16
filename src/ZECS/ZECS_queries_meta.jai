@@ -5,14 +5,13 @@
 generate_queries :: (queries: []Query_Build_Metadata) -> string {
 	
 	builder: String_Builder;
-
+	
 	// First we find the archetypes that match
 	matching_archetypes : [..]u16;
 	for query: queries {
-		print("Query:%\n", query);
 		for arch: ARCHETYPE_DATABASE {
-			arch_entity_comp_strings := to_string_array(arch.entity_components);
-			arch_arch_comp_strings := to_string_array(arch.archetype_components);
+			arch_entity_comp_strings := get_entity_component_strings(arch.entity_components);
+			arch_arch_comp_strings := get_archetype_component_strings(arch.archetype_components);
 			for query.entity_components {
 				if !(array_find(arch_entity_comp_strings, it)) break arch;
 			}
@@ -20,20 +19,14 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 				if !(array_find(arch_arch_comp_strings, it)) break arch;
 			}
 			if (query.tags &cast,no_check(u64)arch.tags) != query.tags break arch; // is query tags NOT a subset of arch tags
-			array_add(*matching_archetypes, arch);
+			array_add(*matching_archetypes, arch.index);
 		}
 		if !matching_archetypes break query;
-
-		matching_archetype_indices : [..]u16;
-		for arch: matching_archetypes {
-			arch_type := get_arch_type(arch.name);
-			array_add(*matching_archetype_indices, get_arch_index(arch_type));
-		}
 
 		print_to_builder(*builder, "\n// Query Executor for %\n", query.name);
 		print_to_builder(*builder, "execute_% :: (world: *ZWorld, $body: Code) #expand {\n", query.name);
 
-			print_to_builder(*builder, "\tMATCHING_ARCHETYPES		:: u16.%;\n", matching_archetype_indices);
+			print_to_builder(*builder, "\tMATCHING_ARCHETYPES		:: u16.%;\n", matching_archetypes);
 			print_to_builder(*builder, "\tfor arch_idx: MATCHING_ARCHETYPES {\n");
 				
 			print_to_builder(*builder, "\t\tstorage := *world.world_archetypes[arch_idx];\n");

@@ -78,6 +78,24 @@ get_entity_component_string :: (t: Type) -> string {
 	}
 }
 
+// Get the entity_component strings from a Type array
+get_entity_component_strings :: (t: []Type) -> [..]string {
+	strings : [..]string;
+	for t {
+		array_add(*strings, get_entity_component_string(it));
+	}
+	return strings;
+}
+
+// Get the archetype component strings from a Type array
+get_archetype_component_strings :: (t: []Type) -> [..]string {
+	strings : [..]string;
+	for t {
+		array_add(*strings, get_archetype_component_string(it));
+	}
+	return strings;
+}
+
 // Get the arch component Type from a string name
 get_archetype_component_type :: (name: string) -> Type {
 	if name == {

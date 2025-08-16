@@ -284,9 +284,7 @@ gather_queries :: (typechecked: *Message_Typechecked, queries: *[..]Query_Build_
 	}
 }
 
-
-gather_observers :: (typechecked: *Message_Typechecked) -> [..]Observer_Build_Metadata {
-	observers: [..]Observer_Build_Metadata;
+gather_observers :: (typechecked: *Message_Typechecked, observers: *[..]Observer_Build_Metadata) {
 
 	for typechecked.structs {
 		info := it.expression.defined_type;
@@ -417,8 +415,7 @@ gather_observers :: (typechecked: *Message_Typechecked) -> [..]Observer_Build_Me
 					}*/
 				}
 			}
-			array_add(*observers, observer);
+			array_add(observers, observer);
 		}
 	}
-	return observers;
 }

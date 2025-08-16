@@ -6,7 +6,7 @@
 #import "File_Utilities";
 #import "Text_File_Handler";
 
-ZECS_ARCHETYPES_GEN_PATH 	:: "ZECS/generated/ZECS_archetypes_gen.jai";
+ZECS_ARCHETYPES_GEN_PATH 	:: "src/ZECS/generated/ZECS_archetypes_gen.jai";
 
 build_archetypes			: [..]Archetype_Build_Metadata;
 
@@ -52,16 +52,13 @@ code_generation :: (w: Workspace) -> bool {
 	compiler_begin_intercept(w);
 
 	generated := false;
-	add_build_file("ZECS/ZECS_types.jai", w);
-	add_build_file("ZECS/ZECS_build_types.jai", w);
-	add_build_file("ZECS/ZECS_components.jai", w);
-	add_build_file("ZECS/ZECS_archetypes.jai", w);
-	add_build_file("ZECS/ZECS_world.jai", w);
-	add_build_file("ZECS/ZECS_observers.jai", w);
-	add_build_file("ZECS/ZECS_main.jai", w);
-	add_build_file("ZECS/generated/ZECS_constants_gen.jai", w);
-	add_build_file("ZECS/generated/ZECS_components_gen.jai", w);
-	add_build_file("ZECS/ZECS_storage.jai", w);
+	add_build_file("src/ZECS/ZECS_types.jai", w);
+	add_build_file("src/ZECS/ZECS_build_types.jai", w);
+	add_build_file("src/ZECS/ZECS_components.jai", w);
+	add_build_file("src/ZECS/ZECS_archetypes.jai", w);
+	add_build_file("src/ZECS/stub/ZECS_archetype_meta_stub.jai", w);
+	add_build_file("src/ZECS/generated/ZECS_constants_gen.jai", w);
+	add_build_file("src/ZECS/generated/ZECS_components_gen.jai", w);
 	if arch_gen {
         add_build_string("arch_gen :: true;", w);
     } else {
@@ -119,5 +116,5 @@ main :: () {}
 
 #run build();
 
-#load "ZECS/ZECS_build_types.jai";
-#load "ZECS/ZECS_archetypes_meta.jai";
+#load "src/ZECS/ZECS_build_types.jai";
+#load "src/ZECS/ZECS_archetypes_meta.jai";
