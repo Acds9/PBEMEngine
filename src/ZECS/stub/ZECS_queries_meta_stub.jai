@@ -27,7 +27,14 @@ Archetype_Storage :: struct {
 	
 	chunk_size				: u32 = DEFAULT_ENTITY_CHUNK_SIZE;
 }
-ZEntity :: struct {}
+
+ZEntity :: struct
+{
+	index 		: u32;
+	gen			: u16;
+	archetype	: u16;
+}
+
 ZWorld :: struct {
 	world_archetypes 	: [MAX_ARCHETYPES]Archetype_Storage;
 	world_entities 		: [..]ZEntity;
@@ -48,7 +55,14 @@ Observer_Registry :: struct {
 Observer_Buffer :: struct {
 	created:	[MAX_ARCHETYPES][..]ZEntity;
 	destroyed:	[MAX_ARCHETYPES][..]ZEntity;
+
+	reset :: (){};
 }
+
+get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T {return null;}
+
+
+get_archetype_component :: (world: *ZWorld, archetype: u16, $T: Type) -> *T {return null;};
 
 Observer_Entry :: struct {
 	priority	: u8;

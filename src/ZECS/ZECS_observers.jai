@@ -16,6 +16,6 @@ Observer_Ship_Spawn :: struct {
 
 	// THIS CODE IS CALLED PER-ENTITY!
 	PROC :: (entity_idx: ZEntity, archetype_idx: u16, world: *ZWorld) {
-		print("Ship % created!\n", entity_idx);
+		//print("Ship % created!\n", get_entity_component(world, entity_idx, Scale).scale);
 	}
 }

@@ -9,6 +9,7 @@ DEFAULT_POOL_SIZE 			:: 40 * 1024;  // 40KB per archetype pool
 MAX_ENTITIES_PER_ARCHETYPE	:: 2048;
 CACHE_LINE_SIZE				: u32 : 64;
 
+
 ZEntity :: struct
 {
 	index 		: u32;
@@ -102,12 +103,24 @@ flush_observers :: (world: *ZWorld) {
 	for *world.observer_buffer.created {
 		if it.count == 0 continue;
 		entities := it;
+		
 		arch_idx := cast,no_check(u16)it_index;
 		bound_observers := world.observer_registry.on_created[arch_idx];
 		for bound_observers {
 			it.proc(world, arch_idx, <<entities);
 		}
 	}
+	for *world.observer_buffer.destroyed {
+		if it.count == 0 continue;
+		entities := it;
+		
+		arch_idx := cast,no_check(u16)it_index;
+		bound_observers := world.observer_registry.on_destroyed[arch_idx];
+		for bound_observers {
+			it.proc(world, arch_idx, <<entities);
+		}
+	}
+	world.observer_buffer.reset(*world.observer_buffer);
 }
 
 // Entities
@@ -355,7 +368,7 @@ get_entity_component :: (storage: *Entity_Component_Storage, idx: u32,  $T: Type
 
 get_archetype_component :: (world: *ZWorld, archetype: u16, $T: Type) -> *T {
 	storage := *world.world_archetypes[archetype];
-	return cast(*T) *storage.entity_components[get_archetype_component_index(archetype, T)].data;
+	return cast(*T) *storage.entity_components[get_archetype_component_index(get_index_arch(archetype), T)].data;
 }
 
 ensure_component_capacity :: (world: *ZWorld, storage: *Archetype_Storage, needed_count: u32) {

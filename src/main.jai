@@ -3,24 +3,20 @@ rl	:: #import "raylib";
 #import "Random";
 #import "Math";
 
-
-
 main :: () {
 	size_x : s32 = 1920;
 	size_y : s32 = 1080;
 	rl.InitWindow(size_x, size_y, "ZEngine");
-	defer rl.CloseWindow();
+	//defer rl.CloseWindow();
 
 	world := create_zworld();
 
 	init_archetype(world, Archetype_Ship); // Manual for now
 	
 	register_Observer_Ship_Spawn(world);
-
+	
 	create_entity_batch(world, Archetype_Ship, 16);
 	
-	
-
 	Camera : rl.Camera3D;
 	Camera.position = Vector3.{ 0, 10, 10 };
 	Camera.target = Vector3.{ 0,0,0 };

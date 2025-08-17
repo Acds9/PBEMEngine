@@ -16,8 +16,8 @@ Entity_Component_Storage :: struct {
 	data			: [..]u8;		
 	stride			: u32;			
 }
-ZEntity :: struct {
-}
+ZEntity :: struct {}
+
 Archetype_Component_Storage :: struct {}
 
 Archetype_Storage :: struct {

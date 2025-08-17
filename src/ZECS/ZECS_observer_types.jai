@@ -6,6 +6,11 @@ Observer_Registry :: struct {
 Observer_Buffer :: struct {
 	created:	[MAX_ARCHETYPES][..]ZEntity;
 	destroyed:	[MAX_ARCHETYPES][..]ZEntity;
+
+	reset :: (using self: *Observer_Buffer) {
+		for *created array_reset(it);
+		for *destroyed array_reset(it);
+	}
 }
 
 Observer_Entry :: struct {

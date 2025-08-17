@@ -2,6 +2,13 @@
 // Observer Executor for Observer_Ship_Spawn
 execute_Observer_Ship_Spawn :: (world: *ZWorld, arch_idx: u16, entities: []ZEntity) {
 	arch_storage := *world.world_archetypes[arch_idx];
+	for entity: entities {
+		position := *get_entity_component(world, entity, Position);
+		rotation := *get_entity_component(world, entity, Rotation);
+		scale := *get_entity_component(world, entity, Scale);
+		mesh_rep := *get_archetype_component(world, arch_idx, Mesh_Rep);
+		Observer_Ship_Spawn.PROC(entity, arch_idx, world);
+	}
 }
 
 // Observer Registerer for Observer_Ship_Spawn

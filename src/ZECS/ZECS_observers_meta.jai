@@ -25,13 +25,10 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 		print_to_builder(*builder, "\n// Observer Executor for %\n", observer.name);
 		print_to_builder(*builder, "execute_% :: (world: *ZWorld, arch_idx: u16, entities: []ZEntity) {\n", observer.name);
 			print_to_builder(*builder, "\tarch_storage := *world.world_archetypes[arch_idx];\n");
-
-			// These are not used right now, we use a function instead of arbitrary code that could access these
-			//TODO: if we ever find out how to extract code from a #code block properly without it being a pain in the ass we can return to this and fix it
-			/*print_to_builder(*builder, "\tfor entity: entities {\n");
+			
+			print_to_builder(*builder, "\tfor entity: entities {\n");
 				for e_c: observer.entity_components {
-					e_c_idx := get_entity_component_index(get_entity_component_type(e_c));
-					print_to_builder(*builder, "\t\t% := *get_entity_component(*arch_storage.entity_components[%], entity.index, %);\n", to_lower_copy(e_c), e_c_idx, e_c);
+					print_to_builder(*builder, "\t\t% := *get_entity_component(world, entity, %);\n", to_lower_copy(e_c), e_c);
 				}
 				for a_c: observer.archetype_components {
 					print_to_builder(*builder, "\t\t% := *get_archetype_component(world, arch_idx, %);\n", to_lower_copy(a_c), a_c);
@@ -39,7 +36,7 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 
 				print_to_builder(*builder, "\t\t%.PROC(entity, arch_idx, world);\n", observer.name);
 
-			print_to_builder(*builder, "\t}\n");*/
+			print_to_builder(*builder, "\t}\n");
 
 		print_to_builder(*builder, "}\n");
 
