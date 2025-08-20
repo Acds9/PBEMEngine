@@ -12,3 +12,7 @@ file_list_ext :: (folder: string, extension: string, recursive: bool = false, fo
 	}
 	return filtered_files;
 }
+
+size_of_array :: (array: []$T) -> u32 {
+	return cast,no_check(u32)(size_of(T) * array.count);
+}

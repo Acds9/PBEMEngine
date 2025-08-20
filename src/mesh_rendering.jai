@@ -25,7 +25,7 @@ init_mesh_asset_database :: (asset_folder: string) { // TODO: need a better way 
 
 Mesh_Entry :: struct {
 	asset_name	: string;
-	model		: rl.Model;
+	//model		: rl.Model;
 }
 
 
@@ -33,7 +33,7 @@ Mesh_Entry :: struct {
 Mesh_Instance :: struct {
 	Mesh_ID		: u32;
 	Transform	: Matrix4;
-	model_ptr	: *rl.Model;
+//	model_ptr	: *rl.Model;
 }
 
 // Maps an entity's u64 to a mesh proxy instance
