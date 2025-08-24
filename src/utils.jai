@@ -16,3 +16,18 @@ file_list_ext :: (folder: string, extension: string, recursive: bool = false, fo
 size_of_array :: (array: []$T) -> u32 {
 	return cast,no_check(u32)(size_of(T) * array.count);
 }
+
+array_contains :: (array: []$T, value: T) -> bool {
+	for array {
+		if it == value 
+			return true;
+	}
+	return false;
+}
+
+array_add_unique :: (array: *[..]$T, value: T) -> bool {
+	if array_contains(<<array, value)
+		return false;
+	array_add(array, value);
+	return true;
+}
