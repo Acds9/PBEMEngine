@@ -42,9 +42,10 @@ main :: () {
                     }
             }
         }		
-		draw(*z_renderer);
+		draw_frame(*z_renderer);
+		vkDeviceWaitIdle(z_renderer.logical_device);
     }
-
+	
 	if ENABLE_VALIDATION_LAYERS {
 		deinit_validation(*z_renderer, null);
 	}

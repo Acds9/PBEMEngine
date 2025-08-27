@@ -3,6 +3,7 @@
 *.pdb
 *.obj
 *.lib
+*.spv
 
 # Executables
 *.exe
@@ -15,3 +16,4 @@ bin/*
 examples/*
 modules/*
 content/*
+.vscode/*

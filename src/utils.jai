@@ -31,3 +31,11 @@ array_add_unique :: (array: *[..]$T, value: T) -> bool {
 	array_add(array, value);
 	return true;
 }
+
+string_to_byte_array :: (str: string) -> [..]u8 {
+	bytes: [..]u8;
+	for str {
+		array_add(*bytes, it);
+	} 
+	return bytes;
+}

@@ -58,6 +58,20 @@ ZRenderer :: struct {
 	queue_indices			: Queue_Family_Indices;
 	graphics_queue			: VkQueue;
 	present_queue			: VkQueue;
+
+	render_pass 			: VkRenderPass;
+	pipeline_layout			: VkPipelineLayout;
+
+	graphics_pipeline		: VkPipeline;
+
+	swapchain_framebuffers	: [..]VkFramebuffer;
+
+	command_pool 			: VkCommandPool;
+	command_buffer			: VkCommandBuffer;
+
+	image_available_semaphore 	: VkSemaphore;
+	render_finished_semaphore 	: VkSemaphore;
+	in_flight_fence				: VkFence;
 }
 
 init_instance :: (zr: *ZRenderer) -> bool, string {
@@ -187,11 +201,11 @@ VulkanDebugCallback :: (severity : VkDebugUtilsMessageSeverityFlagBitsEXT, type 
     msg := to_string(callback_data.pMessage);
 
     if severity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT {
-        print("VULKAN ERROR: %\n", msg);
+        print("ERROR (VK): %\n", msg);
     } else if severity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT {
-        print("VULKAN WARNING: %\n", msg);
+        print("WARNING (VK): %\n", msg);
     } else {
-        print("VULKAN MSG: %\n%", msg);
+        print("MESSAGE (VK): %\n%", msg);
     }
 
     return VK_FALSE;
@@ -475,13 +489,332 @@ init_imageviews :: (zr: *ZRenderer) -> bool, string {
 	return true, "";
 }
 
-init_graphics_pipeline :: (zr: *ZRenderer) -> bool, string {
-	
+create_render_pass :: (zr: *ZRenderer) -> bool, string {
+	color_attachment_desc : VkAttachmentDescription;
+	color_attachment_desc.format = zr.swapchain_image_format;
+	color_attachment_desc.samples = .VK_SAMPLE_COUNT_1_BIT;
+	color_attachment_desc.loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR;
+	color_attachment_desc.storeOp = .VK_ATTACHMENT_STORE_OP_STORE;
+	color_attachment_desc.stencilLoadOp = .VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	color_attachment_desc.stencilStoreOp = .VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	color_attachment_desc.initialLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
+	color_attachment_desc.finalLayout = .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	color_attachment_ref : VkAttachmentReference;
+	color_attachment_ref.attachment = 0;
+	color_attachment_ref.layout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	subpass : VkSubpassDescription;
+	subpass.pipelineBindPoint = .VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = *color_attachment_ref;
+
+	dependency : VkSubpassDependency;
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependency.dstSubpass = 0;
+	dependency.srcStageMask = .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcAccessMask = 0;
+	dependency.dstStageMask = .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.dstAccessMask = .VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+	render_pass_create_info : VkRenderPassCreateInfo;
+	render_pass_create_info.sType = .VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	render_pass_create_info.attachmentCount = 1;
+	render_pass_create_info.pAttachments = *color_attachment_desc;
+	render_pass_create_info.subpassCount = 1;
+	render_pass_create_info.pSubpasses = *subpass;
+	render_pass_create_info.dependencyCount = 1;
+	render_pass_create_info.pDependencies = *dependency;
+
+	result := vkCreateRenderPass(zr.logical_device, *render_pass_create_info, null, *zr.render_pass);
+	if result != .VK_SUCCESS
+		return false, "ERROR: Failed to create Render Pass";
+
+	return true, "";
 }
 
-init_commands :: (zr: *ZRenderer) {
+init_graphics_pipeline :: (zr: *ZRenderer) -> bool, string {
+	vert_shader_code_string := read_entire_file("src/shaders/shader.vert.spv");
+	vert_shader_code := string_to_byte_array(vert_shader_code_string);
+	frag_shader_code_string := read_entire_file("src/shaders/shader.frag.spv");
+	frag_shader_code := string_to_byte_array(frag_shader_code_string);
+
+	vert_success, vert_error, vert_shader_module := create_shader_module(zr, vert_shader_code);
+	frag_success, frag_error, frag_shader_module := create_shader_module(zr, frag_shader_code);
+	
+	vert_shader_stage_info : VkPipelineShaderStageCreateInfo;
+	vert_shader_stage_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vert_shader_stage_info.stage = .VK_SHADER_STAGE_VERTEX_BIT;
+	vert_shader_stage_info.module = vert_shader_module;
+	vert_shader_stage_info.pName = "main";
+
+	frag_shader_stage_info : VkPipelineShaderStageCreateInfo;
+	frag_shader_stage_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	frag_shader_stage_info.stage = .VK_SHADER_STAGE_FRAGMENT_BIT;
+	frag_shader_stage_info.module = frag_shader_module;
+	frag_shader_stage_info.pName = "main";
+
+	shader_stages : []VkPipelineShaderStageCreateInfo = .[vert_shader_stage_info, frag_shader_stage_info];
+
+	// VERTEX INPUT
+	vertex_input_info : VkPipelineVertexInputStateCreateInfo;
+	vertex_input_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertex_input_info.vertexBindingDescriptionCount = 0;
+	vertex_input_info.pVertexBindingDescriptions = null;
+	vertex_input_info.vertexAttributeDescriptionCount = 0;
+	vertex_input_info.pVertexAttributeDescriptions = null;
+
+	// INPUT ASSEMBLY
+	input_assembly : VkPipelineInputAssemblyStateCreateInfo;
+	input_assembly.sType = .VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly.topology = .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	input_assembly.primitiveRestartEnable = VK_FALSE;
+	
+	// VIEWPORT
+	viewport : VkViewport;
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = xx zr.swapchain_extent.width;
+	viewport.height = xx zr.swapchain_extent.height;
+	viewport.minDepth = 0;
+	viewport.maxDepth = 1;
+
+	// SCISSOR
+	scissor : VkRect2D;
+	scissor.offset = .{0,0};
+	scissor.extent = zr.swapchain_extent;
+
+	dynamic_states : [2]VkDynamicState = .[.VK_DYNAMIC_STATE_VIEWPORT, .VK_DYNAMIC_STATE_SCISSOR];
+	
+	dyanmic_state_create_info : VkPipelineDynamicStateCreateInfo;
+	dyanmic_state_create_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dyanmic_state_create_info.dynamicStateCount = xx dynamic_states.count;
+	dyanmic_state_create_info.pDynamicStates = dynamic_states.data;
+
+	viewport_state_create_info : VkPipelineViewportStateCreateInfo;
+	viewport_state_create_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewport_state_create_info.viewportCount = 1;
+	viewport_state_create_info.scissorCount = 1;
+
+	rasterizer_create_info : VkPipelineRasterizationStateCreateInfo;
+	rasterizer_create_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer_create_info.depthClampEnable = VK_FALSE;
+	rasterizer_create_info.rasterizerDiscardEnable = VK_FALSE;
+	rasterizer_create_info.polygonMode = .VK_POLYGON_MODE_FILL;
+	rasterizer_create_info.lineWidth = 1;
+	rasterizer_create_info.cullMode = .VK_CULL_MODE_BACK_BIT;
+	rasterizer_create_info.frontFace = .VK_FRONT_FACE_CLOCKWISE;
+	rasterizer_create_info.depthBiasEnable = VK_FALSE;
+	rasterizer_create_info.depthBiasConstantFactor = 0;
+	rasterizer_create_info.depthBiasClamp = 0;
+	rasterizer_create_info.depthBiasSlopeFactor  = 0;
+
+	// The rasterizer can alter the depth values by adding a constant value or biasing them based on a fragment's slope. This is sometimes used for shadow mapping, but we won't be using it. Just set depthBiasEnable to VK_FALSE.
+	multisampling_create_info : VkPipelineMultisampleStateCreateInfo;
+	multisampling_create_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling_create_info.sampleShadingEnable = VK_FALSE;
+	multisampling_create_info.rasterizationSamples = .VK_SAMPLE_COUNT_1_BIT;
+	multisampling_create_info.minSampleShading = 1;
+	multisampling_create_info.pSampleMask = null;
+	multisampling_create_info.alphaToCoverageEnable = VK_FALSE;
+	multisampling_create_info.alphaToOneEnable = VK_FALSE;
+
+	color_blend_attachment : VkPipelineColorBlendAttachmentState;
+	color_blend_attachment.colorWriteMask = .VK_COLOR_COMPONENT_R_BIT | .VK_COLOR_COMPONENT_G_BIT | .VK_COLOR_COMPONENT_B_BIT | .VK_COLOR_COMPONENT_A_BIT;
+	color_blend_attachment.blendEnable = VK_FALSE;
+	color_blend_attachment.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE;
+	color_blend_attachment.dstColorBlendFactor = .VK_BLEND_FACTOR_ZERO;
+	color_blend_attachment.colorBlendOp = .VK_BLEND_OP_ADD;
+	color_blend_attachment.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE;
+	color_blend_attachment.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE;
+	color_blend_attachment.alphaBlendOp = .VK_BLEND_OP_ADD;
+
+	color_blending : VkPipelineColorBlendStateCreateInfo ;
+	color_blending.sType = .VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	color_blending.logicOpEnable = VK_FALSE;
+	color_blending.logicOp = .VK_LOGIC_OP_COPY; 
+	color_blending.attachmentCount = 1;
+	color_blending.pAttachments = *color_blend_attachment;
+	color_blending.blendConstants[0] = 0; 
+	color_blending.blendConstants[1] = 0; 
+	color_blending.blendConstants[2] = 0; 
+	color_blending.blendConstants[3] = 0; 
+
+	pipeline_layout_info : VkPipelineLayoutCreateInfo;
+	pipeline_layout_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipeline_layout_info.setLayoutCount = 0; 
+	pipeline_layout_info.pSetLayouts = null; 
+	pipeline_layout_info.pushConstantRangeCount = 0; 
+	pipeline_layout_info.pPushConstantRanges = null; 
+
+	result := vkCreatePipelineLayout(zr.logical_device, *pipeline_layout_info, null, *zr.pipeline_layout);
+	if result != .VK_SUCCESS {
+		return false, sprint("%\n", result);
+	}
+
+	pipeline_info : VkGraphicsPipelineCreateInfo;
+	pipeline_info.sType = .VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipeline_info.stageCount = 2;
+	pipeline_info.pStages = shader_stages.data;
+
+	pipeline_info.pVertexInputState = *vertex_input_info;
+	pipeline_info.pInputAssemblyState = *input_assembly;
+	pipeline_info.pViewportState = *viewport_state_create_info;
+	pipeline_info.pRasterizationState = *rasterizer_create_info;
+	pipeline_info.pMultisampleState = *multisampling_create_info;
+	pipeline_info.pDepthStencilState = null;
+	pipeline_info.pColorBlendState = *color_blending;
+	pipeline_info.pDynamicState = *dyanmic_state_create_info;
+	pipeline_info.layout = zr.pipeline_layout;
+	pipeline_info.renderPass = zr.render_pass;
+	pipeline_info.subpass = 0;
+
+	pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
+	pipeline_info.basePipelineIndex = -1;
+
+	result = vkCreateGraphicsPipelines(zr.logical_device, VK_NULL_HANDLE, 1, *pipeline_info, null, *zr.graphics_pipeline);
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result);
+
+	vkDestroyShaderModule(zr.logical_device, vert_shader_module, null);
+    vkDestroyShaderModule(zr.logical_device, frag_shader_module, null);
+
+	return true, "";
 }
-init_sync_structures :: (zr: *ZRenderer){
+
+create_shader_module :: (zr: *ZRenderer, code: [..]u8) -> bool, string, VkShaderModule {
+	create_info : VkShaderModuleCreateInfo;
+	create_info.sType = .VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	create_info.codeSize = xx code.count;
+	create_info.pCode = xx code.data;
+
+	shader_module : VkShaderModule;
+	result := vkCreateShaderModule(zr.logical_device, *create_info, null, *shader_module);
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result), null;
+	return true, "", shader_module;
+}
+
+create_framebuffers :: (zr: *ZRenderer) -> bool, string {
+	array_resize(*zr.swapchain_framebuffers, zr.swapchain_imageviews.count);
+
+	for zr.swapchain_imageviews {
+		attachments : [..]VkImageView;
+		array_add(*attachments, zr.swapchain_imageviews[it_index]);
+
+		framebuffer_create_info : VkFramebufferCreateInfo;
+		framebuffer_create_info.sType = .VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebuffer_create_info.renderPass = zr.render_pass;
+		framebuffer_create_info.attachmentCount = 1;
+		framebuffer_create_info.pAttachments = attachments.data;
+		framebuffer_create_info.width = zr.swapchain_extent.width;
+		framebuffer_create_info.height = zr.swapchain_extent.height;
+		framebuffer_create_info.layers = 1;
+
+		result := vkCreateFramebuffer(zr.logical_device, *framebuffer_create_info, null, *zr.swapchain_framebuffers[it_index]);
+		if result != .VK_SUCCESS
+			return false, sprint("%\n", result);
+	}
+
+	return true, "";
+}
+
+create_command_pool :: (zr: *ZRenderer) -> bool, string {
+	queue_family_indices := zr.queue_indices;
+
+	pool_info : VkCommandPoolCreateInfo ;
+	pool_info.sType = .VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	pool_info.flags = .VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	pool_info.queueFamilyIndex = xx queue_family_indices.graphics;
+
+	result := vkCreateCommandPool(zr.logical_device, *pool_info, null, *zr.command_pool);
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result);
+
+	return true, "";
+}
+
+create_command_buffer :: (zr: *ZRenderer) -> bool, string {
+	alloc_info : VkCommandBufferAllocateInfo;
+	alloc_info.sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	alloc_info.commandPool = zr.command_pool;
+	alloc_info.level = .VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	alloc_info.commandBufferCount = 1;
+
+	result := vkAllocateCommandBuffers(zr.logical_device, *alloc_info, *zr.command_buffer);
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result);
+	return true, "";
+}
+
+record_command_buffer :: (zr: *ZRenderer, image_index: u32) -> bool, string {
+	begin_info : VkCommandBufferBeginInfo;
+	begin_info.sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	begin_info.flags = 0;
+	begin_info.pInheritanceInfo = null;
+
+	result := vkBeginCommandBuffer(zr.command_buffer, *begin_info);
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result);
+
+	render_pass_info : VkRenderPassBeginInfo;
+	render_pass_info.sType = .VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	render_pass_info.renderPass = zr.render_pass;
+	render_pass_info.framebuffer = zr.swapchain_framebuffers[image_index];
+	render_pass_info.renderArea.offset = .{0,0};
+	render_pass_info.renderArea.extent = zr.swapchain_extent;
+	clear_color : VkClearValue = .{.{.[0,0,0,1]}};
+	render_pass_info.clearValueCount = 1;
+	render_pass_info.pClearValues = *clear_color;
+
+	vkCmdBeginRenderPass(zr.command_buffer, *render_pass_info, .VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(zr.command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.graphics_pipeline);
+
+	viewport : VkViewport;
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = xx zr.swapchain_extent.width;
+	viewport.height = xx zr.swapchain_extent.height;
+	viewport.minDepth = 0;
+	viewport.maxDepth = 1;
+	vkCmdSetViewport(zr.command_buffer, 0, 1, *viewport);
+
+	scissor : VkRect2D;
+	scissor.offset = .{0,0};
+	scissor.extent = zr.swapchain_extent;
+	vkCmdSetScissor(zr.command_buffer, 0, 1, *scissor);
+
+	vkCmdDraw(zr.command_buffer, 3, 1, 0, 0);
+
+	vkCmdEndRenderPass(zr.command_buffer);
+
+	result = vkEndCommandBuffer(zr.command_buffer);
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result);
+	return true, "";
+}
+
+create_sync_objects :: (zr: *ZRenderer) -> bool, string {
+	semaphore_create_info : VkSemaphoreCreateInfo;
+	semaphore_create_info.sType = .VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	result := vkCreateSemaphore(zr.logical_device, *semaphore_create_info, null, *zr.image_available_semaphore);
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result);
+	result = vkCreateSemaphore(zr.logical_device, *semaphore_create_info, null, *zr.render_finished_semaphore);
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result);
+
+	fence_create_info : VkFenceCreateInfo;
+	fence_create_info.sType = .VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fence_create_info.flags = .VK_FENCE_CREATE_SIGNALED_BIT;
+
+	result = vkCreateFence(zr.logical_device, *fence_create_info, null, *zr.in_flight_fence);
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result);
+
+	return true, "";
 }
 
 init_zrenderer :: (zr: *ZRenderer) -> bool, string {
@@ -514,26 +847,93 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	if !success return false, error;
 	success, error = init_imageviews(zr);
 	if !success return false, error;
+	success, error = create_render_pass(zr);
+	if !success return false, error;
 	success, error = init_graphics_pipeline(zr);
 	if !success return false, error;
-	init_commands(zr);
-	init_sync_structures(zr);
+	success, error = create_framebuffers(zr);
+	if !success return false, error;
+	success, error = create_command_pool(zr);
+	if !success return false, error;
+	success, error = create_command_buffer(zr);
+	if !success return false, error;
+	success, error = create_sync_objects(zr);
+	if !success return false, error;
 
 	zr.initialized = true;
 	return true, "";
 }
 
+draw_frame :: (zr: *ZRenderer) {
+	vkWaitForFences(zr.logical_device, 1, *zr.in_flight_fence, VK_TRUE, U64_MAX);
+	vkResetFences(zr.logical_device, 1, *zr.in_flight_fence);
 
-draw :: (zr: *ZRenderer) {
+	image_idx : u32;
+	vkAcquireNextImageKHR(zr.logical_device, zr.swapchain, U64_MAX, zr.image_available_semaphore, VK_NULL_HANDLE, *image_idx);
+	vkResetCommandBuffer(zr.command_buffer, 0);
+
+	record_command_buffer(zr, image_idx); // This needs to take a command buffer too, what if we have multiple?
+
+	submit_info : VkSubmitInfo;
+	submit_info.sType = .VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	wait_semaphores : [..]VkSemaphore;
+	array_add(*wait_semaphores, zr.image_available_semaphore);
+	wait_stages : [..]VkPipelineStageFlags;
+	array_add(*wait_stages, .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+	submit_info.waitSemaphoreCount = 1;
+	submit_info.pWaitSemaphores = wait_semaphores.data;
+	submit_info.pWaitDstStageMask = wait_stages.data;
+
+	submit_info.commandBufferCount = 1;
+	submit_info.pCommandBuffers = *zr.command_buffer;
+
+	signal_semaphores : [..]VkSemaphore;
+	array_add(*signal_semaphores, zr.render_finished_semaphore);
+	submit_info.signalSemaphoreCount = 1;
+	submit_info.pSignalSemaphores = signal_semaphores.data;
+
+	result := vkQueueSubmit(zr.graphics_queue, 1, *submit_info, zr.in_flight_fence);
+	if result != .VK_SUCCESS {
+		print("%\n", result);
+		return;
+	}
+		
+	present_info : VkPresentInfoKHR;
+	present_info.sType = .VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	present_info.waitSemaphoreCount = 1;
+	present_info.pWaitSemaphores = signal_semaphores.data;
+
+	swap_chains : [..]VkSwapchainKHR;
+	array_add(*swap_chains, zr.swapchain);
+	present_info.swapchainCount = 1;
+	present_info.pSwapchains = swap_chains.data;
+	present_info.pImageIndices = *image_idx;
+	present_info.pResults = null;
+
+	vkQueuePresentKHR(zr.present_queue, *present_info);
+
 	SDL_GL_SwapWindow(zr.window); 
 }
 
 deinit_zrenderer :: (zr: *ZRenderer) {
 	if zr.initialized {
+		vkDestroySemaphore(zr.logical_device, zr.image_available_semaphore, null);
+		vkDestroySemaphore(zr.logical_device, zr.render_finished_semaphore, null);
+		vkDestroyFence(zr.logical_device, zr.in_flight_fence, null);
+
+		vkDestroyCommandPool(zr.logical_device, zr.command_pool, null);
+
+		for zr.swapchain_framebuffers {
+			vkDestroyFramebuffer(zr.logical_device, it, null);
+		}
 		for zr.swapchain_imageviews {
 			vkDestroyImageView(zr.logical_device, it, null);
 		}
 		
+		vkDestroyPipeline(zr.logical_device, zr.graphics_pipeline, null);
+		vkDestroyPipelineLayout(zr.logical_device, zr.pipeline_layout, null);
+		vkDestroyRenderPass(zr.logical_device, zr.render_pass, null);
 		vkDestroySwapchainKHR(zr.logical_device, zr.swapchain, null);
 		vkDestroySurfaceKHR(zr.instance, zr.surface, null);
 		vkDestroyDevice(zr.logical_device, null);
