@@ -3,6 +3,8 @@
 #import "SDL";
 #import "Vulkan";
 
+MAX_FRAMES_IN_FLIGHT :: 2;
+
 Required_Extensions :: (*u8).[
     "VK_EXT_debug_utils",
 ];
@@ -14,6 +16,10 @@ Required_Device_Extensions :: (*u8).[
 Desired_Validation_Layers :: (*u8).[
     "VK_LAYER_KHRONOS_validation",
 ];
+
+SDL_Vulkan_GetInstanceExtensions :: (window : *SDL_Window, num_extensions : *u32, extensions : **u8) -> SDL_bool #foreign SDL2;
+SDL_Vulkan_CreateSurface :: (window : *SDL_Window, instance : VkInstance, surface : *VkSurfaceKHR) -> SDL_bool #foreign SDL2;
+SDL_Vulkan_GetDrawableSize :: (window : *SDL_Window, w : *u32, h : *u32) #foreign SDL2;
 
 Queue_Family_Indices :: struct {
 	graphics : s32 = -1;  // -1 means not found
@@ -67,11 +73,15 @@ ZRenderer :: struct {
 	swapchain_framebuffers	: [..]VkFramebuffer;
 
 	command_pool 			: VkCommandPool;
-	command_buffer			: VkCommandBuffer;
+	command_buffers			: [MAX_FRAMES_IN_FLIGHT]VkCommandBuffer;
 
-	image_available_semaphore 	: VkSemaphore;
-	render_finished_semaphore 	: VkSemaphore;
-	in_flight_fence				: VkFence;
+	image_available_semaphores 	: [MAX_FRAMES_IN_FLIGHT]VkSemaphore;
+	render_finished_semaphores 	: [MAX_FRAMES_IN_FLIGHT]VkSemaphore;
+	in_flight_fences			: [MAX_FRAMES_IN_FLIGHT]VkFence;
+
+	framebuffer_resized			: bool;
+	minimized					: bool;
+	current_frame				: u8;
 }
 
 init_instance :: (zr: *ZRenderer) -> bool, string {
@@ -88,7 +98,7 @@ init_instance :: (zr: *ZRenderer) -> bool, string {
 	create_info.pApplicationInfo = *app_info;
 
 	// EXTENSIONS
-	SDL_Vulkan_GetInstanceExtensions :: (window : *SDL_Window, num_extensions : *u32, extensions : **u8) -> SDL_bool #foreign SDL2;
+	
 
 	num_extensions 			: u32;
 	required_extensions		: [..]*u8;
@@ -205,7 +215,7 @@ VulkanDebugCallback :: (severity : VkDebugUtilsMessageSeverityFlagBitsEXT, type 
     } else if severity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT {
         print("WARNING (VK): %\n", msg);
     } else {
-        print("MESSAGE (VK): %\n%", msg);
+        print("MESSAGE (VK): %\n", msg);
     }
 
     return VK_FALSE;
@@ -213,7 +223,7 @@ VulkanDebugCallback :: (severity : VkDebugUtilsMessageSeverityFlagBitsEXT, type 
 
 create_surface :: (zr: *ZRenderer) -> bool, string {
 
-	SDL_Vulkan_CreateSurface :: (window : *SDL_Window, instance : VkInstance, surface : *VkSurfaceKHR) -> SDL_bool #foreign SDL2;
+
 
 	result := SDL_Vulkan_CreateSurface(zr.window, zr.instance, *zr.surface);
 	if !result return false, "Could not creat Vk Surface";
@@ -401,10 +411,11 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 		w : u32;
 		h : u32;
 
-		SDL_Vulkan_GetDrawableSize :: (window : *SDL_Window, w : *u32, h : *u32) #foreign SDL2;
-
 		SDL_Vulkan_GetDrawableSize(zr.window, *w, *h);
+		chosen_extent.width = w;
+		chosen_extent.height = h;
 	}
+
 	chosen_extent.width = clamp(chosen_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
 	chosen_extent.height = clamp(chosen_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 	print("Swap Extent: %x%\n", chosen_extent.width, chosen_extent.height);
@@ -739,21 +750,21 @@ create_command_buffer :: (zr: *ZRenderer) -> bool, string {
 	alloc_info.sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	alloc_info.commandPool = zr.command_pool;
 	alloc_info.level = .VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	alloc_info.commandBufferCount = 1;
+	alloc_info.commandBufferCount = zr.command_buffers.count;
 
-	result := vkAllocateCommandBuffers(zr.logical_device, *alloc_info, *zr.command_buffer);
+	result := vkAllocateCommandBuffers(zr.logical_device, *alloc_info, zr.command_buffers.data);
 	if result != .VK_SUCCESS 
 		return false, sprint("%\n", result);
 	return true, "";
 }
 
-record_command_buffer :: (zr: *ZRenderer, image_index: u32) -> bool, string {
+record_command_buffer :: (zr: *ZRenderer, command_buffer: VkCommandBuffer, image_index: u32) -> bool, string {
 	begin_info : VkCommandBufferBeginInfo;
 	begin_info.sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	begin_info.flags = 0;
 	begin_info.pInheritanceInfo = null;
 
-	result := vkBeginCommandBuffer(zr.command_buffer, *begin_info);
+	result := vkBeginCommandBuffer(command_buffer, *begin_info);
 	if result != .VK_SUCCESS 
 		return false, sprint("%\n", result);
 
@@ -767,9 +778,9 @@ record_command_buffer :: (zr: *ZRenderer, image_index: u32) -> bool, string {
 	render_pass_info.clearValueCount = 1;
 	render_pass_info.pClearValues = *clear_color;
 
-	vkCmdBeginRenderPass(zr.command_buffer, *render_pass_info, .VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(command_buffer, *render_pass_info, .VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdBindPipeline(zr.command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.graphics_pipeline);
+	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.graphics_pipeline);
 
 	viewport : VkViewport;
 	viewport.x = 0;
@@ -778,18 +789,18 @@ record_command_buffer :: (zr: *ZRenderer, image_index: u32) -> bool, string {
 	viewport.height = xx zr.swapchain_extent.height;
 	viewport.minDepth = 0;
 	viewport.maxDepth = 1;
-	vkCmdSetViewport(zr.command_buffer, 0, 1, *viewport);
+	vkCmdSetViewport(command_buffer, 0, 1, *viewport);
 
 	scissor : VkRect2D;
 	scissor.offset = .{0,0};
 	scissor.extent = zr.swapchain_extent;
-	vkCmdSetScissor(zr.command_buffer, 0, 1, *scissor);
+	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
 
-	vkCmdDraw(zr.command_buffer, 3, 1, 0, 0);
+	vkCmdDraw(command_buffer, 3, 1, 0, 0);
 
-	vkCmdEndRenderPass(zr.command_buffer);
+	vkCmdEndRenderPass(command_buffer);
 
-	result = vkEndCommandBuffer(zr.command_buffer);
+	result = vkEndCommandBuffer(command_buffer);
 	if result != .VK_SUCCESS 
 		return false, sprint("%\n", result);
 	return true, "";
@@ -799,21 +810,22 @@ create_sync_objects :: (zr: *ZRenderer) -> bool, string {
 	semaphore_create_info : VkSemaphoreCreateInfo;
 	semaphore_create_info.sType = .VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-	result := vkCreateSemaphore(zr.logical_device, *semaphore_create_info, null, *zr.image_available_semaphore);
-	if result != .VK_SUCCESS 
-		return false, sprint("%\n", result);
-	result = vkCreateSemaphore(zr.logical_device, *semaphore_create_info, null, *zr.render_finished_semaphore);
-	if result != .VK_SUCCESS 
-		return false, sprint("%\n", result);
-
 	fence_create_info : VkFenceCreateInfo;
 	fence_create_info.sType = .VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fence_create_info.flags = .VK_FENCE_CREATE_SIGNALED_BIT;
 
-	result = vkCreateFence(zr.logical_device, *fence_create_info, null, *zr.in_flight_fence);
-	if result != .VK_SUCCESS 
-		return false, sprint("%\n", result);
+	for 0..MAX_FRAMES_IN_FLIGHT-1 {
+		result := vkCreateSemaphore(zr.logical_device, *semaphore_create_info, null, *zr.image_available_semaphores[it]);
+		if result != .VK_SUCCESS 
+			return false, sprint("%\n", result);
+		result = vkCreateSemaphore(zr.logical_device, *semaphore_create_info, null, *zr.render_finished_semaphores[it]);
+		if result != .VK_SUCCESS 
+			return false, sprint("%\n", result);
 
+		result = vkCreateFence(zr.logical_device, *fence_create_info, null, *zr.in_flight_fences[it]);
+		if result != .VK_SUCCESS 
+			return false, sprint("%\n", result);
+	}
 	return true, "";
 }
 
@@ -864,21 +876,57 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	return true, "";
 }
 
+recreate_swapchain :: (zr: *ZRenderer) -> bool, string {
+	w : u32;
+	h : u32;
+	SDL_Vulkan_GetDrawableSize(zr.window, *w, *h);
+	while(w == 0 || h == 0) {
+		SDL_Vulkan_GetDrawableSize(zr.window, *w, *h);
+		SDL_WaitEvent(null);
+	}
+		
+	vkDeviceWaitIdle(zr.logical_device);
+	deinit_swapchain(zr);
+
+	query_success := query_swapchain_support(zr);
+    if !query_success return false, "Failed to query swapchain support";
+	success, error := init_swapchain(zr);
+	if !success return false, error;
+	success, error = init_imageviews(zr);
+	if !success return false, error;
+	success, error = create_framebuffers(zr);
+	if !success return false, error;
+
+	return true, "";
+}
+
 draw_frame :: (zr: *ZRenderer) {
-	vkWaitForFences(zr.logical_device, 1, *zr.in_flight_fence, VK_TRUE, U64_MAX);
-	vkResetFences(zr.logical_device, 1, *zr.in_flight_fence);
+	if zr.swapchain_extent.width == 0 || zr.swapchain_extent.height == 0 {
+        return;
+    }
+	vkWaitForFences(zr.logical_device, 1, *zr.in_flight_fences[zr.current_frame], VK_TRUE, U64_MAX);
 
 	image_idx : u32;
-	vkAcquireNextImageKHR(zr.logical_device, zr.swapchain, U64_MAX, zr.image_available_semaphore, VK_NULL_HANDLE, *image_idx);
-	vkResetCommandBuffer(zr.command_buffer, 0);
+	acquire_result := vkAcquireNextImageKHR(zr.logical_device, zr.swapchain, U64_MAX, zr.image_available_semaphores[zr.current_frame], VK_NULL_HANDLE, *image_idx);
+	if acquire_result == .VK_ERROR_OUT_OF_DATE_KHR {
+		recreate_swapchain(zr);
+		return;
+	}
+	if acquire_result != .VK_SUCCESS && acquire_result != .VK_SUBOPTIMAL_KHR {
+		print("ERROR: %\n", acquire_result);
+		return;
+	}
+	vkResetFences(zr.logical_device, 1, *zr.in_flight_fences[zr.current_frame]);
 
-	record_command_buffer(zr, image_idx); // This needs to take a command buffer too, what if we have multiple?
+	vkResetCommandBuffer(zr.command_buffers[zr.current_frame], 0);
+
+	record_command_buffer(zr, zr.command_buffers[zr.current_frame], image_idx); // This needs to take a command buffer too, what if we have multiple?
 
 	submit_info : VkSubmitInfo;
 	submit_info.sType = .VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
 	wait_semaphores : [..]VkSemaphore;
-	array_add(*wait_semaphores, zr.image_available_semaphore);
+	array_add(*wait_semaphores, zr.image_available_semaphores[zr.current_frame]);
 	wait_stages : [..]VkPipelineStageFlags;
 	array_add(*wait_stages, .VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 	submit_info.waitSemaphoreCount = 1;
@@ -886,14 +934,14 @@ draw_frame :: (zr: *ZRenderer) {
 	submit_info.pWaitDstStageMask = wait_stages.data;
 
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = *zr.command_buffer;
+	submit_info.pCommandBuffers = *zr.command_buffers[zr.current_frame];
 
 	signal_semaphores : [..]VkSemaphore;
-	array_add(*signal_semaphores, zr.render_finished_semaphore);
+	array_add(*signal_semaphores, zr.render_finished_semaphores[zr.current_frame]);
 	submit_info.signalSemaphoreCount = 1;
 	submit_info.pSignalSemaphores = signal_semaphores.data;
 
-	result := vkQueueSubmit(zr.graphics_queue, 1, *submit_info, zr.in_flight_fence);
+	result := vkQueueSubmit(zr.graphics_queue, 1, *submit_info, zr.in_flight_fences[zr.current_frame]);
 	if result != .VK_SUCCESS {
 		print("%\n", result);
 		return;
@@ -911,32 +959,52 @@ draw_frame :: (zr: *ZRenderer) {
 	present_info.pImageIndices = *image_idx;
 	present_info.pResults = null;
 
-	vkQueuePresentKHR(zr.present_queue, *present_info);
+	present_result := vkQueuePresentKHR(zr.present_queue, *present_info);
+	if present_result == .VK_ERROR_OUT_OF_DATE_KHR || present_result == .VK_SUBOPTIMAL_KHR || zr.framebuffer_resized {
+		zr.framebuffer_resized = false;
+		recreate_swapchain(zr);
+	}
+	if present_result != .VK_SUCCESS {
+		print("ERROR: %\n", present_result);
+		return;
+	}
+	zr.current_frame = (zr.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
 
-	SDL_GL_SwapWindow(zr.window); 
+deinit_swapchain :: (zr: *ZRenderer) {
+	for zr.swapchain_framebuffers {
+		vkDestroyFramebuffer(zr.logical_device, it, null);
+	}
+	for zr.swapchain_imageviews {
+		vkDestroyImageView(zr.logical_device, it, null);
+	}
+	vkDestroySwapchainKHR(zr.logical_device, zr.swapchain, null);
 }
 
 deinit_zrenderer :: (zr: *ZRenderer) {
 	if zr.initialized {
-		vkDestroySemaphore(zr.logical_device, zr.image_available_semaphore, null);
-		vkDestroySemaphore(zr.logical_device, zr.render_finished_semaphore, null);
-		vkDestroyFence(zr.logical_device, zr.in_flight_fence, null);
+		deinit_swapchain(zr);
 
-		vkDestroyCommandPool(zr.logical_device, zr.command_pool, null);
-
-		for zr.swapchain_framebuffers {
-			vkDestroyFramebuffer(zr.logical_device, it, null);
-		}
-		for zr.swapchain_imageviews {
-			vkDestroyImageView(zr.logical_device, it, null);
-		}
-		
 		vkDestroyPipeline(zr.logical_device, zr.graphics_pipeline, null);
 		vkDestroyPipelineLayout(zr.logical_device, zr.pipeline_layout, null);
+
 		vkDestroyRenderPass(zr.logical_device, zr.render_pass, null);
-		vkDestroySwapchainKHR(zr.logical_device, zr.swapchain, null);
-		vkDestroySurfaceKHR(zr.instance, zr.surface, null);
+
+		for 0..MAX_FRAMES_IN_FLIGHT-1 {
+			vkDestroySemaphore(zr.logical_device, zr.image_available_semaphores[it], null);
+			vkDestroySemaphore(zr.logical_device, zr.render_finished_semaphores[it], null);
+			vkDestroyFence(zr.logical_device, zr.in_flight_fences[it], null);
+		}
+		vkDestroyCommandPool(zr.logical_device, zr.command_pool, null);
+
 		vkDestroyDevice(zr.logical_device, null);
+
+		if ENABLE_VALIDATION_LAYERS {
+			deinit_validation(zr, null);
+		}
+
+		vkDestroySurfaceKHR(zr.instance, zr.surface, null);
+		
 		vkDestroyInstance(zr.instance, null);
 		
 		SDL_DestroyWindow(zr.window);

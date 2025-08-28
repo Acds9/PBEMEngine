@@ -37,18 +37,27 @@ main :: () {
                     if event.key.keysym.sym == SDLK_ESCAPE quit = true;
                 case SDL_WINDOWEVENT;
                     if event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED {
-                        WINDOW_WIDTH = event.window.data1;
-                        WINDOW_HEIGHT = event.window.data2;
+                        z_renderer.framebuffer_resized = true;
                     }
+					else if event.window.event == SDL_WINDOWEVENT_MINIMIZED {
+						z_renderer.minimized = true;
+					}
+					else if event.window.event == SDL_WINDOWEVENT_RESTORED  {
+						z_renderer.minimized = false;
+					}
             }
         }		
-		draw_frame(*z_renderer);
+		if !z_renderer.minimized {
+			draw_frame(*z_renderer);
+		}
+		else 
+		{
+			sleep_milliseconds(50);
+		}
+
 		vkDeviceWaitIdle(z_renderer.logical_device);
     }
-	
-	if ENABLE_VALIDATION_LAYERS {
-		deinit_validation(*z_renderer, null);
-	}
+
 	deinit_zrenderer(*z_renderer);
 }
 
