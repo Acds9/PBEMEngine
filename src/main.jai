@@ -28,7 +28,6 @@ main :: () {
 	event : SDL_Event;
 	quit := false;
     while !quit {
-		
         while SDL_PollEvent(*event) {
             if event.type == {
                 case SDL_QUIT;

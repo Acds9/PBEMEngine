@@ -3,8 +3,6 @@
 #import "SDL";
 #import "Vulkan";
 
-MAX_FRAMES_IN_FLIGHT :: 2;
-
 Required_Extensions :: (*u8).[
     "VK_EXT_debug_utils",
 ];
@@ -40,6 +38,13 @@ Swapchain_Support_Details :: struct {
 
 ENABLE_VALIDATION_LAYERS :: true;
 
+
+MAX_FRAMES_IN_FLIGHT :: 2;
+Frame_Data :: struct {
+	command_pool 			: VkCommandPool;
+	command_buffer			: VkCommandBuffer;
+}
+
 ZRenderer :: struct {
 	
 	initialized 			: bool;
@@ -72,8 +77,10 @@ ZRenderer :: struct {
 
 	swapchain_framebuffers	: [..]VkFramebuffer;
 
-	command_pool 			: VkCommandPool;
-	command_buffers			: [MAX_FRAMES_IN_FLIGHT]VkCommandBuffer;
+	frame_data				: [MAX_FRAMES_IN_FLIGHT]Frame_Data;
+	get_current_frame_data :: (using self: *ZRenderer) -> *Frame_Data {
+		return *frame_data[current_frame];
+	}
 
 	image_available_semaphores 	: [MAX_FRAMES_IN_FLIGHT]VkSemaphore;
 	render_finished_semaphores 	: [MAX_FRAMES_IN_FLIGHT]VkSemaphore;
@@ -222,9 +229,6 @@ VulkanDebugCallback :: (severity : VkDebugUtilsMessageSeverityFlagBitsEXT, type 
 }
 
 create_surface :: (zr: *ZRenderer) -> bool, string {
-
-
-
 	result := SDL_Vulkan_CreateSurface(zr.window, zr.instance, *zr.surface);
 	if !result return false, "Could not creat Vk Surface";
 	return true, "";
@@ -730,7 +734,7 @@ create_framebuffers :: (zr: *ZRenderer) -> bool, string {
 	return true, "";
 }
 
-create_command_pool :: (zr: *ZRenderer) -> bool, string {
+init_commands :: (zr: *ZRenderer) -> bool, string {
 	queue_family_indices := zr.queue_indices;
 
 	pool_info : VkCommandPoolCreateInfo ;
@@ -738,23 +742,23 @@ create_command_pool :: (zr: *ZRenderer) -> bool, string {
 	pool_info.flags = .VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	pool_info.queueFamilyIndex = xx queue_family_indices.graphics;
 
-	result := vkCreateCommandPool(zr.logical_device, *pool_info, null, *zr.command_pool);
-	if result != .VK_SUCCESS 
-		return false, sprint("%\n", result);
+	for zr.frame_data {
+		// Create cpmmand pool first
+		result := vkCreateCommandPool(zr.logical_device, *pool_info, null, *it.command_pool);
+		if result != .VK_SUCCESS 
+			return false, sprint("%\n", result);
 
-	return true, "";
-}
-
-create_command_buffer :: (zr: *ZRenderer) -> bool, string {
-	alloc_info : VkCommandBufferAllocateInfo;
-	alloc_info.sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	alloc_info.commandPool = zr.command_pool;
-	alloc_info.level = .VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	alloc_info.commandBufferCount = zr.command_buffers.count;
-
-	result := vkAllocateCommandBuffers(zr.logical_device, *alloc_info, zr.command_buffers.data);
-	if result != .VK_SUCCESS 
-		return false, sprint("%\n", result);
+		// Now allocate the buffer
+		alloc_info : VkCommandBufferAllocateInfo;
+		alloc_info.sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		alloc_info.commandPool = it.command_pool;
+		alloc_info.level = .VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		alloc_info.commandBufferCount = 1; // Just one tied to this pool, but we have multiple pools
+		
+		result = vkAllocateCommandBuffers(zr.logical_device, *alloc_info, *it.command_buffer);
+		if result != .VK_SUCCESS 
+			return false, sprint("%\n", result);
+	}
 	return true, "";
 }
 
@@ -865,9 +869,7 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	if !success return false, error;
 	success, error = create_framebuffers(zr);
 	if !success return false, error;
-	success, error = create_command_pool(zr);
-	if !success return false, error;
-	success, error = create_command_buffer(zr);
+	success, error = init_commands(zr);
 	if !success return false, error;
 	success, error = create_sync_objects(zr);
 	if !success return false, error;
@@ -918,9 +920,10 @@ draw_frame :: (zr: *ZRenderer) {
 	}
 	vkResetFences(zr.logical_device, 1, *zr.in_flight_fences[zr.current_frame]);
 
-	vkResetCommandBuffer(zr.command_buffers[zr.current_frame], 0);
+	vkResetCommandBuffer(zr.frame_data[zr.current_frame].command_buffer, 0);
 
-	record_command_buffer(zr, zr.command_buffers[zr.current_frame], image_idx); // This needs to take a command buffer too, what if we have multiple?
+
+	record_command_buffer(zr, zr.frame_data[zr.current_frame].command_buffer, image_idx); // This needs to take a command buffer too, what if we have multiple?
 
 	submit_info : VkSubmitInfo;
 	submit_info.sType = .VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -934,7 +937,7 @@ draw_frame :: (zr: *ZRenderer) {
 	submit_info.pWaitDstStageMask = wait_stages.data;
 
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = *zr.command_buffers[zr.current_frame];
+	submit_info.pCommandBuffers = *zr.frame_data[zr.current_frame].command_buffer;
 
 	signal_semaphores : [..]VkSemaphore;
 	array_add(*signal_semaphores, zr.render_finished_semaphores[zr.current_frame]);
@@ -959,16 +962,23 @@ draw_frame :: (zr: *ZRenderer) {
 	present_info.pImageIndices = *image_idx;
 	present_info.pResults = null;
 
+	zr.current_frame = zr.current_frame + 1;
+	if zr.current_frame >= MAX_FRAMES_IN_FLIGHT{
+		zr.current_frame = 0;
+	}
+
 	present_result := vkQueuePresentKHR(zr.present_queue, *present_info);
 	if present_result == .VK_ERROR_OUT_OF_DATE_KHR || present_result == .VK_SUBOPTIMAL_KHR || zr.framebuffer_resized {
 		zr.framebuffer_resized = false;
 		recreate_swapchain(zr);
 	}
 	if present_result != .VK_SUCCESS {
-		print("ERROR: %\n", present_result);
+		if present_result == .ERROR_OUT_OF_DATE_KHR {
+			print("MSG (VK): Resizing...\n");
+		}
+		else print("ERROR (VK): %\n", present_result);
 		return;
 	}
-	zr.current_frame = (zr.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 deinit_swapchain :: (zr: *ZRenderer) {
@@ -995,7 +1005,10 @@ deinit_zrenderer :: (zr: *ZRenderer) {
 			vkDestroySemaphore(zr.logical_device, zr.render_finished_semaphores[it], null);
 			vkDestroyFence(zr.logical_device, zr.in_flight_fences[it], null);
 		}
-		vkDestroyCommandPool(zr.logical_device, zr.command_pool, null);
+		for zr.frame_data {
+			vkDestroyCommandPool(zr.logical_device, it.command_pool, null);
+		}
+		
 
 		vkDestroyDevice(zr.logical_device, null);
 
