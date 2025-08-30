@@ -415,3 +415,111 @@ vkinit_semaphore_submit_info :: (semaphore: VkSemaphore, stage_mask: VkPipelineS
     submit_info.deviceIndex = device_index;
     return submit_info;
 }
+
+vkinit_image_create_info :: (format: VkFormat, usage_flags: VkImageUsageFlags, extent: VkExtent3D, 
+								image_type: VkImageType = .VK_IMAGE_TYPE_2D, mip_levels: u32 = 1, array_layers: u32 = 1, samples: 
+								VkSampleCountFlagBits = .VK_SAMPLE_COUNT_1_BIT, tiling : VkImageTiling = .VK_IMAGE_TILING_OPTIMAL, next: *void = null) -> VkImageCreateInfo {
+	image_create_info : VkImageCreateInfo;
+
+	image_create_info.sType = .VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_create_info.pNext = next;
+
+    image_create_info.imageType = image_type;
+
+    image_create_info.format = format;
+    image_create_info.extent = extent;
+
+    image_create_info.mipLevels = mip_levels;
+    image_create_info.arrayLayers = array_layers;
+
+    image_create_info.samples = samples;
+
+    image_create_info.tiling = tiling;
+    image_create_info.usage = usage_flags;
+
+	return image_create_info;
+}
+
+vkinit_imageview_create_info :: (format : VkFormat, image : VkImage, aspectFlags : VkImageAspectFlags, 
+									image_type: VkImageViewType = .VK_IMAGE_VIEW_TYPE_2D, base_mip_level : u32 = 0, level_count : u32 = 1,
+									base_array_layer : u32 = 0, layer_count : u32 = 1, next : *void = null) -> VkImageViewCreateInfo
+{
+    create_info : VkImageViewCreateInfo;
+    create_info.sType = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    create_info.pNext = next;
+
+    create_info.viewType = image_type;
+    create_info.image = image;
+    create_info.format = format;
+    create_info.subresourceRange.baseMipLevel = base_mip_level;
+    create_info.subresourceRange.levelCount = level_count;
+    create_info.subresourceRange.baseArrayLayer = base_array_layer;
+    create_info.subresourceRange.layerCount = layer_count;
+    create_info.subresourceRange.aspectMask = aspectFlags;
+
+    return create_info;
+}
+
+// TODO: rename this file to vkutils
+
+vkutil_blit_copy_image_image :: (command_buffer : VkCommandBuffer, src: VkImage , dst: VkImage, src_size: VkExtent2D, dst_size: VkExtent2D) {
+	blit_region : VkImageBlit2;
+	blit_region.sType = .VK_STRUCTURE_TYPE_IMAGE_BLIT_2;
+
+	blit_region.srcOffsets[1].x = cast,no_check(s32)src_size.width;
+	blit_region.srcOffsets[1].y = cast,no_check(s32)src_size.height;
+	blit_region.srcOffsets[1].z = 1;
+
+	blit_region.dstOffsets[1].x = cast,no_check(s32)dst_size.width;
+	blit_region.dstOffsets[1].y = cast,no_check(s32)dst_size.height;
+	blit_region.dstOffsets[1].z = 1;
+
+	blit_region.srcSubresource.aspectMask = .VK_IMAGE_ASPECT_COLOR_BIT;
+	blit_region.srcSubresource.baseArrayLayer = 0;
+	blit_region.srcSubresource.layerCount = 1;
+	blit_region.srcSubresource.mipLevel = 0;
+
+	blit_region.dstSubresource.aspectMask = .VK_IMAGE_ASPECT_COLOR_BIT;
+	blit_region.dstSubresource.baseArrayLayer = 0;
+	blit_region.dstSubresource.layerCount = 1;
+	blit_region.dstSubresource.mipLevel = 0;
+
+	blit_info : VkBlitImageInfo2;
+	blit_info.sType = .VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2;
+
+	blit_info.dstImage = dst;
+	blit_info.dstImageLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	blit_info.srcImage = src;
+	blit_info.srcImageLayout = .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	blit_info.filter = .VK_FILTER_LINEAR;
+	blit_info.regionCount = 1;
+	blit_info.pRegions = *blit_region;
+
+	vkCmdBlitImage2(command_buffer, *blit_info);
+}
+
+vkutil_transition_image :: (command_buffer: VkCommandBuffer, image: VkImage, current_layout: VkImageLayout, new_layout: VkImageLayout)
+{
+    image_barrier : VkImageMemoryBarrier2;
+	image_barrier.sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+
+    image_barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    image_barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+    image_barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    image_barrier.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
+
+    image_barrier.oldLayout = current_layout;
+    image_barrier.newLayout = new_layout;
+
+    aspect_mask : VkImageAspectFlags = ifx new_layout == .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL then .VK_IMAGE_ASPECT_DEPTH_BIT else .VK_IMAGE_ASPECT_COLOR_BIT;
+    image_barrier.subresourceRange = vkinit_subresource_range(aspect_mask, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS);
+    image_barrier.image = image;
+
+    dep_info : VkDependencyInfo;
+    dep_info.sType = .VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+
+    dep_info.imageMemoryBarrierCount = 1;
+    dep_info.pImageMemoryBarriers = *image_barrier;
+
+    vkCmdPipelineBarrier2(command_buffer, *dep_info);
+}

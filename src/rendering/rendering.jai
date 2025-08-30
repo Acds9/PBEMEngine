@@ -40,8 +40,8 @@ ENABLE_VALIDATION_LAYERS :: true;
 MAX_FRAMES_IN_FLIGHT :: 2;
 
 Deletion_Queue :: struct {
-	Delete_Func_Type :: #type () -> void;
-	deletors	: [..]Delete_Func_Type;
+	image_views		: [..] struct {device: VkDevice; view: VkImageView;};
+	images 			: [..] struct {allocator: VmaAllocator; image: VkImage; allocation: VmaAllocation;};
 }
 
 Frame_Data :: struct {
@@ -59,7 +59,7 @@ Allocated_Image :: struct {
 	image			: VkImage;
 	image_view		: VkImageView;
 	allocation		: VmaAllocation;
-	image_extenxt	: VkExtent2D;
+	image_extent	: VkExtent3D;
 	image_format	: VkFormat;
 }
 
@@ -85,6 +85,9 @@ ZRenderer :: struct {
 	swapchain_imageviews	: [..]VkImageView;
 	swapchain_framebuffers	: [..]VkFramebuffer;
 
+	draw_image				: Allocated_Image;
+	draw_extent				: VkExtent2D;
+
 	queue_indices			: Queue_Family_Indices;
 	graphics_queue			: VkQueue;
 	present_queue			: VkQueue;
@@ -99,10 +102,6 @@ ZRenderer :: struct {
 		return *frame_data[current_frame];
 	}
 
-	//image_available_semaphores 	: [MAX_FRAMES_IN_FLIGHT]VkSemaphore;
-	//render_finished_semaphores 	: [MAX_FRAMES_IN_FLIGHT]VkSemaphore;
-	//in_flight_fences			: [MAX_FRAMES_IN_FLIGHT]VkFence;
-
 	framebuffer_resized			: bool;
 	minimized					: bool;
 	current_frame				: u8;
@@ -113,10 +112,15 @@ ZRenderer :: struct {
 }
 
 flush_deletion_queue :: (queue: *Deletion_Queue) {
-	for queue.deletors {
-		it();
+	using queue;
+	for <image_views {
+		vkDestroyImageView(it.device, it.view, null);
 	}
-	array_reset(*queue.deletors);
+	for <images {
+		vmaDestroyImage(it.allocator, it.image, it.allocation);
+	}
+	array_reset(*image_views);
+	array_reset(*images);
 }
 
 init_instance :: (zr: *ZRenderer) -> bool, string {
@@ -457,7 +461,6 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 		image_count = clamp(image_count, 0, capabilities.maxImageCount);
 	}
 	
-	//create_info : VkSwapchainCreateInfoKHR = vkinit_swapchain_create_info(zr.surface, image_count, chosen_format, chosen_extent);
 	create_info : VkSwapchainCreateInfoKHR = vkinit_swapchain_create_info(
 		zr.surface, 
 		image_count, 
@@ -486,19 +489,17 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 	result := vkCreateSwapchainKHR(zr.logical_device, *create_info, null, *zr.swapchain);
 
 	
-	if result == .VK_SUCCESS {
-		final_image_count : u32;
-		vkGetSwapchainImagesKHR(zr.logical_device, zr.swapchain, *final_image_count, null);
-		array_resize(*zr.swapchain_images, final_image_count);
-		vkGetSwapchainImagesKHR(zr.logical_device, zr.swapchain, *final_image_count, zr.swapchain_images.data);
-		zr.swapchain_image_format = chosen_format.format;
-		zr.swapchain_extent = chosen_extent;
-		return true, "";
-	}	
-	else return false, sprint("%\n", result);
-}
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result);
 
-init_imageviews :: (zr: *ZRenderer) -> bool, string {
+	final_image_count : u32;
+	vkGetSwapchainImagesKHR(zr.logical_device, zr.swapchain, *final_image_count, null);
+	array_resize(*zr.swapchain_images, final_image_count);
+	vkGetSwapchainImagesKHR(zr.logical_device, zr.swapchain, *final_image_count, zr.swapchain_images.data);
+	zr.swapchain_image_format = chosen_format.format;
+	zr.swapchain_extent = chosen_extent;
+
+	// IMAGE VIEWS
 	swapchain_images := zr.swapchain_images;
 	array_resize(*zr.swapchain_imageviews, swapchain_images.count);
 
@@ -517,6 +518,48 @@ init_imageviews :: (zr: *ZRenderer) -> bool, string {
 			return false, sprint("%\n", result);
 		}
 	}
+
+
+	// Match window
+	draw_image_extent : VkExtent3D;
+	draw_image_extent.width = chosen_extent.width;
+	draw_image_extent.height = chosen_extent.height;
+	draw_image_extent.depth = 1;
+
+	// 32bit float
+	zr.draw_image.image_format = .VK_FORMAT_R16G16B16A16_SFLOAT;
+	zr.draw_image.image_extent = draw_image_extent;
+
+	draw_image_usage_flags : VkImageUsageFlags;
+	draw_image_usage_flags |= .VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	draw_image_usage_flags |= .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	draw_image_usage_flags |= .VK_IMAGE_USAGE_STORAGE_BIT;
+	draw_image_usage_flags |= .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+	rimg_create_info : VkImageCreateInfo = vkinit_image_create_info(zr.draw_image.image_format, draw_image_usage_flags, draw_image_extent);
+
+	// alloc from GPU local memory
+	rimg_alloc_info : VmaAllocationCreateInfo;
+	rimg_alloc_info.usage = .VMA_MEMORY_USAGE_GPU_ONLY;
+	rimg_alloc_info.requiredFlags = .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+	// Allocate and create
+	result = vmaCreateImage(zr.allocator, *rimg_create_info, *rimg_alloc_info, *zr.draw_image.image, *zr.draw_image.allocation, null);
+	if result != .VK_SUCCESS {
+		return false, sprint("%\n", result);
+	}
+
+	// Build imageview for the draw image to use for rendering 
+	rview_info : VkImageViewCreateInfo = vkinit_imageview_create_info(zr.draw_image.image_format, zr.draw_image.image, .VK_IMAGE_ASPECT_COLOR_BIT);
+
+	result = vkCreateImageView(zr.logical_device, *rview_info, null, *zr.draw_image.image_view);
+	if result != .VK_SUCCESS {
+		return false, sprint("%\n", result);
+	}
+
+	array_add(*zr.deletion_queue.image_views, .{zr.logical_device, zr.draw_image.image_view});
+	array_add(*zr.deletion_queue.images, .{zr.allocator, zr.draw_image.image, zr.draw_image.allocation});
+
 	return true, "";
 }
 
@@ -788,9 +831,9 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	if !success return false, error;
 	success, error = init_validation(zr);
 	if !success return false, error;
-	success, error = init_swapchain(zr);
+	success, error = create_vma_allocator(zr);
 	if !success return false, error;
-	success, error = init_imageviews(zr);
+	success, error = init_swapchain(zr);
 	if !success return false, error;
 	success, error = create_render_pass(zr);
 	if !success return false, error;
@@ -801,8 +844,6 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	success, error = init_commands(zr);
 	if !success return false, error;
 	success, error = create_sync_objects(zr);
-	if !success return false, error;
-	success, error = create_vma_allocator(zr);
 	if !success return false, error;
 
 	zr.initialized = true;
@@ -824,8 +865,6 @@ recreate_swapchain :: (zr: *ZRenderer) -> bool, string {
 	query_success := query_swapchain_support(zr);
     if !query_success return false, "Failed to query swapchain support";
 	success, error := init_swapchain(zr);
-	if !success return false, error;
-	success, error = init_imageviews(zr);
 	if !success return false, error;
 	success, error = create_framebuffers(zr);
 	if !success return false, error;
