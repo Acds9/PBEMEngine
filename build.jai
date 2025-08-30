@@ -23,7 +23,16 @@ build :: () {
     final_options.array_bounds_check = .ON; 
     final_options.output_path = "bin";
 	final_options.output_type = .EXECUTABLE;
-    final_options.output_executable_name = "PBEM";    
+    final_options.output_executable_name = "PBEM";  
+	
+	linker_args: [..]string;
+    for final_options.additional_linker_arguments {
+        array_add(*linker_args, it);
+    }
+    // vulkan memory allocator depends on this
+    array_add(*linker_args, "libcpmt.lib");
+    final_options.additional_linker_arguments = linker_args;
+
     set_build_options(final_options, w_final);
     
 
