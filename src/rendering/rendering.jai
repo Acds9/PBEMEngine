@@ -42,6 +42,8 @@ MAX_FRAMES_IN_FLIGHT :: 2;
 Deletion_Queue :: struct {
 	image_views		: [..] struct {device: VkDevice; view: VkImageView;};
 	images 			: [..] struct {allocator: VmaAllocator; image: VkImage; allocation: VmaAllocation;};
+	desc_allocators : [..] struct {device: VkDevice; allocator: *Descriptor_Allocator;};
+	desc_layouts	: [..] struct {device: VkDevice; layout: *VkDescriptorSetLayout;};
 }
 
 Frame_Data :: struct {
@@ -109,6 +111,11 @@ ZRenderer :: struct {
 	allocator					: VmaAllocator;
 
 	deletion_queue				: Deletion_Queue;
+
+	global_desc_allocator 		: Descriptor_Allocator;
+
+	draw_image_descs			: VkDescriptorSet;
+	draw_image_desc_layout 		: VkDescriptorSetLayout;
 }
 
 flush_deletion_queue :: (queue: *Deletion_Queue) {
@@ -118,6 +125,12 @@ flush_deletion_queue :: (queue: *Deletion_Queue) {
 	}
 	for <images {
 		vmaDestroyImage(it.allocator, it.image, it.allocation);
+	}
+	for <desc_allocators {
+		vkDestroyDescriptorPool(it.device, it.allocator.pool, null);
+	}
+	for <desc_layouts {
+		vkDestroyDescriptorSetLayout(it.device, <<it.layout, null);
 	}
 	array_reset(*image_views);
 	array_reset(*images);
@@ -135,7 +148,6 @@ init_instance :: (zr: *ZRenderer) -> bool, string {
 	create_info : VkInstanceCreateInfo;
 	create_info.sType = .VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	create_info.pApplicationInfo = *app_info;
-
 	// EXTENSIONS
 	
 
@@ -470,7 +482,8 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 		.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		chosen_mode,
 		VK_TRUE,
-		VK_NULL_HANDLE
+		VK_NULL_HANDLE,
+		image_usage = .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | .VK_IMAGE_USAGE_TRANSFER_DST_BIT
 	);
 
 	queue_indices := zr.queue_indices;
@@ -676,6 +689,13 @@ init_graphics_pipeline :: (zr: *ZRenderer) -> bool, string {
     return true, "";
 }
 
+create_shader_module :: (zr: *ZRenderer, file_path: string) -> bool, string, VkShaderModule {
+	shader_code_string := read_entire_file(file_path);
+    shader_code := string_to_byte_array(shader_code_string);
+    success, error, shader_module := create_shader_module(zr, shader_code);
+	return success, error, shader_module;
+}
+
 create_shader_module :: (zr: *ZRenderer, code: [..]u8) -> bool, string, VkShaderModule {
 	create_info : VkShaderModuleCreateInfo;
 	create_info.sType = .VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -741,29 +761,27 @@ record_command_buffer :: (zr: *ZRenderer, command_buffer: VkCommandBuffer, image
     if result != .VK_SUCCESS 
         return false, sprint("%\n", result);
     
-	render_area: VkRect2D;
-    render_area.extent.width = zr.swapchain_extent.width;
-    render_area.extent.height = zr.swapchain_extent.height;
-    clear_color : VkClearValue = .{.{.[0,0,0,1]}};
+    // Transition main draw image into general layout so we can write to it
+    vkutil_transition_image(command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_GENERAL);
     
-    render_pass_info := vkinit_render_pass_begin_info(
-        zr.render_pass, zr.swapchain_framebuffers[image_index], render_area, 1, *clear_color
-    );
+    clear_value : VkClearColorValue;
+    clear_value = .{ .[0, 0, 1, 1] };
+
+    clear_range : VkImageSubresourceRange = vkinit_subresource_range(.VK_IMAGE_ASPECT_COLOR_BIT);
+
+    // Clear the DRAW image, not the swapchain image
+    vkCmdClearColorImage(command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_GENERAL, *clear_value, 1, *clear_range);
     
-    vkCmdBeginRenderPass(command_buffer, *render_pass_info, .VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.graphics_pipeline);
-    
-    viewport := vkinit_viewport(0, 0, xx zr.swapchain_extent.width, xx zr.swapchain_extent.height);
-    vkCmdSetViewport(command_buffer, 0, 1, *viewport);
-    
-	scissor: VkRect2D;
-    scissor.extent.width = zr.swapchain_extent.width;
-    scissor.extent.height = zr.swapchain_extent.height;
-    vkCmdSetScissor(command_buffer, 0, 1, *scissor);
-    
-    vkCmdDraw(command_buffer, 3, 1, 0, 0);
-    vkCmdEndRenderPass(command_buffer);
-    
+    // Transition the draw image and the swapchain image into their correct transfer layouts
+    vkutil_transition_image(command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_GENERAL, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vkutil_transition_image(command_buffer, zr.swapchain_images[image_index], .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    // Execute a copy from the draw image into the swapchain
+    vkutil_blit_copy_image_image(command_buffer, zr.draw_image.image, zr.swapchain_images[image_index], zr.draw_extent, zr.swapchain_extent);
+
+    // set swapchain image layout to Present so we can show it on the screen
+    vkutil_transition_image(command_buffer, zr.swapchain_images[image_index], .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
     result = vkEndCommandBuffer(command_buffer);
     if result != .VK_SUCCESS 
         return false, sprint("%\n", result);
@@ -805,6 +823,40 @@ create_vma_allocator :: (zr: *ZRenderer) -> bool, string {
 	return true, "";
 }
 
+init_descriptors :: (zr: *ZRenderer) -> bool, string {
+	// Pool holds 10 sets, 1 image each
+	sizes : [..]Desc_Pool_Size_Ratio;
+	array_add(*sizes, .{.VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1});
+
+	init_descriptor_pool(*zr.global_desc_allocator, zr.logical_device, 10, sizes);
+
+	builder : Descriptor_Layout_Builder;
+	add_binding(*builder, 0, .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+	_, _, zr.draw_image_desc_layout = build_descriptor_set_layout(*builder, zr.logical_device, .VK_SHADER_STAGE_COMPUTE_BIT);
+	
+	zr.draw_image_descs = allocate_descriptor_set(*zr.global_desc_allocator, zr.logical_device, zr.draw_image_desc_layout);
+
+	image_info : VkDescriptorImageInfo;
+	image_info.imageLayout = .VK_IMAGE_LAYOUT_GENERAL;
+	image_info.imageView = zr.draw_image.image_view;
+
+	draw_image_write : VkWriteDescriptorSet;
+	draw_image_write.sType = .VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+
+	draw_image_write.dstBinding = 0;
+	draw_image_write.dstSet = zr.draw_image_descs;
+	draw_image_write.descriptorCount = 1;
+	draw_image_write.descriptorType = .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	draw_image_write.pImageInfo = *image_info;
+
+	vkUpdateDescriptorSets(zr.logical_device, 1, *draw_image_write, 0, null);
+
+	array_add(*zr.deletion_queue.desc_allocators, .{zr.logical_device, *zr.global_desc_allocator});
+	array_add(*zr.deletion_queue.desc_layouts, .{zr.logical_device, *zr.draw_image_desc_layout});
+
+	return true, "";
+}
+
 init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	SDL_Init(SDL_INIT_VIDEO);
 	zr.window = SDL_CreateWindow(
@@ -814,7 +866,6 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 								xx WINDOW_WIDTH, 
 								xx WINDOW_HEIGHT, 
 								SDL_WINDOW_VULKAN|SDL_WINDOW_RESIZABLE);
-	// Check that the window was successfully created
     if zr.window == null {
         return false, sprint("Could not create window: %\n", to_string(SDL_GetError()));
     }
@@ -845,6 +896,9 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	if !success return false, error;
 	success, error = create_sync_objects(zr);
 	if !success return false, error;
+	success, error = init_descriptors(zr);
+	if !success return false, error;
+	
 
 	zr.initialized = true;
 	return true, "";
@@ -871,6 +925,7 @@ recreate_swapchain :: (zr: *ZRenderer) -> bool, string {
 
 	return true, "";
 }
+
 
 draw_frame :: (zr: *ZRenderer) {
 	if zr.swapchain_extent.width == 0 || zr.swapchain_extent.height == 0 {
