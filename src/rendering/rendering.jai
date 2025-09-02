@@ -2,6 +2,7 @@
 #import "Math";
 #import "SDL";
 #import "Vulkan"(USE_VULKAN_1_1 = true)(MEMORY_ALLOCATOR_DEBUG = false, USE_LOCAL_VULKAN_DYNAMIC_LIB = false);
+ImGui :: #import "ImGui";
 
 Required_Extensions :: (*u8).[
     "VK_EXT_debug_utils",
@@ -43,7 +44,46 @@ Deletion_Queue :: struct {
 	image_views		: [..] struct {device: VkDevice; view: VkImageView;};
 	images 			: [..] struct {allocator: VmaAllocator; image: VkImage; allocation: VmaAllocation;};
 	desc_allocators : [..] struct {device: VkDevice; allocator: *Descriptor_Allocator;};
-	desc_layouts	: [..] struct {device: VkDevice; layout: *VkDescriptorSetLayout;};
+	desc_layouts	: [..] struct {device: VkDevice; layout: VkDescriptorSetLayout;};
+	pipelines		: [..] struct {device: VkDevice; pipeline: VkPipeline;};
+	pipeline_layouts: [..] struct {device: VkDevice; layout: VkPipelineLayout;};
+	command_pools	: [..] struct {device: VkDevice; pool: VkCommandPool;};
+	fences			: [..] struct {device: VkDevice; fence: VkFence;};
+}
+
+flush_deletion_queue :: (queue: *Deletion_Queue) {
+	using queue;
+	for <image_views {
+		vkDestroyImageView(it.device, it.view, null);
+	}
+	for <images {
+		vmaDestroyImage(it.allocator, it.image, it.allocation);
+	}
+	for <desc_allocators {
+		vkDestroyDescriptorPool(it.device, it.allocator.pool, null);
+	}
+	for <desc_layouts {
+		vkDestroyDescriptorSetLayout(it.device, it.layout, null);
+	}
+	for <pipeline_layouts {
+		vkDestroyPipelineLayout(it.device, it.layout, null);
+	}
+	for <pipelines {
+		vkDestroyPipeline(it.device, it.pipeline, null);
+	}
+	for <command_pools {
+		vkDestroyCommandPool(it.device, it.pool, null);
+	}
+	for <fences {
+		vkDestroyFence(it.device, it.fence, null);
+	}
+	array_reset(*image_views);
+	array_reset(*images);
+	array_reset(*desc_layouts);
+	array_reset(*pipeline_layouts);
+	array_reset(*pipelines);
+	array_reset(*command_pools);
+	array_reset(*fences);
 }
 
 Frame_Data :: struct {
@@ -116,25 +156,20 @@ ZRenderer :: struct {
 
 	draw_image_descs			: VkDescriptorSet;
 	draw_image_desc_layout 		: VkDescriptorSetLayout;
-}
 
-flush_deletion_queue :: (queue: *Deletion_Queue) {
-	using queue;
-	for <image_views {
-		vkDestroyImageView(it.device, it.view, null);
-	}
-	for <images {
-		vmaDestroyImage(it.allocator, it.image, it.allocation);
-	}
-	for <desc_allocators {
-		vkDestroyDescriptorPool(it.device, it.allocator.pool, null);
-	}
-	for <desc_layouts {
-		vkDestroyDescriptorSetLayout(it.device, <<it.layout, null);
-	}
-	array_reset(*image_views);
-	array_reset(*images);
+	gradient_pipeline			: VkPipeline;
+	gradient_pipeline_layout	: VkPipelineLayout;
+
+	// IMMEDIATE
+
+	immediate_fence				: VkFence;
+	immediate_command_buffer	: VkCommandBuffer;
+	immediate_command_pool		: VkCommandPool;
 }
+/*
+immediate_submit :: (function: (command_buffer: VkCommandBuffer, ctx: *void) -> void, context: *void) {
+	
+}*/
 
 init_instance :: (zr: *ZRenderer) -> bool, string {
 	app_info : VkApplicationInfo;
@@ -562,6 +597,9 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 		return false, sprint("%\n", result);
 	}
 
+	zr.draw_extent.width = draw_image_extent.width;
+	zr.draw_extent.height = draw_image_extent.height;
+
 	// Build imageview for the draw image to use for rendering 
 	rview_info : VkImageViewCreateInfo = vkinit_imageview_create_info(zr.draw_image.image_format, zr.draw_image.image, .VK_IMAGE_ASPECT_COLOR_BIT);
 
@@ -609,94 +647,61 @@ create_render_pass :: (zr: *ZRenderer) -> bool, string {
     return true, "";
 }
 
-init_graphics_pipeline :: (zr: *ZRenderer) -> bool, string {
-    vert_shader_code_string := read_entire_file("src/shaders/shader.vert.spv");
-    vert_shader_code := string_to_byte_array(vert_shader_code_string);
-    frag_shader_code_string := read_entire_file("src/shaders/shader.frag.spv");
-    frag_shader_code := string_to_byte_array(frag_shader_code_string);
-
-    vert_success, vert_error, vert_shader_module := create_shader_module(zr, vert_shader_code);
-    frag_success, frag_error, frag_shader_module := create_shader_module(zr, frag_shader_code);
-    
-    vert_shader_stage_info := vkinit_pipeline_shader_stage_create_info(.VK_SHADER_STAGE_VERTEX_BIT, vert_shader_module, "main");
-
-    frag_shader_stage_info := vkinit_pipeline_shader_stage_create_info(.VK_SHADER_STAGE_FRAGMENT_BIT,frag_shader_module, "main");
-
-    shader_stages : []VkPipelineShaderStageCreateInfo = .[vert_shader_stage_info, frag_shader_stage_info];
-
-    // VERTEX INPUT
-    vertex_input_info := vkinit_pipeline_vertex_input_state_create_info();
-
-    // INPUT ASSEMBLY
-    input_assembly := vkinit_pipeline_input_assembly_state_create_info(.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,  VK_FALSE);
-    
-    // VIEWPORT
-    viewport : VkViewport;
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = xx zr.swapchain_extent.width;
-    viewport.height = xx zr.swapchain_extent.height;
-    viewport.minDepth = 0;
-    viewport.maxDepth = 1;
-
-    // SCISSOR
-    scissor : VkRect2D;
-    scissor.offset = .{0,0};
-    scissor.extent = zr.swapchain_extent;
-
-    dynamic_states : [2]VkDynamicState = .[.VK_DYNAMIC_STATE_VIEWPORT, .VK_DYNAMIC_STATE_SCISSOR];
-    
-    dynamic_state_create_info := vkinit_pipeline_dynamic_state_create_info(xx dynamic_states.count, dynamic_states.data);
-
-    viewport_state_create_info := vkinit_pipeline_viewport_state_create_info(
-        1, null,  // viewport count, viewports (null because dynamic)
-        1, null   // scissor count, scissors (null because dynamic)
-    );
-
-    rasterizer_create_info := vkinit_pipeline_rasterization_state_create_info(
-    	.VK_POLYGON_MODE_FILL, .VK_CULL_MODE_BACK_BIT, .VK_FRONT_FACE_CLOCKWISE, 1.0  // line_width
-    );
-
-    multisampling_create_info := vkinit_pipeline_multisample_state_create_info(.VK_SAMPLE_COUNT_1_BIT);
-
-    color_blend_attachment := vkinit_pipeline_color_blend_attachment_state(
-        .VK_COLOR_COMPONENT_R_BIT | .VK_COLOR_COMPONENT_G_BIT | .VK_COLOR_COMPONENT_B_BIT | .VK_COLOR_COMPONENT_A_BIT);
-
-    color_blending := vkinit_pipeline_color_blend_state_create_info(1, *color_blend_attachment);
-
-    pipeline_layout_info := vkinit_pipeline_layout_create_info();
-
-    result := vkCreatePipelineLayout(zr.logical_device, *pipeline_layout_info, null, *zr.pipeline_layout);
-    if result != .VK_SUCCESS {
-        return false, sprint("%\n", result);
-    }
-
-    pipeline_info := vkinit_graphics_pipeline_create_info(
-       	2, shader_stages.data, *vertex_input_info,
-        *input_assembly, *viewport_state_create_info, *rasterizer_create_info,
-        *multisampling_create_info, *color_blending, zr.pipeline_layout,
-        zr.render_pass, 0, depth_stencil_state = null,
-        dynamic_state = *dynamic_state_create_info
-    );
-
-    result = vkCreateGraphicsPipelines(zr.logical_device, VK_NULL_HANDLE, 1, *pipeline_info, null, *zr.graphics_pipeline);
-    if result != .VK_SUCCESS 
-        return false, sprint("%\n", result);
-
-    vkDestroyShaderModule(zr.logical_device, vert_shader_module, null);
-    vkDestroyShaderModule(zr.logical_device, frag_shader_module, null);
-
-    return true, "";
+init_pipelines :: (zr: *ZRenderer) -> bool, string {
+	init_background_pipelines(zr);
+	return true, "";
 }
 
-create_shader_module :: (zr: *ZRenderer, file_path: string) -> bool, string, VkShaderModule {
+init_background_pipelines :: (zr: *ZRenderer) -> bool, string {
+	compute_layout : VkPipelineLayoutCreateInfo;
+	compute_layout.sType = .VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	compute_layout.pSetLayouts = *zr.draw_image_desc_layout;
+	compute_layout.setLayoutCount = 1;
+
+	result := vkCreatePipelineLayout(zr.logical_device, *compute_layout, null, *zr.gradient_pipeline_layout);
+	if result != .VK_SUCCESS {
+		return false, sprint("%\n", result); 
+	}
+	
+	compute_draw_shader : VkShaderModule;
+	success				: bool;
+	success, compute_draw_shader = create_shader_module(zr, "src/shaders/gradient.comp.spv");
+	if !success {
+		return false, "Failed to create compute shader, check SPIR-V file.";
+	}
+	stage_info : VkPipelineShaderStageCreateInfo;
+	stage_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	stage_info.stage = .VK_SHADER_STAGE_COMPUTE_BIT;
+	stage_info.module = compute_draw_shader;
+	stage_info.pName = "main";
+
+	compute_pipeline_create_info : VkComputePipelineCreateInfo;
+	compute_pipeline_create_info.sType = .VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	compute_pipeline_create_info.layout = zr.gradient_pipeline_layout;
+	compute_pipeline_create_info.stage = stage_info;
+
+	result = vkCreateComputePipelines(zr.logical_device, null, 1, *compute_pipeline_create_info, null, *zr.gradient_pipeline);
+	if result != .VK_SUCCESS {
+		return false, sprint("%\n", result); 
+	}
+
+	// Shader module has been used and can be deleted already
+	vkDestroyShaderModule(zr.logical_device, compute_draw_shader, null);
+	// Rest has to go at deinit
+	array_add(*zr.deletion_queue.pipelines, .{zr.logical_device, zr.gradient_pipeline});
+	array_add(*zr.deletion_queue.pipeline_layouts, .{zr.logical_device, zr.gradient_pipeline_layout});
+
+	return true, "";
+}
+
+create_shader_module :: (zr: *ZRenderer, file_path: string) -> bool, VkShaderModule {
 	shader_code_string := read_entire_file(file_path);
     shader_code := string_to_byte_array(shader_code_string);
-    success, error, shader_module := create_shader_module(zr, shader_code);
-	return success, error, shader_module;
+    success, shader_module := create_shader_module(zr, shader_code);
+	return success, shader_module;
 }
 
-create_shader_module :: (zr: *ZRenderer, code: [..]u8) -> bool, string, VkShaderModule {
+create_shader_module :: (zr: *ZRenderer, code: [..]u8) -> bool, VkShaderModule {
 	create_info : VkShaderModuleCreateInfo;
 	create_info.sType = .VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	create_info.codeSize = xx code.count;
@@ -705,8 +710,8 @@ create_shader_module :: (zr: *ZRenderer, code: [..]u8) -> bool, string, VkShader
 	shader_module : VkShaderModule;
 	result := vkCreateShaderModule(zr.logical_device, *create_info, null, *shader_module);
 	if result != .VK_SUCCESS 
-		return false, sprint("%\n", result), null;
-	return true, "", shader_module;
+		return false, null;
+	return true, shader_module;
 }
 
 create_framebuffers :: (zr: *ZRenderer) -> bool, string {
@@ -751,6 +756,23 @@ init_commands :: (zr: *ZRenderer) -> bool, string {
 		if result != .VK_SUCCESS 
 			return false, sprint("%\n", result);
 	}
+
+	immediate_result := vkCreateCommandPool(zr.logical_device, *pool_info, null, *zr.immediate_command_pool);
+	if immediate_result != .VK_SUCCESS 
+			return false, sprint("%\n", immediate_result);
+			
+	command_buffer_alloc_info : VkCommandBufferAllocateInfo;
+	command_buffer_alloc_info.sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	command_buffer_alloc_info.commandPool = zr.immediate_command_pool;
+	command_buffer_alloc_info.level = .VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	command_buffer_alloc_info.commandBufferCount = 1; 
+
+	immediate_result = vkAllocateCommandBuffers(zr.logical_device, *command_buffer_alloc_info, *zr.immediate_command_buffer);
+	if immediate_result != .VK_SUCCESS 
+			return false, sprint("%\n", immediate_result);
+
+	array_add(*zr.deletion_queue.command_pools, .{zr.logical_device, zr.immediate_command_pool});
+
 	return true, "";
 }
 
@@ -763,14 +785,15 @@ record_command_buffer :: (zr: *ZRenderer, command_buffer: VkCommandBuffer, image
     
     // Transition main draw image into general layout so we can write to it
     vkutil_transition_image(command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_GENERAL);
-    
-    clear_value : VkClearColorValue;
-    clear_value = .{ .[0, 0, 1, 1] };
 
-    clear_range : VkImageSubresourceRange = vkinit_subresource_range(.VK_IMAGE_ASPECT_COLOR_BIT);
+	// Bind the gradient drawing compute pipeline
+	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_COMPUTE, zr.gradient_pipeline);
 
-    // Clear the DRAW image, not the swapchain image
-    vkCmdClearColorImage(command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_GENERAL, *clear_value, 1, *clear_range);
+	// bind the descriptor set containing the draw image for the compute pipeline
+	vkCmdBindDescriptorSets(command_buffer, .VK_PIPELINE_BIND_POINT_COMPUTE, zr.gradient_pipeline_layout, 0, 1, *zr.draw_image_descs, 0, null);
+
+	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+	vkCmdDispatch(command_buffer, cast,no_check(u32) ceil(zr.draw_extent.width / 16.0), cast,no_check(u32) ceil(zr.draw_extent.height / 16.0), 1);
     
     // Transition the draw image and the swapchain image into their correct transfer layouts
     vkutil_transition_image(command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_GENERAL, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -808,6 +831,12 @@ create_sync_objects :: (zr: *ZRenderer) -> bool, string {
 		if result != .VK_SUCCESS 
 			return false, sprint("%\n", result);
 	}
+
+	result := vkCreateFence(zr.logical_device, *fence_create_info, null, *zr.immediate_fence);
+	if result != .VK_SUCCESS 
+		return false, sprint("%\n", result);
+
+	array_add(*zr.deletion_queue.fences, .{zr.logical_device, zr.immediate_fence});
 	return true, "";
 }
 
@@ -852,7 +881,7 @@ init_descriptors :: (zr: *ZRenderer) -> bool, string {
 	vkUpdateDescriptorSets(zr.logical_device, 1, *draw_image_write, 0, null);
 
 	array_add(*zr.deletion_queue.desc_allocators, .{zr.logical_device, *zr.global_desc_allocator});
-	array_add(*zr.deletion_queue.desc_layouts, .{zr.logical_device, *zr.draw_image_desc_layout});
+	array_add(*zr.deletion_queue.desc_layouts, .{zr.logical_device, zr.draw_image_desc_layout});
 
 	return true, "";
 }
@@ -888,8 +917,6 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	if !success return false, error;
 	success, error = create_render_pass(zr);
 	if !success return false, error;
-	success, error = init_graphics_pipeline(zr);
-	if !success return false, error;
 	success, error = create_framebuffers(zr);
 	if !success return false, error;
 	success, error = init_commands(zr);
@@ -897,6 +924,8 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	success, error = create_sync_objects(zr);
 	if !success return false, error;
 	success, error = init_descriptors(zr);
+	if !success return false, error;
+	success, error = init_pipelines(zr);
 	if !success return false, error;
 	
 
@@ -924,6 +953,27 @@ recreate_swapchain :: (zr: *ZRenderer) -> bool, string {
 	if !success return false, error;
 
 	return true, "";
+}
+
+immediate_submit :: (zr: *ZRenderer, function: (cmd: VkCommandBuffer) -> ()) {
+	vkResetFences(zr.logical_device, 1, *zr.immediate_fence);
+	vkResetCommandBuffer(zr.immediate_command_buffer, 0);
+
+	cmd := zr.immediate_command_buffer;
+
+	cmd_begin_info : VkCommandBufferBeginInfo = vkinit_command_buffer_begin_info(.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	vkBeginCommandBuffer(cmd, *cmd_begin_info);
+
+	function(cmd);
+
+	vkEndCommandBuffer(cmd);
+
+	cmd_info : VkCommandBufferSubmitInfo = vkinit_command_buffer_submit_info(cmd);
+	submit_info : VkSubmitInfo2 = vk_init_submit_info2(*cmd_info, null, null);
+
+	vkQueueSubmit2(zr.graphics_queue, 1, *submit_info, zr.immediate_fence);
+
+	vkWaitForFences(zr.logical_device, 1, *zr.immediate_fence, 1, 1000000000);
 }
 
 
@@ -957,7 +1007,7 @@ draw_frame :: (zr: *ZRenderer) {
 	// Make a function?
 	wait_semaphore_info : VkSemaphoreSubmitInfo = vkinit_semaphore_submit_info(
 		frame_data.image_available_semaphore,
-		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR
+		VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT
     );
 	// 
 	submit_info.waitSemaphoreInfoCount = 1;
@@ -1062,3 +1112,4 @@ deinit_zrenderer :: (zr: *ZRenderer) {
 	}
 	SDL_Quit();
 }
+
