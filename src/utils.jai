@@ -39,3 +39,8 @@ string_to_byte_array :: (str: string) -> [..]u8 {
 	} 
 	return bytes;
 }
+
+panic :: (msg: string) {
+	print("%\n", msg);
+	debug_break();
+}

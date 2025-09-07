@@ -304,7 +304,6 @@ vkinit_pipeline_layout_create_info :: (set_layout_count: u32 = 0, set_layouts: *
                                        flags: VkPipelineLayoutCreateFlags = 0) -> VkPipelineLayoutCreateInfo {
     create_info: VkPipelineLayoutCreateInfo;
     create_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    create_info.pNext = null;
     create_info.flags = flags;
     create_info.setLayoutCount = set_layout_count;
     create_info.pSetLayouts = set_layouts;
@@ -376,6 +375,31 @@ vkinit_command_buffer_begin_info :: (flags: VkCommandBufferUsageFlags = 0,
     begin_info.flags = flags;
     begin_info.pInheritanceInfo = inheritance_info;
     return begin_info;
+}
+
+vkinit_command_buffer_submit_info :: (cmd: VkCommandBuffer) -> VkCommandBufferSubmitInfo {
+	info : VkCommandBufferSubmitInfo;
+	info.sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+	info.commandBuffer = cmd;
+	info.deviceMask = 0;
+
+	return info;
+}
+
+vk_init_submit_info2 :: (cmd: *VkCommandBufferSubmitInfo, signal_semaphore_info: *VkSemaphoreSubmitInfo, wait_semaphore_info: *VkSemaphoreSubmitInfo) -> VkSubmitInfo2 {
+	info :VkSubmitInfo2;
+    info.sType = .VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+
+    info.waitSemaphoreInfoCount = cast,no_check(u32) ifx wait_semaphore_info == null then 0 else 1;
+    info.pWaitSemaphoreInfos = wait_semaphore_info;
+
+    info.signalSemaphoreInfoCount = cast,no_check(u32) ifx signal_semaphore_info == null then 0 else 1;
+    info.pSignalSemaphoreInfos = signal_semaphore_info;
+
+    info.commandBufferInfoCount = 1;
+    info.pCommandBufferInfos = cmd;
+
+    return info;
 }
 
 vkinit_render_pass_begin_info :: (render_pass: VkRenderPass, framebuffer: VkFramebuffer,
@@ -458,6 +482,35 @@ vkinit_imageview_create_info :: (format : VkFormat, image : VkImage, aspectFlags
     create_info.subresourceRange.aspectMask = aspectFlags;
 
     return create_info;
+}
+
+vkinit_attachment_info :: (view: VkImageView, clear: *VkClearValue, layout: VkImageLayout) -> VkRenderingAttachmentInfo {
+	color_attachment : VkRenderingAttachmentInfo;
+    color_attachment.sType = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+
+    color_attachment.imageView = view;
+    color_attachment.imageLayout = layout;
+    color_attachment.loadOp = ifx clear then .VK_ATTACHMENT_LOAD_OP_CLEAR else .VK_ATTACHMENT_LOAD_OP_LOAD;
+    color_attachment.storeOp = .VK_ATTACHMENT_STORE_OP_STORE;
+    if clear {
+        color_attachment.clearValue = <<clear;
+    }
+
+    return color_attachment;
+}
+
+vkinit_rendering_info :: (render_extent: VkExtent2D, color_attachment: *VkRenderingAttachmentInfo, depth_attachment: *VkRenderingAttachmentInfo) -> VkRenderingInfo {
+    render_info : VkRenderingInfo;
+    render_info.sType = .VK_STRUCTURE_TYPE_RENDERING_INFO;
+
+    render_info.renderArea = VkRect2D.{VkOffset2D.{ 0, 0 }, render_extent};
+    render_info.layerCount = 1;
+    render_info.colorAttachmentCount = 1;
+    render_info.pColorAttachments = color_attachment;
+    render_info.pDepthAttachment = depth_attachment;
+    render_info.pStencilAttachment = null;
+
+    return render_info;
 }
 
 // TODO: rename this file to vkutils
