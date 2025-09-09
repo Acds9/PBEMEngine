@@ -43,7 +43,7 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> []string {
 		mesh := data.meshes[mesh_index];
 		
 		new_mesh : Mesh_Asset; // Temp on stack
-		new_mesh.name = to_string(mesh.name);
+		new_mesh.name = copy_string(to_string(mesh.name));
 
 		array_reset(*indices);
 		array_reset(*vertices);

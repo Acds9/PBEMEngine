@@ -87,6 +87,8 @@ ZRenderer :: struct {
 	draw_image				: Allocated_Image;
 	draw_extent				: VkExtent2D;
 
+	depth_image				: Allocated_Image;
+
 	queue_indices			: Queue_Family_Indices;
 	graphics_queue			: VkQueue;
 	present_queue			: VkQueue;
@@ -122,10 +124,6 @@ ZRenderer :: struct {
 	immediate_fence				: VkFence;
 	immediate_command_buffer	: VkCommandBuffer;
 	immediate_command_pool		: VkCommandPool;
-
-	// TRIANGLE
-	triangle_pipeline_layout	: VkPipelineLayout;
-	triangle_pipeline			: VkPipeline;
 
 	// MESH
 	mesh_pipeline_layout		: VkPipelineLayout;
@@ -246,7 +244,6 @@ immediate_submit :: (zr: *ZRenderer, body: Code) #expand {
 
 init_pipelines :: (zr: *ZRenderer) -> bool, string {
 	init_background_pipelines(zr);
-	init_triangle_pipeline(zr);
 	init_mesh_pipeline(zr);
 	return true, "";
 }
@@ -277,25 +274,23 @@ draw_frame :: (zr: *ZRenderer) {
     vkBeginCommandBuffer(frame_data.command_buffer, *begin_info);
 
 	 // Transition main draw image into general layout so we can write to it
-    vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_GENERAL);
+    vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_GENERAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 
-	// THIS IS WHERE WE DO STUFF
-	draw_gradient_background(zr, frame_data.command_buffer);
-
-	vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_GENERAL, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_GENERAL, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
+	vkutil_transition_image(frame_data.command_buffer, zr.depth_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_DEPTH_BIT);
 
 	draw_geometry(zr, frame_data.command_buffer);
 	//
 
 	// Transition the draw image and the swapchain image into their correct transfer layouts
-    vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-	vkutil_transition_image(frame_data.command_buffer, zr.swapchain_images[image_idx], .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
+	vkutil_transition_image(frame_data.command_buffer, zr.swapchain_images[image_idx], .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 
 	// Execute a copy from the draw image into the swapchain
     vkutil_blit_copy_image_image(frame_data.command_buffer, zr.draw_image.image, zr.swapchain_images[image_idx], zr.draw_extent, zr.swapchain_extent);
 
     // set swapchain image layout to Present so we can show it on the screen
-    vkutil_transition_image(frame_data.command_buffer, zr.swapchain_images[image_idx], .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    vkutil_transition_image(frame_data.command_buffer, zr.swapchain_images[image_idx], .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .VK_IMAGE_ASPECT_COLOR_BIT);
 
 	vkEndCommandBuffer(frame_data.command_buffer);
 
@@ -366,11 +361,10 @@ draw_frame :: (zr: *ZRenderer) {
 draw_geometry :: (zr: *ZRenderer, command_buffer: VkCommandBuffer ) {
 	// Begin a render pass connected to our draw image
 	color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, null, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	depth_attachment : VkRenderingAttachmentInfo = vkinit_depth_attachment_info(zr.depth_image.image_view, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
-	render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, null);
+	render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
 	vkCmdBeginRendering(command_buffer, *render_info);
-
-	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.triangle_pipeline);
 
 	// Set dynamic viewport and scissor
 	viewport : VkViewport;
@@ -392,18 +386,39 @@ draw_geometry :: (zr: *ZRenderer, command_buffer: VkCommandBuffer ) {
 	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
 	
 	// Launch a draw command to draw 3 vertices
-	vkCmdDraw(command_buffer, 3, 1, 0, 0);
-	
+	//vkCmdDraw(command_buffer, 3, 1, 0, 0);
 	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.mesh_pipeline);
+
+	mesh_to_draw, success := table_find(*zr.mesh_map, "Suzanne");
+	if !success {
+		panic("Could not find mesh asset\n");
+	}
 
 	push_constants : GPU_Draw_Push_Constants;
 	push_constants.world_matrix = Matrix4_Identity;
-	push_constants.vertex_buffer = zr.rectangle.vertex_buffer_address;
+	push_constants.vertex_buffer = mesh_to_draw.mesh_buffers.vertex_buffer_address;
+
+	view := make_translation_matrix4(Vector3.{0, 0, -5});
+	fov_degrees := 70.0;
+	fov_radians := fov_degrees * PI / 180.0;
+	aspect_ratio := cast(float)zr.draw_extent.width / cast(float)zr.draw_extent.height;
+
+	projection := make_projection_matrix(
+		fov_vertical = fov_radians,
+		aspect_ratio_horizontal_over_vertical = aspect_ratio,
+		z_near = 10000,
+		z_far = 0.1,
+		depth_range_01 = true  // Important for Vulkan
+	);
+	projection._22 *= -1;
+
+	push_constants.world_matrix =  projection * view;
+	push_constants.world_matrix = transpose(push_constants.world_matrix);
 
 	vkCmdPushConstants(command_buffer, zr.mesh_pipeline_layout, .VK_SHADER_STAGE_VERTEX_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
-	vkCmdBindIndexBuffer(command_buffer, zr.rectangle.index_buffer.buffer, 0, .VK_INDEX_TYPE_UINT32);
+	vkCmdBindIndexBuffer(command_buffer, mesh_to_draw.mesh_buffers.index_buffer.buffer, 0, .VK_INDEX_TYPE_UINT32);
 
-	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0);
+	vkCmdDrawIndexed(command_buffer, xx mesh_to_draw.surfaces[0].count, 1, mesh_to_draw.surfaces[0].start_index, 0, 0);
 	
 	vkCmdEndRendering(command_buffer);
 }

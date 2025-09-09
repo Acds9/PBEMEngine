@@ -181,6 +181,19 @@ Pipeline_Builder :: struct {
 		render_info.pColorAttachmentFormats = *color_attachment_format;
 	}
 
+	enable_depthtest :: (self: *Pipeline_Builder, depth_write_enable: bool, op: VkCompareOp) {
+		using self;
+		depth_stencil.depthTestEnable = VK_TRUE;
+		depth_stencil.depthWriteEnable = xx depth_write_enable;
+		depth_stencil.depthCompareOp = op;
+		depth_stencil.depthBoundsTestEnable = VK_FALSE;
+		depth_stencil.stencilTestEnable = VK_FALSE;
+		depth_stencil.front = .{};
+		depth_stencil.back = .{};
+		depth_stencil.minDepthBounds = 0;
+		depth_stencil.maxDepthBounds = 1;
+	}
+
 	set_depth_format :: (self: *Pipeline_Builder, format: VkFormat) {
 		using self;
 

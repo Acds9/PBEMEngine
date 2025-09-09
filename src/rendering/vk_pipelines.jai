@@ -41,58 +41,6 @@ init_background_pipelines :: (zr: *ZRenderer) -> bool, string {
 	return true, "";
 }
 
-init_triangle_pipeline :: (zr: *ZRenderer) -> bool, string {
-	success : bool;	
-	
-	vertex_shader : VkShaderModule;
-	success, vertex_shader = create_shader_module(zr, "src/shaders/colored_triangle.vert.spv");
-	if !success {
-		return false, "ERROR (VK): Failed to create vertex shader";
-	}
-
-	fragment_shader : VkShaderModule;
-	success, fragment_shader = create_shader_module(zr, "src/shaders/colored_triangle.frag.spv");
-	if !success {
-		return false, "ERROR (VK): Failed to create fragment shader";
-	}
-
-	pipeline_layout_info : VkPipelineLayoutCreateInfo = vkinit_pipeline_layout_create_info();
-	result := vkCreatePipelineLayout(zr.logical_device, *pipeline_layout_info, null, *zr.triangle_pipeline_layout);
-
-	builder : Pipeline_Builder = .{};
-
-	builder.pipeline_layout = zr.triangle_pipeline_layout;
-	// Connect vertex and fragment/pixel shader
-	builder.set_shaders(*builder, vertex_shader, fragment_shader);
-	// Will draw triangles
-	builder.set_input_topology(*builder, .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	// Filled triangles
-	builder.set_polygon_mode(*builder, .VK_POLYGON_MODE_FILL);
-	// No culling for now
-	builder.set_cull_mode(*builder, .VK_CULL_MODE_NONE, .VK_FRONT_FACE_CLOCKWISE);
-	// No MS
-	builder.set_multisampling_none(*builder);
-	// No blending
-	builder.disable_blending(*builder);
-	// No depth test
-	builder.disable_depthtest(*builder);
-
-	builder.set_color_attachment_format(*builder, zr.draw_image.image_format);
-	builder.set_depth_format(*builder, .VK_FORMAT_UNDEFINED);
-
-	builder.set_vk_object_name(*builder, "Triangle Pipeline");
-
-	zr.triangle_pipeline = builder.build(*builder, zr.logical_device);
-
-	vkDestroyShaderModule(zr.logical_device, fragment_shader, null);
-	vkDestroyShaderModule(zr.logical_device, vertex_shader, null);
-
-	array_add(*zr.deletion_queue.pipelines, .{zr.logical_device, zr.triangle_pipeline});
-	array_add(*zr.deletion_queue.pipeline_layouts, .{zr.logical_device, zr.triangle_pipeline_layout});
-	
-	return true, "";
-}
-
 init_mesh_pipeline :: (zr: *ZRenderer) {
 	success : bool;
 	triangle_frag_shader : VkShaderModule; 
@@ -131,10 +79,10 @@ init_mesh_pipeline :: (zr: *ZRenderer) {
 	builder.set_cull_mode(*builder,.VK_CULL_MODE_NONE, .VK_FRONT_FACE_CLOCKWISE);
 	builder.set_multisampling_none(*builder,);
 	builder.disable_blending(*builder,);
-	builder.disable_depthtest(*builder,);
+	builder.enable_depthtest(*builder, true, .VK_COMPARE_OP_GREATER_OR_EQUAL);
 
 	builder.set_color_attachment_format(*builder,zr.draw_image.image_format);
-	builder.set_depth_format(*builder,.VK_FORMAT_UNDEFINED);
+	builder.set_depth_format(*builder,zr.depth_image.image_format);
 
 	builder.set_vk_object_name(*builder, "Mesh Pipeline");
 	

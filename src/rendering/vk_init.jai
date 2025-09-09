@@ -48,7 +48,7 @@ vkinit_swapchain_create_info :: (surface: VkSurfaceKHR, min_image_count: u32, fo
 
 vkinit_subresource_range :: (aspect_mask: VkImageAspectFlags, base_mip_level: u32 = 0, level_count: u32 = 1, base_array_layer : u32 = 0, layer_count : u32 = 1) -> VkImageSubresourceRange {
 	subresource : VkImageSubresourceRange;	
-	subresource.aspectMask = .VK_IMAGE_ASPECT_COLOR_BIT;
+	subresource.aspectMask = aspect_mask;
 	subresource.baseMipLevel = 0;
 	subresource.levelCount = 1;
 	subresource.baseArrayLayer = 0;
@@ -551,7 +551,7 @@ vkutil_blit_copy_image_image :: (command_buffer : VkCommandBuffer, src: VkImage 
 	vkCmdBlitImage2(command_buffer, *blit_info);
 }
 
-vkutil_transition_image :: (command_buffer: VkCommandBuffer, image: VkImage, current_layout: VkImageLayout, new_layout: VkImageLayout)
+vkutil_transition_image :: (command_buffer: VkCommandBuffer, image: VkImage, current_layout: VkImageLayout, new_layout: VkImageLayout, aspect_mask: VkImageAspectFlags)
 {
     image_barrier : VkImageMemoryBarrier2;
 	image_barrier.sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -564,7 +564,6 @@ vkutil_transition_image :: (command_buffer: VkCommandBuffer, image: VkImage, cur
     image_barrier.oldLayout = current_layout;
     image_barrier.newLayout = new_layout;
 
-    aspect_mask : VkImageAspectFlags = ifx new_layout == .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL then .VK_IMAGE_ASPECT_DEPTH_BIT else .VK_IMAGE_ASPECT_COLOR_BIT;
     image_barrier.subresourceRange = vkinit_subresource_range(aspect_mask, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS);
     image_barrier.image = image;
 
@@ -575,4 +574,17 @@ vkutil_transition_image :: (command_buffer: VkCommandBuffer, image: VkImage, cur
     dep_info.pImageMemoryBarriers = *image_barrier;
 
     vkCmdPipelineBarrier2(command_buffer, *dep_info);
+}
+
+vkinit_depth_attachment_info :: (view: VkImageView, layout: VkImageLayout) -> VkRenderingAttachmentInfo {
+    depth_attachment : VkRenderingAttachmentInfo;
+    depth_attachment.sType = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+
+    depth_attachment.imageView = view;
+    depth_attachment.imageLayout = layout;
+    depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp = .VK_ATTACHMENT_STORE_OP_STORE;
+    depth_attachment.clearValue.depthStencil.depth = 0;
+
+    return depth_attachment;
 }

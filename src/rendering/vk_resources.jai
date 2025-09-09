@@ -162,6 +162,7 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 		return false, sprint("%\n", result);
 	}
 
+
 	zr.draw_extent.width = draw_image_extent.width;
 	zr.draw_extent.height = draw_image_extent.height;
 
@@ -173,8 +174,38 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 		return false, sprint("%\n", result);
 	}
 
+	if(ENABLE_VALIDATION_LAYERS) {
+		set_vk_object_name(zr.logical_device, .IMAGE, cast(u64)zr.draw_image.image, "Draw Image");
+		set_vk_object_name(zr.logical_device, .IMAGE_VIEW, cast(u64)zr.draw_image.image_view, "Draw Image View");
+	}
+
+	
 	array_add(*zr.deletion_queue.image_views, .{zr.logical_device, zr.draw_image.image_view});
 	array_add(*zr.deletion_queue.images, .{zr.allocator, zr.draw_image.image, zr.draw_image.allocation});
+
+	// DEPTH IMAGE
+	zr.depth_image.image_format = .VK_FORMAT_D32_SFLOAT;
+	zr.depth_image.image_extent = draw_image_extent;
+	depth_image_usages : VkImageUsageFlags;
+	depth_image_usages |= .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+	depth_image_info : VkImageCreateInfo = vkinit_image_create_info(zr.depth_image.image_format, depth_image_usages, draw_image_extent);
+	vmaCreateImage(zr.allocator, *depth_image_info, *rimg_alloc_info, *zr.depth_image.image, *zr.depth_image.allocation, null);
+
+	depth_view_info : VkImageViewCreateInfo  = vkinit_imageview_create_info(zr.depth_image.image_format, zr.depth_image.image, .VK_IMAGE_ASPECT_DEPTH_BIT);
+
+	result = vkCreateImageView(zr.logical_device, *depth_view_info, null, *zr.depth_image.image_view);
+	if result != .VK_SUCCESS {
+		return false, sprint("%\n", result);
+	}
+
+	if(ENABLE_VALIDATION_LAYERS) {
+		set_vk_object_name(zr.logical_device, .IMAGE, cast(u64)zr.depth_image.image, "Depth Image");
+		set_vk_object_name(zr.logical_device, .IMAGE_VIEW, cast(u64)zr.depth_image.image_view, "Depth Image View");
+	}
+
+	array_add(*zr.deletion_queue.image_views, .{zr.logical_device, zr.depth_image.image_view});
+	array_add(*zr.deletion_queue.images, .{zr.allocator, zr.depth_image.image, zr.depth_image.allocation});
 
 	return true, "";
 }
