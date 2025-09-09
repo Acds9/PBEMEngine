@@ -1,5 +1,5 @@
 #import "Basic";
-fp :: #import "Flat_Pool"(DEFAULT_VIRTUAL_MEMORY_RESERVE = DEFAULT_POOL_SIZE);
+fp :: #import "Flat_Pool";
 
 DEFAULT_ENTITY_CHUNK_SIZE 	:: 64;
 HOT_ARCHETYPE_CHUNK_SIZE 	:: 256;

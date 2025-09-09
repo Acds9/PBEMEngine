@@ -381,7 +381,7 @@ init_descriptors :: (zr: *ZRenderer) -> bool, string {
 }
 
 
-create_buffer :: (zr: *ZRenderer, alloc_size: u32, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage) -> Allocated_Buffer {
+create_buffer :: (zr: *ZRenderer, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, debug_name: string = "") -> Allocated_Buffer {
 	buffer_info : VkBufferCreateInfo;
 	buffer_info.sType = .VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	buffer_info.size = alloc_size;
@@ -398,53 +398,17 @@ create_buffer :: (zr: *ZRenderer, alloc_size: u32, usage: VkBufferUsageFlags, me
 		print("ERROR: could not create memory buffer\n");
 		debug_break();
 	}
-
+	if ENABLE_VALIDATION_LAYERS {
+		if debug_name == "" {
+			panic("ERROR: vk_debug_name not set for buffer in debug\n");
+		}
+		set_vk_object_name(zr.logical_device, .BUFFER, cast(u64)new_buffer.buffer, debug_name);
+	}
 	return new_buffer;
 }
 
 destroy_buffer :: (allocator: VmaAllocator, buffer: *Allocated_Buffer) {
 	vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
-}
-
-upload_mesh :: (zr: *ZRenderer, indices: []u32, vertices: []Vertex) -> GPU_Mesh_Buffers {
-	vertex_buffer_size : s64 = vertices.count * size_of(Vertex);
-	index_buffer_size : s64 = indices.count * size_of(u32);
-
-	new_surface : GPU_Mesh_Buffers;
-
-	new_surface.vertex_buffer = create_buffer(zr, xx vertex_buffer_size, .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, .VMA_MEMORY_USAGE_GPU_ONLY);
-	
-	device_address_info : VkBufferDeviceAddressInfo;
-	device_address_info.sType = .VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-	device_address_info.buffer = new_surface.vertex_buffer.buffer;
-	new_surface.vertex_buffer_address = vkGetBufferDeviceAddress(zr.logical_device, *device_address_info);
-
-	new_surface.index_buffer = create_buffer(zr, xx index_buffer_size, .VK_BUFFER_USAGE_INDEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT, .VMA_MEMORY_USAGE_GPU_ONLY);
-
-	staging : Allocated_Buffer = create_buffer(zr, xx (vertex_buffer_size + index_buffer_size), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .VMA_MEMORY_USAGE_CPU_ONLY);
-
-	data : *void = staging.info.pMappedData;
-
-	memcpy(data, vertices.data, vertex_buffer_size);
-	memcpy(cast,no_check(*u8)data + vertex_buffer_size, indices.data, index_buffer_size);
-
-	immediate_submit(zr, #code {
-		vertex_copy: VkBufferCopy;
-		vertex_copy.dstOffset = 0;
-		vertex_copy.srcOffset = 0;
-		vertex_copy.size = cast,no_check(u64) vertex_buffer_size;
-		vkCmdCopyBuffer(cmd, staging.buffer, new_surface.vertex_buffer.buffer, 1, *vertex_copy);
-    
-		index_copy: VkBufferCopy;
-		index_copy.dstOffset = 0;
-		index_copy.srcOffset = cast,no_check(u64) vertex_buffer_size;
-		index_copy.size = cast,no_check(u64) index_buffer_size;
-		vkCmdCopyBuffer(cmd, staging.buffer, new_surface.index_buffer.buffer, 1, *index_copy);
-	});
-
-	destroy_buffer(zr.allocator, *staging);
-
-	return new_surface;
 }
 
 init_default_data :: (zr: *ZRenderer) {

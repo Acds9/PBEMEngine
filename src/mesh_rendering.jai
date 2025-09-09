@@ -3,7 +3,7 @@
 #import "File_Utilities";
 #import "Math";
 ht :: #import "Hash_Table";
-
+/*
 // Contains a linear database of all mesh assets on disk
 Mesh_Asset :: struct {
 	name		: string;
@@ -37,4 +37,4 @@ Mesh_Instance :: struct {
 }
 
 // Maps an entity's u64 to a mesh proxy instance
-Mesh_Instance_Table :: ht.Table(u64, Mesh_Instance, null, LOAD_FACTOR_PERCENT=70);
+Mesh_Instance_Table :: ht.Table(u64, Mesh_Instance, null, LOAD_FACTOR_PERCENT=70);*/

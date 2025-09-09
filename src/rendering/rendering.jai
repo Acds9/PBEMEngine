@@ -1,6 +1,8 @@
 #import "Basic";
 #import "Math";
 #import "SDL";
+#import "Flat_Pool";
+#import "Hash_Table";
 ImGui :: #import "ImGui";
 
 SDL_Vulkan_GetInstanceExtensions :: (window : *SDL_Window, num_extensions : *u32, extensions : **u8) -> SDL_bool #foreign SDL2;
@@ -62,7 +64,6 @@ flush_deletion_queue :: (queue: *Deletion_Queue) {
 }
 
 ZRenderer :: struct {
-	
 	initialized 			: bool;
 	frame_num				: u32;
 	do_render				: bool;
@@ -131,6 +132,19 @@ ZRenderer :: struct {
 	mesh_pipeline				: VkPipeline;
 
 	rectangle					: GPU_Mesh_Buffers;
+
+	// MESHES
+	mesh_pool					: Flat_Pool;
+	meshes						: [..]Mesh_Asset;
+	mesh_map					: Table(string, *Mesh_Asset);
+
+}
+
+flush_meshes :: (zr: *ZRenderer) {
+	for mesh: zr.meshes {
+		destroy_buffer(zr.allocator, *mesh.mesh_buffers.vertex_buffer);
+		destroy_buffer(zr.allocator, *mesh.mesh_buffers.index_buffer);
+	}
 }
 
 init_zrenderer :: (zr: *ZRenderer) -> bool, string {
@@ -145,7 +159,7 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
     if zr.window == null {
         return false, sprint("Could not create window: %\n", to_string(SDL_GetError()));
     }
-
+	
 	success : bool;
 	error	: string;
 	success, error = init_instance(zr);
@@ -174,9 +188,15 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	if !success return false, error;
 	success, error = init_pipelines(zr);
 	if !success return false, error;
-	
+
+	fp.init(*zr.mesh_pool);
+	allocator := Allocator.{fp.flat_pool_allocator_proc, *zr.mesh_pool};
+	zr.meshes.allocator = allocator;
 
 	init_default_data(zr);
+
+	load_glt_meshes(zr, "H:/PBEMJai/content/meshes/basicmesh.glb");
+
 	zr.initialized = true;
 	return true, "";
 }
@@ -409,6 +429,8 @@ deinit_zrenderer :: (zr: *ZRenderer) {
 		}
 
 		flush_deletion_queue(*zr.deletion_queue);
+
+		flush_meshes(zr);
 
 		vmaDestroyAllocator(zr.allocator);
 
