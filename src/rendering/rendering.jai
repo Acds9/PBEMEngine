@@ -62,80 +62,85 @@ flush_deletion_queue :: (queue: *Deletion_Queue) {
 	array_reset(*fences);
 	array_reset(*buffers);
 }
-
 ZRenderer :: struct {
-	initialized 			: bool;
-	frame_num				: u32;
-	do_render				: bool;
-	window_extents			: VkExtent2D;
-	window					: *SDL_Window;
-
-	instance 				: VkInstance;
-	debug_messenger 		: VkDebugUtilsMessengerEXT;
-	physical_device 		: VkPhysicalDevice;
-	logical_device			: VkDevice;
-	surface					: VkSurfaceKHR;
-
-	swapchain_details 		: Swapchain_Support_Details;
-	swapchain				: VkSwapchainKHR;
-	swapchain_images 		: [..]VkImage;
-	swapchain_image_format 	: VkFormat;
-	swapchain_extent		: VkExtent2D;
-	swapchain_imageviews	: [..]VkImageView;
-	swapchain_framebuffers	: [..]VkFramebuffer;
-
-	draw_image				: Allocated_Image;
-	draw_extent				: VkExtent2D;
-
-	depth_image				: Allocated_Image;
-
-	queue_indices			: Queue_Family_Indices;
-	graphics_queue			: VkQueue;
-	present_queue			: VkQueue;
-
-	render_pass 			: VkRenderPass;
-	pipeline_layout			: VkPipelineLayout;
-
-	graphics_pipeline		: VkPipeline;
-
-	frame_data				: [MAX_FRAMES_IN_FLIGHT]Frame_Data;
-	get_current_frame_data :: (using self: *ZRenderer) -> *Frame_Data {
-		return *frame_data[current_frame];
-	}
-
-	framebuffer_resized			: bool;
-	minimized					: bool;
-	current_frame				: u8;
-
-	allocator					: VmaAllocator;
-
-	deletion_queue				: Deletion_Queue;
-
-	global_desc_allocator 		: Descriptor_Allocator;
-
-	draw_image_descs			: VkDescriptorSet;
-	draw_image_desc_layout 		: VkDescriptorSetLayout;
-
-	gradient_pipeline			: VkPipeline;
-	gradient_pipeline_layout	: VkPipelineLayout;
-
-	// IMMEDIATE
-
-	immediate_fence				: VkFence;
-	immediate_command_buffer	: VkCommandBuffer;
-	immediate_command_pool		: VkCommandPool;
-
-	// MESH
-	mesh_pipeline_layout		: VkPipelineLayout;
-	mesh_pipeline				: VkPipeline;
-
-	rectangle					: GPU_Mesh_Buffers;
-
-	// MESHES
-	mesh_pool					: Flat_Pool;
-	meshes						: [..]Mesh_Asset;
-	mesh_map					: Table(string, *Mesh_Asset);
-
+    // Core state
+    initialized             : bool;
+    frame_num              	: u32;
+    do_render              	: bool;
+    render_scale           	: float = 1;
+    current_frame          	: u8;
+    
+    // Window & surface
+    window                 	: *SDL_Window;
+    window_extents         	: VkExtent2D;
+    surface                	: VkSurfaceKHR;
+    
+    // Resize handling
+    resize_requested       	: bool;
+    framebuffer_resized		: bool;
+    minimized             	: bool;
+    
+    // Vulkan instance & device
+    instance              	: VkInstance;
+    debug_messenger       	: VkDebugUtilsMessengerEXT;
+    physical_device       	: VkPhysicalDevice;
+    logical_device        	: VkDevice;
+    allocator             	: VmaAllocator;
+    
+    // Queues
+    queue_indices         	: Queue_Family_Indices;
+    graphics_queue        	: VkQueue;
+    present_queue         	: VkQueue;
+    
+    // Swapchain
+    swapchain_details     	: Swapchain_Support_Details;
+    swapchain             	: VkSwapchainKHR;
+    swapchain_images      	: [..]VkImage;
+    swapchain_image_format	: VkFormat;
+    swapchain_extent      	: VkExtent2D;
+    swapchain_imageviews  	: [..]VkImageView;
+    swapchain_framebuffers	: [..]VkFramebuffer;
+    
+    // Render targets
+    draw_image            	: Allocated_Image;
+    draw_extent           	: VkExtent2D;
+    depth_image           	: Allocated_Image;
+    
+    // Render pass & pipelines
+    render_pass           	: VkRenderPass;
+    pipeline_layout       	: VkPipelineLayout;
+    graphics_pipeline     	: VkPipeline;
+    gradient_pipeline_layout: VkPipelineLayout;
+    gradient_pipeline     	: VkPipeline;
+    mesh_pipeline_layout  	: VkPipelineLayout;
+    mesh_pipeline         	: VkPipeline;
+    
+    // Descriptors
+    global_desc_allocator 	: Descriptor_Allocator;
+    draw_image_desc_layout	: VkDescriptorSetLayout;
+    draw_image_descs      	: VkDescriptorSet;
+    
+    // Per-frame data
+    frame_data            	: [MAX_FRAMES_IN_FLIGHT]Frame_Data;
+    
+    // Immediate mode rendering
+    immediate_command_pool  : VkCommandPool;
+    immediate_command_buffer: VkCommandBuffer;
+    immediate_fence         : VkFence;
+    
+    // Mesh data
+    rectangle             	: GPU_Mesh_Buffers;
+    mesh_pool            	: Flat_Pool;
+    meshes               	: [..]Mesh_Asset;
+    mesh_map             	: Table(string, *Mesh_Asset);
+    
+    // Cleanup
+    deletion_queue        	: Deletion_Queue;
+    
+    // Methods
+    get_current_frame_data :: (using self: *ZRenderer) -> *Frame_Data {
+        return *frame_data[current_frame];
+    }
 }
 
 flush_meshes :: (zr: *ZRenderer) {
@@ -199,28 +204,6 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	return true, "";
 }
 
-recreate_swapchain :: (zr: *ZRenderer) -> bool, string {
-	w : u32;
-	h : u32;
-	SDL_Vulkan_GetDrawableSize(zr.window, *w, *h);
-	while(w == 0 || h == 0) {
-		SDL_Vulkan_GetDrawableSize(zr.window, *w, *h);
-		SDL_WaitEvent(null);
-	}
-		
-	vkDeviceWaitIdle(zr.logical_device);
-	deinit_swapchain(zr);
-
-	query_success := query_swapchain_support(zr);
-    if !query_success return false, "Failed to query swapchain support";
-	success, error := init_swapchain(zr);
-	if !success return false, error;
-	success, error = create_framebuffers(zr);
-	if !success return false, error;
-
-	return true, "";
-}
-
 immediate_submit :: (zr: *ZRenderer, body: Code) #expand {
 	vkResetFences(zr.logical_device, 1, *zr.immediate_fence);
 	vkResetCommandBuffer(zr.immediate_command_buffer, 0);
@@ -258,13 +241,17 @@ draw_frame :: (zr: *ZRenderer) {
 	image_idx : u32;
 	acquire_result := vkAcquireNextImageKHR(zr.logical_device, zr.swapchain, U64_MAX, frame_data.image_available_semaphore, VK_NULL_HANDLE, *image_idx);
 	if acquire_result == .VK_ERROR_OUT_OF_DATE_KHR {
-		recreate_swapchain(zr);
+		zr.resize_requested = true;
 		return;
 	}
 	if acquire_result != .VK_SUCCESS && acquire_result != .VK_SUBOPTIMAL_KHR {
 		print("ERROR: %\n", acquire_result);
 		return;
 	}
+
+	zr.draw_extent.height = cast,no_check(u32)(min(zr.swapchain_extent.height, zr.draw_image.image_extent.height) * zr.render_scale);
+	zr.draw_extent.width = cast,no_check(u32)(min(zr.swapchain_extent.width, zr.draw_image.image_extent.width) * zr.render_scale);
+
 	vkResetFences(zr.logical_device, 1, *frame_data.in_flight_fence);
 
 	vkResetCommandBuffer(frame_data.command_buffer, 0);
@@ -345,9 +332,8 @@ draw_frame :: (zr: *ZRenderer) {
 	}
 
 	present_result := vkQueuePresentKHR(zr.present_queue, *present_info);
-	if present_result == .VK_ERROR_OUT_OF_DATE_KHR || present_result == .VK_SUBOPTIMAL_KHR || zr.framebuffer_resized {
-		zr.framebuffer_resized = false;
-		recreate_swapchain(zr);
+	if present_result == .VK_ERROR_OUT_OF_DATE_KHR {
+		zr.resize_requested = true;
 	}
 	if present_result != .VK_SUCCESS {
 		if present_result == .ERROR_OUT_OF_DATE_KHR {
@@ -427,7 +413,10 @@ deinit_zrenderer :: (zr: *ZRenderer) {
 	if zr.initialized {
 		vkDeviceWaitIdle(zr.logical_device); // Wait for it to finish whatever its doing
 
-		deinit_swapchain(zr);
+		for zr.swapchain_framebuffers {
+			vkDestroyFramebuffer(zr.logical_device, it, null);
+		}
+		destroy_swapchain(zr);
 
 		vkDestroyPipeline(zr.logical_device, zr.graphics_pipeline, null);
 		vkDestroyPipelineLayout(zr.logical_device, zr.pipeline_layout, null);

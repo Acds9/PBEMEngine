@@ -77,8 +77,8 @@ init_mesh_pipeline :: (zr: *ZRenderer) {
 	builder.set_input_topology(*builder,.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	builder.set_polygon_mode(*builder,.VK_POLYGON_MODE_FILL);
 	builder.set_cull_mode(*builder,.VK_CULL_MODE_NONE, .VK_FRONT_FACE_CLOCKWISE);
-	builder.set_multisampling_none(*builder,);
-	builder.disable_blending(*builder,);
+	builder.set_multisampling_none(*builder);
+	builder.disable_blending(*builder);
 	builder.enable_depthtest(*builder, true, .VK_COMPARE_OP_GREATER_OR_EQUAL);
 
 	builder.set_color_attachment_format(*builder,zr.draw_image.image_format);

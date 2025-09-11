@@ -166,6 +166,28 @@ Pipeline_Builder :: struct {
 		multisampling.alphaToOneEnable = VK_FALSE;
 	}
 
+	enable_blending_additive :: (using self: *Pipeline_Builder) {
+		color_blend_attachment.colorWriteMask = .VK_COLOR_COMPONENT_R_BIT | .VK_COLOR_COMPONENT_G_BIT | .VK_COLOR_COMPONENT_B_BIT | .VK_COLOR_COMPONENT_A_BIT;
+		color_blend_attachment.blendEnable = VK_TRUE;
+		color_blend_attachment.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
+		color_blend_attachment.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE;
+		color_blend_attachment.colorBlendOp = .VK_BLEND_OP_ADD;
+		color_blend_attachment.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE;
+		color_blend_attachment.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ZERO;
+		color_blend_attachment.alphaBlendOp = .VK_BLEND_OP_ADD;
+	}
+
+	enable_blending_alphablend :: (using self: *Pipeline_Builder) {
+		color_blend_attachment.colorWriteMask = .VK_COLOR_COMPONENT_R_BIT | .VK_COLOR_COMPONENT_G_BIT | .VK_COLOR_COMPONENT_B_BIT | .VK_COLOR_COMPONENT_A_BIT;
+		color_blend_attachment.blendEnable = VK_TRUE;
+		color_blend_attachment.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
+		color_blend_attachment.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		color_blend_attachment.colorBlendOp = .VK_BLEND_OP_ADD;
+		color_blend_attachment.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE;
+		color_blend_attachment.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ZERO;
+		color_blend_attachment.alphaBlendOp = .VK_BLEND_OP_ADD;
+	}
+
 	disable_blending :: (self: *Pipeline_Builder) {
 		using self;
 

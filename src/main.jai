@@ -54,6 +54,9 @@ main :: () {
 		{
 			sleep_milliseconds(50);
 		}
+		if z_renderer.resize_requested {
+			resize_swapchain(*z_renderer);
+		}
 
 		vkDeviceWaitIdle(z_renderer.logical_device);
     }
