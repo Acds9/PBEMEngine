@@ -44,7 +44,7 @@ init_background_pipelines :: (zr: *ZRenderer) -> bool, string {
 init_mesh_pipeline :: (zr: *ZRenderer) {
 	success : bool;
 	triangle_frag_shader : VkShaderModule; 
-	success, triangle_frag_shader = create_shader_module(zr, "src/shaders/colored_triangle.frag.spv");
+	success, triangle_frag_shader = create_shader_module(zr, "src/shaders/tex_image.frag.spv");
 	if !success {
 		print("Error: Failed to create triangle fragment shader\n");
 		debug_break();
@@ -64,6 +64,8 @@ init_mesh_pipeline :: (zr: *ZRenderer) {
 	pipeline_layout_info : VkPipelineLayoutCreateInfo = vkinit_pipeline_layout_create_info();
 	pipeline_layout_info.pPushConstantRanges = *buffer_range;
 	pipeline_layout_info.pushConstantRangeCount = 1;
+	pipeline_layout_info.pSetLayouts = *zr.image_descriptor_layout;
+	pipeline_layout_info.setLayoutCount = 1;
 	
 	result := vkCreatePipelineLayout(zr.logical_device, *pipeline_layout_info, null, *zr.mesh_pipeline_layout);
 	if result != .VK_SUCCESS {

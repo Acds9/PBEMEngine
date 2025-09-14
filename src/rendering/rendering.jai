@@ -22,46 +22,52 @@ Deletion_Queue :: struct {
 	command_pools	: [..] struct {device: VkDevice; pool: VkCommandPool;};
 	fences			: [..] struct {device: VkDevice; fence: VkFence;};
 	buffers			: [..] struct {allocator: VmaAllocator; buffer: *Allocated_Buffer;};
+	samplers		: [..] struct {device: VkDevice; sampler: VkSampler;};
+
+	flush_deletion_queue :: (using self: *Deletion_Queue) {
+		for <image_views {
+			vkDestroyImageView(it.device, it.view, null);
+		}
+		for <images {
+			vmaDestroyImage(it.allocator, it.image, it.allocation);
+		}
+		for <desc_allocators {
+			it.allocator.destroy_pools(it.allocator, it.device);
+		}
+		for <desc_layouts {
+			vkDestroyDescriptorSetLayout(it.device, it.layout, null);
+		}
+		for <pipeline_layouts {
+			vkDestroyPipelineLayout(it.device, it.layout, null);
+		}
+		for <pipelines {
+			vkDestroyPipeline(it.device, it.pipeline, null);
+		}
+		for <command_pools {
+			vkDestroyCommandPool(it.device, it.pool, null);
+		}
+		for <fences {
+			vkDestroyFence(it.device, it.fence, null);
+		}
+		for <buffers {
+			destroy_buffer(it.allocator, it.buffer);
+		}
+		for <samplers {
+			vkDestroySampler(it.device, it.sampler, null);
+		}
+		array_reset(*image_views);
+		array_reset(*images);
+		array_reset(*desc_layouts);
+		array_reset(*pipeline_layouts);
+		array_reset(*pipelines);
+		array_reset(*command_pools);
+		array_reset(*fences);
+		array_reset(*buffers);
+		array_reset(*samplers);
+	}
 }
 
-flush_deletion_queue :: (queue: *Deletion_Queue) {
-	using queue;
-	for <image_views {
-		vkDestroyImageView(it.device, it.view, null);
-	}
-	for <images {
-		vmaDestroyImage(it.allocator, it.image, it.allocation);
-	}
-	for <desc_allocators {
-		vkDestroyDescriptorPool(it.device, it.allocator.pool, null);
-	}
-	for <desc_layouts {
-		vkDestroyDescriptorSetLayout(it.device, it.layout, null);
-	}
-	for <pipeline_layouts {
-		vkDestroyPipelineLayout(it.device, it.layout, null);
-	}
-	for <pipelines {
-		vkDestroyPipeline(it.device, it.pipeline, null);
-	}
-	for <command_pools {
-		vkDestroyCommandPool(it.device, it.pool, null);
-	}
-	for <fences {
-		vkDestroyFence(it.device, it.fence, null);
-	}
-	for <buffers {
-		destroy_buffer(it.allocator, it.buffer);
-	}
-	array_reset(*image_views);
-	array_reset(*images);
-	array_reset(*desc_layouts);
-	array_reset(*pipeline_layouts);
-	array_reset(*pipelines);
-	array_reset(*command_pools);
-	array_reset(*fences);
-	array_reset(*buffers);
-}
+
 ZRenderer :: struct {
     // Core state
     initialized             : bool;
@@ -86,6 +92,9 @@ ZRenderer :: struct {
     physical_device       	: VkPhysicalDevice;
     logical_device        	: VkDevice;
     allocator             	: VmaAllocator;
+
+	// GPU Scene
+	scene_data				: GPU_Scene_Data;
     
     // Queues
     queue_indices         	: Queue_Family_Indices;
@@ -118,7 +127,8 @@ ZRenderer :: struct {
     // Descriptors
     global_desc_allocator 	: Descriptor_Allocator;
     draw_image_desc_layout	: VkDescriptorSetLayout;
-    draw_image_descs      	: VkDescriptorSet;
+    draw_image_descriptors  : VkDescriptorSet;
+	gpu_scene_data_desc_layout : VkDescriptorSetLayout;
     
     // Per-frame data
     frame_data            	: [MAX_FRAMES_IN_FLIGHT]Frame_Data;
@@ -129,10 +139,20 @@ ZRenderer :: struct {
     immediate_fence         : VkFence;
     
     // Mesh data
-    rectangle             	: GPU_Mesh_Buffers;
     mesh_pool            	: Flat_Pool;
     meshes               	: [..]Mesh_Asset;
     mesh_map             	: Table(string, *Mesh_Asset);
+
+	// Textures
+	white_image				: Allocated_Image;
+	black_image				: Allocated_Image;
+	grey_image				: Allocated_Image;
+	error_checkerboard		: Allocated_Image;
+
+	default_sampler_linear	: VkSampler;
+	default_sampler_nearest	: VkSampler;
+
+	image_descriptor_layout : VkDescriptorSetLayout;
     
     // Cleanup
     deletion_queue        	: Deletion_Queue;
@@ -236,10 +256,10 @@ draw_frame :: (zr: *ZRenderer) {
         return;
     }
 	frame_data := zr.get_current_frame_data(zr);
-	vkWaitForFences(zr.logical_device, 1, *frame_data.in_flight_fence, VK_TRUE, U64_MAX);
+	vkWaitForFences(zr.logical_device, 1, *frame_data.render_fence, VK_TRUE, U64_MAX);
 
 	image_idx : u32;
-	acquire_result := vkAcquireNextImageKHR(zr.logical_device, zr.swapchain, U64_MAX, frame_data.image_available_semaphore, VK_NULL_HANDLE, *image_idx);
+	acquire_result := vkAcquireNextImageKHR(zr.logical_device, zr.swapchain, U64_MAX, frame_data.swapchain_semaphore, VK_NULL_HANDLE, *image_idx);
 	if acquire_result == .VK_ERROR_OUT_OF_DATE_KHR {
 		zr.resize_requested = true;
 		return;
@@ -249,10 +269,13 @@ draw_frame :: (zr: *ZRenderer) {
 		return;
 	}
 
+	frame_data.deletion_queue.flush_deletion_queue(*frame_data.deletion_queue);
+	frame_data.frame_descriptors.clear_pools(*frame_data.frame_descriptors, zr.logical_device);
+
 	zr.draw_extent.height = cast,no_check(u32)(min(zr.swapchain_extent.height, zr.draw_image.image_extent.height) * zr.render_scale);
 	zr.draw_extent.width = cast,no_check(u32)(min(zr.swapchain_extent.width, zr.draw_image.image_extent.width) * zr.render_scale);
 
-	vkResetFences(zr.logical_device, 1, *frame_data.in_flight_fence);
+	vkResetFences(zr.logical_device, 1, *frame_data.render_fence);
 
 	vkResetCommandBuffer(frame_data.command_buffer, 0);
 
@@ -285,7 +308,7 @@ draw_frame :: (zr: *ZRenderer) {
 	submit_info.sType = .VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
 
 	wait_semaphore_info : VkSemaphoreSubmitInfo = vkinit_semaphore_submit_info(
-		frame_data.image_available_semaphore,
+		frame_data.swapchain_semaphore,
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR
     );
 	
@@ -293,7 +316,7 @@ draw_frame :: (zr: *ZRenderer) {
 	submit_info.pWaitSemaphoreInfos = *wait_semaphore_info;
 
 	signal_semaphore_info : VkSemaphoreSubmitInfo = vkinit_semaphore_submit_info(
-        frame_data.render_finished_semaphore,
+        frame_data.render_semaphore,
         VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT
     );
 
@@ -308,7 +331,7 @@ draw_frame :: (zr: *ZRenderer) {
 	submit_info.commandBufferInfoCount = 1;
 	submit_info.pCommandBufferInfos = *command_buffer_submit_info;
 
-	result := vkQueueSubmit2(zr.graphics_queue, 1, *submit_info, frame_data.in_flight_fence);
+	result := vkQueueSubmit2(zr.graphics_queue, 1, *submit_info, frame_data.render_fence);
 	if result != .VK_SUCCESS {
 		print("%\n", result);
 		return;
@@ -317,7 +340,7 @@ draw_frame :: (zr: *ZRenderer) {
 	present_info : VkPresentInfoKHR;
 	present_info.sType = .VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	present_info.waitSemaphoreCount = 1;
-	present_info.pWaitSemaphores = *frame_data.render_finished_semaphore;
+	present_info.pWaitSemaphores = *frame_data.render_semaphore;
 
 	swap_chains : [..]VkSwapchainKHR;
 	array_add(*swap_chains, zr.swapchain);
@@ -345,6 +368,7 @@ draw_frame :: (zr: *ZRenderer) {
 }
 
 draw_geometry :: (zr: *ZRenderer, command_buffer: VkCommandBuffer ) {
+	frame_data := zr.get_current_frame_data(zr);;
 	// Begin a render pass connected to our draw image
 	color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, null, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	depth_attachment : VkRenderingAttachmentInfo = vkinit_depth_attachment_info(zr.depth_image.image_view, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
@@ -371,9 +395,33 @@ draw_geometry :: (zr: *ZRenderer, command_buffer: VkCommandBuffer ) {
 
 	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
 	
-	// Launch a draw command to draw 3 vertices
-	//vkCmdDraw(command_buffer, 3, 1, 0, 0);
+	// Allocated onto heap, ok?
+	gpu_scene_data_buffer := New(Allocated_Buffer);
+	<<gpu_scene_data_buffer = create_buffer(zr, size_of(GPU_Scene_Data), .VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, "Frame Buffer");
+
+	array_add(*frame_data.deletion_queue.buffers, .{zr.allocator, gpu_scene_data_buffer});
+
+	// Weird way of doing it but sets scene_uniform_data to be equal to zr.scene_data
+	void_ptr : *void;
+	vmaMapMemory(zr.allocator, gpu_scene_data_buffer.allocation, *void_ptr);
+	scene_uniform_data : *GPU_Scene_Data = cast,no_check(*GPU_Scene_Data)void_ptr;
+	<<scene_uniform_data = zr.scene_data;
+
+	global_descriptor := frame_data.frame_descriptors.allocate(*frame_data.frame_descriptors, zr.logical_device, zr.gpu_scene_data_desc_layout);
+
+	writer : Descriptor_Writer;
+	writer.write_buffer(*writer, 0, gpu_scene_data_buffer.buffer, size_of(GPU_Scene_Data), 0, .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	writer.update_set(*writer, zr.logical_device, global_descriptor);
+
 	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.mesh_pipeline);
+
+	image_set : VkDescriptorSet = frame_data.frame_descriptors.allocate(*frame_data.frame_descriptors, zr.logical_device, zr.image_descriptor_layout);
+	writer_image : Descriptor_Writer;
+	writer_image.write_image(*writer_image, 0, zr.error_checkerboard.image_view, zr.default_sampler_nearest, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+	writer_image.update_set(*writer_image, zr.logical_device, image_set);
+
+	vkCmdBindDescriptorSets(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.mesh_pipeline_layout, 0, 1, *image_set, 0, null);
+
 
 	mesh_to_draw, success := table_find(*zr.mesh_map, "Suzanne");
 	if !success {
@@ -424,16 +472,20 @@ deinit_zrenderer :: (zr: *ZRenderer) {
 		vkDestroyRenderPass(zr.logical_device, zr.render_pass, null);
 
 		for zr.frame_data {
-			vkDestroySemaphore(zr.logical_device, it.image_available_semaphore, null);
-			vkDestroySemaphore(zr.logical_device, it.render_finished_semaphore, null);
-			vkDestroyFence(zr.logical_device, it.in_flight_fence, null);
+			vkDestroySemaphore(zr.logical_device, it.swapchain_semaphore, null);
+			vkDestroySemaphore(zr.logical_device, it.render_semaphore, null);
+			vkDestroyFence(zr.logical_device, it.render_fence, null);
 			vkDestroyCommandPool(zr.logical_device, it.command_pool, null);
+			it.frame_descriptors.destroy_pools(*it.frame_descriptors, zr.logical_device);
 
-			flush_deletion_queue(*it.deletion_queue);
+			it.deletion_queue.flush_deletion_queue(*it.deletion_queue);
 		}
 
-		flush_deletion_queue(*zr.deletion_queue);
+		zr.deletion_queue.flush_deletion_queue(*zr.deletion_queue);
 
+	/*	vkDestroyImageView(zr.logical_device, zr.white_image.image_view, null);
+		vmaDestroyImage(zr.allocator, zr.white_image.image, zr.white_image.allocation);
+		*/
 		flush_meshes(zr);
 
 		vmaDestroyAllocator(zr.allocator);

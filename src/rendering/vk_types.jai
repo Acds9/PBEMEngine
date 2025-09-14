@@ -1,3 +1,24 @@
+Color :: struct  {
+	r, g, b, a : u8;
+}
+
+COLOR_BLACK		:: Color.{0, 0, 0, 255};
+COLOR_GREY 		:: Color.{127,127,127,255};
+COLOR_WHITE 	:: Color.{255, 255, 255, 255};
+COLOR_MAGENTA 	:: Color.{255, 0, 255, 255};
+
+Color_HDR :: struct {
+	r, g, b, a : float32;
+
+	to_r10g10b10a2 :: (using self: *Color_HDR) -> u32 {
+		r1 := cast,no_check(u32)(clamp(r, 0, 1) * 1023.0);
+		g1 := cast,no_check(u32)(clamp(g, 0, 1) * 1023.0);
+		b1 := cast,no_check(u32)(clamp(b, 0, 1) * 1023.0);
+		a1 := cast,no_check(u32)(clamp(a, 0, 1) * 3.0);
+		return r1 | (g1 << 10) | (b1 << 20) | (a1 << 30);
+	}
+}
+
 Swapchain_Support_Details :: struct {
     capabilities    : VkSurfaceCapabilitiesKHR;
     formats        : [..]VkSurfaceFormatKHR;
@@ -24,12 +45,14 @@ Queue_Family_Indices :: struct {
 }
 
 Frame_Data :: struct {
-	command_pool 			: VkCommandPool;
-	command_buffer			: VkCommandBuffer;
+	command_pool 				: VkCommandPool;
+	command_buffer				: VkCommandBuffer;
 
-	image_available_semaphore 	: VkSemaphore;
-	render_finished_semaphore 	: VkSemaphore;
-	in_flight_fence				: VkFence;
+	swapchain_semaphore 		: VkSemaphore;
+	render_semaphore 			: VkSemaphore;
+	render_fence				: VkFence;
+
+	frame_descriptors			: Descriptor_Allocator;
 
 	deletion_queue				: Deletion_Queue;
 }
@@ -265,4 +288,13 @@ GPU_Mesh_Buffers :: struct {
 GPU_Draw_Push_Constants :: struct {
 	world_matrix	: Matrix4;
 	vertex_buffer	: VkDeviceAddress;
+}
+
+GPU_Scene_Data :: struct {
+	view			: Matrix4;
+	proj			: Matrix4;
+	view_proj		: Matrix4;
+	ambient_color	: Vector4;
+	sunlight_dir	: Vector4;
+	sunlight_color	: Vector4;
 }

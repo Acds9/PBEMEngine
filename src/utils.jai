@@ -44,3 +44,21 @@ panic :: (msg: string) {
 	print("%\n", msg);
 	debug_break();
 }
+
+panic_no_name :: (object: string) {
+	print("ERROR: No name set for % but we are in debug mode\n", object);
+	debug_break();
+}
+
+get_mip_levels :: (width: u32, height: u32) -> u32 {
+    size := max(width, height);
+    if size == 0 return 0;
+    
+    // Find position of highest set bit
+    level: u32 = 0;
+    while size > 1 {
+        size >>= 1;
+        level += 1;
+    }
+    return level + 1;
+}
