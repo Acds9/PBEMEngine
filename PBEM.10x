@@ -145,6 +145,9 @@
 			<File>
 				<Path>query_build.jai</Path>
 			</File>
+			<File>
+				<Path>todo</Path>
+			</File>
 			<WorkspaceReference>
 				<Path>../Jai/Jai.10x</Path>
 			</WorkspaceReference>

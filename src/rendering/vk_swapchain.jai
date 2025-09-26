@@ -97,16 +97,16 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 		create_info.pQueueFamilyIndices = null;
 	}
 
-	result := vkCreateSwapchainKHR(zr.logical_device, *create_info, null, *zr.swapchain);
+	result := vkCreateSwapchainKHR(zr.device, *create_info, null, *zr.swapchain);
 
 	
 	if result != .VK_SUCCESS 
 		return false, sprint("%\n", result);
 
 	final_image_count : u32;
-	vkGetSwapchainImagesKHR(zr.logical_device, zr.swapchain, *final_image_count, null);
+	vkGetSwapchainImagesKHR(zr.device, zr.swapchain, *final_image_count, null);
 	array_resize(*zr.swapchain_images, final_image_count);
-	vkGetSwapchainImagesKHR(zr.logical_device, zr.swapchain, *final_image_count, zr.swapchain_images.data);
+	vkGetSwapchainImagesKHR(zr.device, zr.swapchain, *final_image_count, zr.swapchain_images.data);
 	zr.swapchain_image_format = chosen_format.format;
 	zr.swapchain_extent = chosen_extent;
 
@@ -124,7 +124,7 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 	for swapchain_images {
 		create_info : VkImageViewCreateInfo = vkinit_imageview_create_info(it, .VK_IMAGE_VIEW_TYPE_2D, zr.swapchain_image_format, components, subresource_range);
 
-		result := vkCreateImageView(zr.logical_device, *create_info, null, *zr.swapchain_imageviews[it_index]);
+		result := vkCreateImageView(zr.device, *create_info, null, *zr.swapchain_imageviews[it_index]);
 		if result != .VK_SUCCESS {
 			return false, sprint("%\n", result);
 		}
@@ -155,7 +155,7 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 	rimg_alloc_info.requiredFlags = .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
 	// Allocate and create
-	result = vmaCreateImage(zr.allocator, *rimg_create_info, *rimg_alloc_info, *zr.draw_image.image, *zr.draw_image.allocation, null);
+	result = vmaCreateImage(VMA_ALLOCATOR, *rimg_create_info, *rimg_alloc_info, *zr.draw_image.image, *zr.draw_image.allocation, null);
 	if result != .VK_SUCCESS {
 		return false, sprint("%\n", result);
 	}
@@ -167,19 +167,18 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 	// Build imageview for the draw image to use for rendering 
 	rview_info : VkImageViewCreateInfo = vkinit_imageview_create_info(zr.draw_image.image_format, zr.draw_image.image, .VK_IMAGE_ASPECT_COLOR_BIT);
 
-	result = vkCreateImageView(zr.logical_device, *rview_info, null, *zr.draw_image.image_view);
+	result = vkCreateImageView(zr.device, *rview_info, null, *zr.draw_image.image_view);
 	if result != .VK_SUCCESS {
 		return false, sprint("%\n", result);
 	}
 
 	if(ENABLE_VALIDATION_LAYERS) {
-		set_vk_object_name(zr.logical_device, .IMAGE, cast(u64)zr.draw_image.image, "Draw Image");
-		set_vk_object_name(zr.logical_device, .IMAGE_VIEW, cast(u64)zr.draw_image.image_view, "Draw Image View");
+		set_vk_object_name(zr.device, .IMAGE, cast(u64)zr.draw_image.image, "Draw Image");
+		set_vk_object_name(zr.device, .IMAGE_VIEW, cast(u64)zr.draw_image.image_view, "Draw Image View");
 	}
 
-	
-	array_add(*zr.deletion_queue.image_views, .{zr.logical_device, zr.draw_image.image_view});
-	array_add(*zr.deletion_queue.images, .{zr.allocator, zr.draw_image.image, zr.draw_image.allocation});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.draw_image.image_view);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.draw_image.image, zr.draw_image.allocation);
 
 	// DEPTH IMAGE
 	zr.depth_image.image_format = .VK_FORMAT_D32_SFLOAT;
@@ -188,28 +187,28 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 	depth_image_usages |= .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
 	depth_image_info : VkImageCreateInfo = vkinit_image_create_info(zr.depth_image.image_format, depth_image_usages, draw_image_extent);
-	vmaCreateImage(zr.allocator, *depth_image_info, *rimg_alloc_info, *zr.depth_image.image, *zr.depth_image.allocation, null);
+	vmaCreateImage(VMA_ALLOCATOR, *depth_image_info, *rimg_alloc_info, *zr.depth_image.image, *zr.depth_image.allocation, null);
 
 	depth_view_info : VkImageViewCreateInfo  = vkinit_imageview_create_info(zr.depth_image.image_format, zr.depth_image.image, .VK_IMAGE_ASPECT_DEPTH_BIT);
 
-	result = vkCreateImageView(zr.logical_device, *depth_view_info, null, *zr.depth_image.image_view);
+	result = vkCreateImageView(zr.device, *depth_view_info, null, *zr.depth_image.image_view);
 	if result != .VK_SUCCESS {
 		return false, sprint("%\n", result);
 	}
 
 	if(ENABLE_VALIDATION_LAYERS) {
-		set_vk_object_name(zr.logical_device, .IMAGE, cast(u64)zr.depth_image.image, "Depth Image");
-		set_vk_object_name(zr.logical_device, .IMAGE_VIEW, cast(u64)zr.depth_image.image_view, "Depth Image View");
+		set_vk_object_name(zr.device, .IMAGE, cast(u64)zr.depth_image.image, "Depth Image");
+		set_vk_object_name(zr.device, .IMAGE_VIEW, cast(u64)zr.depth_image.image_view, "Depth Image View");
 	}
 
-	array_add(*zr.deletion_queue.image_views, .{zr.logical_device, zr.depth_image.image_view});
-	array_add(*zr.deletion_queue.images, .{zr.allocator, zr.depth_image.image, zr.depth_image.allocation});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.depth_image.image_view);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.depth_image.image, zr.depth_image.allocation);
 
 	return true, "";
 }
 
 resize_swapchain :: (zr: *ZRenderer) {
-	vkDeviceWaitIdle(zr.logical_device);
+	vkDeviceWaitIdle(zr.device);
 	destroy_swapchain(zr);
 
 	w : u32;
@@ -226,10 +225,10 @@ resize_swapchain :: (zr: *ZRenderer) {
 }
 
 destroy_swapchain :: (zr: *ZRenderer) {
-	vkDestroySwapchainKHR(zr.logical_device, zr.swapchain, null);
+	vkDestroySwapchainKHR(zr.device, zr.swapchain, null);
 
 	// destroy swapchain resources
 	for <zr.swapchain_imageviews {
-		vkDestroyImageView(zr.logical_device, it, null);
+		vkDestroyImageView(zr.device, it, null);
 	}
 }

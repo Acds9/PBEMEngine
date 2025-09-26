@@ -28,7 +28,7 @@ create_render_pass :: (zr: *ZRenderer) -> bool, string {
         1, *dependency
     );
     
-    result := vkCreateRenderPass(zr.logical_device, *render_pass_create_info, null, *zr.render_pass);
+    result := vkCreateRenderPass(zr.device, *render_pass_create_info, null, *zr.render_pass);
     if result != .VK_SUCCESS
         return false, "ERROR: Failed to create Render Pass";
     return true, "";
@@ -48,7 +48,7 @@ create_shader_module :: (zr: *ZRenderer, code: [..]u8) -> bool, VkShaderModule {
 	create_info.pCode = xx code.data;
 
 	shader_module : VkShaderModule;
-	result := vkCreateShaderModule(zr.logical_device, *create_info, null, *shader_module);
+	result := vkCreateShaderModule(zr.device, *create_info, null, *shader_module);
 	if result != .VK_SUCCESS 
 		return false, null;
 	return true, shader_module;
@@ -64,7 +64,7 @@ create_framebuffers :: (zr: *ZRenderer) -> bool, string {
             zr.render_pass, 1, attachments.data, zr.swapchain_extent.width, zr.swapchain_extent.height
         );
         
-        result := vkCreateFramebuffer(zr.logical_device, *framebuffer_create_info, null, *zr.swapchain_framebuffers[it_index]);
+        result := vkCreateFramebuffer(zr.device, *framebuffer_create_info, null, *zr.swapchain_framebuffers[it_index]);
         if result != .VK_SUCCESS
             return false, sprint("%\n", result);
     }
@@ -81,7 +81,7 @@ init_commands :: (zr: *ZRenderer) -> bool, string {
 
 	for zr.frame_data {
 		// Create cpmmand pool first
-		result := vkCreateCommandPool(zr.logical_device, *pool_info, null, *it.command_pool);
+		result := vkCreateCommandPool(zr.device, *pool_info, null, *it.command_pool);
 		if result != .VK_SUCCESS 
 			return false, sprint("%\n", result);
 
@@ -92,12 +92,12 @@ init_commands :: (zr: *ZRenderer) -> bool, string {
 		alloc_info.level = .VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		alloc_info.commandBufferCount = 1; // Just one tied to this pool, but we have multiple pools
 		
-		result = vkAllocateCommandBuffers(zr.logical_device, *alloc_info, *it.command_buffer);
+		result = vkAllocateCommandBuffers(zr.device, *alloc_info, *it.command_buffer);
 		if result != .VK_SUCCESS 
 			return false, sprint("%\n", result);
 	}
 
-	immediate_result := vkCreateCommandPool(zr.logical_device, *pool_info, null, *zr.immediate_command_pool);
+	immediate_result := vkCreateCommandPool(zr.device, *pool_info, null, *zr.immediate_command_pool);
 	if immediate_result != .VK_SUCCESS 
 			return false, sprint("%\n", immediate_result);
 			
@@ -107,16 +107,17 @@ init_commands :: (zr: *ZRenderer) -> bool, string {
 	command_buffer_alloc_info.level = .VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	command_buffer_alloc_info.commandBufferCount = 1; 
 
-	immediate_result = vkAllocateCommandBuffers(zr.logical_device, *command_buffer_alloc_info, *zr.immediate_command_buffer);
+	immediate_result = vkAllocateCommandBuffers(zr.device, *command_buffer_alloc_info, *zr.immediate_command_buffer);
 	if immediate_result != .VK_SUCCESS 
 			return false, sprint("%\n", immediate_result);
 
-	array_add(*zr.deletion_queue.command_pools, .{zr.logical_device, zr.immediate_command_pool});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.immediate_command_pool);
 
 	return true, "";
 }
  
 // This should NOT be here
+/*
 draw_gradient_background :: (zr: *ZRenderer, command_buffer: VkCommandBuffer) {
 	// Bind the gradient drawing compute pipeline
 	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_COMPUTE, zr.gradient_pipeline);
@@ -126,7 +127,7 @@ draw_gradient_background :: (zr: *ZRenderer, command_buffer: VkCommandBuffer) {
 
 	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
 	vkCmdDispatch(command_buffer, cast,no_check(u32) ceil(zr.draw_extent.width / 16.0), cast,no_check(u32) ceil(zr.draw_extent.height / 16.0), 1);
-}
+}*/
 
 create_sync_objects :: (zr: *ZRenderer) -> bool, string {
 	semaphore_create_info : VkSemaphoreCreateInfo;
@@ -137,27 +138,27 @@ create_sync_objects :: (zr: *ZRenderer) -> bool, string {
 	fence_create_info.flags = .VK_FENCE_CREATE_SIGNALED_BIT;
 
 	for zr.frame_data {
-		result := vkCreateSemaphore(zr.logical_device, *semaphore_create_info, null, *it.swapchain_semaphore);
+		result := vkCreateSemaphore(zr.device, *semaphore_create_info, null, *it.swapchain_semaphore);
 		if result != .VK_SUCCESS 
 			return false, sprint("%\n", result);
-		result = vkCreateSemaphore(zr.logical_device, *semaphore_create_info, null, *it.render_semaphore);
+		result = vkCreateSemaphore(zr.device, *semaphore_create_info, null, *it.render_semaphore);
 		if result != .VK_SUCCESS 
 			return false, sprint("%\n", result);
 
-		result = vkCreateFence(zr.logical_device, *fence_create_info, null, *it.render_fence);
+		result = vkCreateFence(zr.device, *fence_create_info, null, *it.render_fence);
 		if result != .VK_SUCCESS 
 			return false, sprint("%\n", result);
 	}
 
-	result := vkCreateFence(zr.logical_device, *fence_create_info, null, *zr.immediate_fence);
+	result := vkCreateFence(zr.device, *fence_create_info, null, *zr.immediate_fence);
 	if result != .VK_SUCCESS 
 		return false, sprint("%\n", result);
 
-	array_add(*zr.deletion_queue.fences, .{zr.logical_device, zr.immediate_fence});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.immediate_fence);
 	return true, "";
 }
 
-create_buffer :: (zr: *ZRenderer, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, debug_name: string = "") -> Allocated_Buffer {
+create_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Allocated_Buffer {
 	buffer_info : VkBufferCreateInfo;
 	buffer_info.sType = .VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	buffer_info.size = alloc_size;
@@ -169,16 +170,28 @@ create_buffer :: (zr: *ZRenderer, alloc_size: u64, usage: VkBufferUsageFlags, me
 	vma_alloc_info.flags = .VMA_ALLOCATION_CREATE_MAPPED_BIT;
 	
 	new_buffer : Allocated_Buffer;
-	result := vmaCreateBuffer(zr.allocator, *buffer_info, *vma_alloc_info, *new_buffer.buffer, *new_buffer.allocation, *new_buffer.info);
+	result := vmaCreateBuffer(allocator, *buffer_info, *vma_alloc_info, *new_buffer.buffer, *new_buffer.allocation, *new_buffer.info);
 	if result != .VK_SUCCESS {
 		print("ERROR: could not create memory buffer\n");
 		debug_break();
 	}
+
+	// Only get device address if the buffer supports it
+    if (usage & .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+        address_info := VkBufferDeviceAddressInfo.{
+            sType = .VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+            buffer = new_buffer.buffer,
+        };
+        new_buffer.base_address = vkGetBufferDeviceAddress(device, *address_info);
+    } else {
+        new_buffer.base_address = 0;  
+    }
+
 	if ENABLE_VALIDATION_LAYERS {
-		if debug_name == "" {
-			panic("ERROR: vk_debug_name not set for buffer in debug\n");
+		if device == null || debug_name == "" {
+			panic("ERROR: VkDevice or vk_debug_name not set for buffer in debug\n");
 		}
-		set_vk_object_name(zr.logical_device, .BUFFER, cast(u64)new_buffer.buffer, debug_name);
+		set_vk_object_name(device, .BUFFER, cast(u64)new_buffer.buffer, debug_name);
 	}
 	return new_buffer;
 }
@@ -189,16 +202,16 @@ destroy_buffer :: (allocator: VmaAllocator, buffer: *Allocated_Buffer) {
 
 init_default_data :: (zr: *ZRenderer) {
 	zr.white_image = create_image(zr, *COLOR_WHITE, .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_White");
-	array_add(*zr.deletion_queue.images, .{zr.allocator, zr.white_image.image, zr.white_image.allocation});
-	array_add(*zr.deletion_queue.image_views, .{zr.logical_device, zr.white_image.image_view});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.white_image.image, zr.white_image.allocation);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.white_image.image_view);
 
 	zr.grey_image = create_image(zr, *COLOR_GREY, .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Grey");
-	array_add(*zr.deletion_queue.images, .{zr.allocator, zr.grey_image.image, zr.grey_image.allocation});
-	array_add(*zr.deletion_queue.image_views, .{zr.logical_device, zr.grey_image.image_view});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.grey_image.image, zr.grey_image.allocation);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.grey_image.image_view);
 
 	zr.black_image = create_image(zr, *COLOR_BLACK, .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Black");
-	array_add(*zr.deletion_queue.images, .{zr.allocator, zr.black_image.image, zr.black_image.allocation});
-	array_add(*zr.deletion_queue.image_views, .{zr.logical_device, zr.black_image.image_view});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.black_image.image, zr.black_image.allocation);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.black_image.image_view);
 
 	pixels : [16*16]Color;
 	x, y : u32;
@@ -220,8 +233,8 @@ init_default_data :: (zr: *ZRenderer) {
 	}
 	
 	zr.error_checkerboard = create_image(zr, pixels.data, .{16,16,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Error");
-	array_add(*zr.deletion_queue.images, .{zr.allocator, zr.error_checkerboard.image, zr.error_checkerboard.allocation});
-	array_add(*zr.deletion_queue.image_views, .{zr.logical_device, zr.error_checkerboard.image_view});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.error_checkerboard.image, zr.error_checkerboard.allocation);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.error_checkerboard.image_view);
 
 	sampler_info : VkSamplerCreateInfo;
 	sampler_info.sType = .VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -242,14 +255,36 @@ init_default_data :: (zr: *ZRenderer) {
 	sampler_info.borderColor = .VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	sampler_info.unnormalizedCoordinates = VK_FALSE;
 
-	vkCreateSampler(zr.logical_device, *sampler_info, null, *zr.default_sampler_nearest);
+	vkCreateSampler(zr.device, *sampler_info, null, *zr.default_sampler_nearest);
 
 	sampler_info.magFilter = .VK_FILTER_LINEAR;
 	sampler_info.minFilter = .VK_FILTER_LINEAR;
-	vkCreateSampler(zr.logical_device, *sampler_info, null, *zr.default_sampler_linear);
+	vkCreateSampler(zr.device, *sampler_info, null, *zr.default_sampler_linear);
 
-	array_add(*zr.deletion_queue.samplers, .{zr.logical_device, zr.default_sampler_nearest});
-	array_add(*zr.deletion_queue.samplers, .{zr.logical_device, zr.default_sampler_linear});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_nearest);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_linear);
+
+	material_resources : Material_Opaque.Material_Resources;
+	material_resources.color_image = zr.white_image;
+	material_resources.color_sampler = zr.default_sampler_nearest;
+	material_resources.blackbody_image = zr.black_image;
+	material_resources.blackbody_sampler = zr.default_sampler_nearest;
+
+	material_constants : Allocated_Buffer = create_buffer(VMA_ALLOCATOR, size_of(Material_Opaque.Material_Constants), .VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device, "Material Constants Buffer");
+
+	scene_uniform_data : *Material_Opaque.Material_Constants;
+	void_ptr : *void;
+	vmaMapMemory(VMA_ALLOCATOR, material_constants.allocation, *void_ptr);
+	scene_uniform_data = cast,no_check(*Material_Opaque.Material_Constants)void_ptr;
+	scene_uniform_data.color_factors = .{1,1,1,1};
+	scene_uniform_data.blackbody_factors = .{0,0,0,1};
+
+	destroy_buffer(VMA_ALLOCATOR, *material_constants);
+	material_resources.data_buffer = material_constants.buffer;
+	material_resources.data_buffer_offset = 0;
+
+	zr.opaque_material.build(*zr.opaque_material, zr);
+	zr.default_material = zr.opaque_material.write_material(*zr.opaque_material, zr.device, .MAIN_COLOR, *material_resources, *zr.global_desc_allocator);
 }
 
 set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, handle: u64, name: string) {
@@ -287,12 +322,12 @@ create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkIm
 	allocation_info.requiredFlags = .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
 	// Allocate and create
-	result := vmaCreateImage(zr.allocator, *image_info, *allocation_info, *new_image.image, *new_image.allocation, null);
+	result := vmaCreateImage(VMA_ALLOCATOR, *image_info, *allocation_info, *new_image.image, *new_image.allocation, null);
 	if result != .VK_SUCCESS {
 		panic(sprint("VK ERROR: Could not create image, %", result));
 	}
 	if(ENABLE_VALIDATION_LAYERS) {
-		set_vk_object_name(zr.logical_device, .IMAGE, cast(u64)new_image.image, name);
+		set_vk_object_name(zr.device, .IMAGE, cast(u64)new_image.image, name);
 	}
 
 	// Set correct aspect in case its depth image
@@ -305,13 +340,13 @@ create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkIm
 	view_info : VkImageViewCreateInfo = vkinit_imageview_create_info(format, new_image.image, aspect_flag);
 	view_info.subresourceRange.levelCount = image_info.mipLevels;
 	
-	result = vkCreateImageView(zr.logical_device, *view_info, null, *new_image.image_view);
+	result = vkCreateImageView(zr.device, *view_info, null, *new_image.image_view);
 	if result != .VK_SUCCESS {
 		panic(sprint("VK ERROR: Could not create imageview, %", result));
 	}
 
 	if(ENABLE_VALIDATION_LAYERS) {
-		set_vk_object_name(zr.logical_device, .IMAGE_VIEW, cast(u64)new_image.image_view, sprint("%_View", name));
+		set_vk_object_name(zr.device, .IMAGE_VIEW, cast(u64)new_image.image_view, sprint("%_View", name));
 	}
 
 	return new_image;
@@ -319,7 +354,7 @@ create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkIm
 
 create_image :: (zr: *ZRenderer, data: *void, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped : bool= false, name: string = "") -> Allocated_Image {
 	data_size := size.width * size.height * size.depth * 4;
-	upload_buffer : Allocated_Buffer = create_buffer(zr, data_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, "Temp Buffer");
+	upload_buffer : Allocated_Buffer = create_buffer(VMA_ALLOCATOR, data_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device, "Temp Buffer");
 
 	memcpy(upload_buffer.info.pMappedData, data, data_size);
 
@@ -346,7 +381,7 @@ create_image :: (zr: *ZRenderer, data: *void, size: VkExtent3D, format: VkFormat
 		vkutil_transition_image(cmd, new_image.image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 	});
 
-	destroy_buffer(zr.allocator, *upload_buffer);
+	destroy_buffer(VMA_ALLOCATOR, *upload_buffer);
 
 	return new_image;
 }

@@ -15,3 +15,10 @@ unpack_unorm_4x8 :: (packed: u32) -> Vector4 {
     v.w = cast(float)((packed >> 24) & 0xFF) / 255.0;
     return v;
 }
+
+Rotor	:: struct {
+	scalar	: float;
+	xy		: float;
+	yz		: float;
+	xz		: float;
+}

@@ -281,18 +281,29 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 	device_featuresVK11 : VkPhysicalDeviceVulkan11Features;
 	device_featuresVK11.pNext = *device_featuresVK12;
 
-	device_create_info : VkDeviceCreateInfo = vkinit_device_create_info(*device_featuresVK11, queue_create_infos, *device_features, Required_Device_Extensions);
+	device_featuresVk : VkPhysicalDeviceFeatures2;
+	device_featuresVk.features.shaderInt64 = VK_TRUE;
+	device_featuresVk.pNext = *device_featuresVK11;
+
+	device_create_info : VkDeviceCreateInfo;
+    device_create_info.sType = .VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    device_create_info.pNext = *device_featuresVk;  
+    device_create_info.queueCreateInfoCount = xx queue_create_infos.count;
+    device_create_info.pQueueCreateInfos = queue_create_infos.data;
+    device_create_info.pEnabledFeatures = null;  
+    device_create_info.enabledExtensionCount = xx Required_Device_Extensions.count;
+    device_create_info.ppEnabledExtensionNames = Required_Device_Extensions.data;
 
 	if ENABLE_VALIDATION_LAYERS {
 		device_create_info.enabledLayerCount = Desired_Validation_Layers.count;
 		device_create_info.ppEnabledLayerNames = Desired_Validation_Layers.data;
 	} else device_create_info.enabledLayerCount = 0;
 
-	result := vkCreateDevice(zr.physical_device, *device_create_info, null, *zr.logical_device);
+	result := vkCreateDevice(zr.physical_device, *device_create_info, null, *zr.device);
 	
-	vkGetDeviceQueue(zr.logical_device, cast,no_check(u32)zr.queue_indices.graphics, 0, *zr.graphics_queue);
+	vkGetDeviceQueue(zr.device, cast,no_check(u32)zr.queue_indices.graphics, 0, *zr.graphics_queue);
 	if zr.queue_indices.present != zr.queue_indices.graphics {
-    	vkGetDeviceQueue(zr.logical_device, cast,no_check(u32)zr.queue_indices.present, 0, *zr.present_queue);
+    	vkGetDeviceQueue(zr.device, cast,no_check(u32)zr.queue_indices.present, 0, *zr.present_queue);
 	} else {
 		zr.present_queue = zr.graphics_queue; 
 	}
@@ -300,14 +311,14 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 	else return false, sprint("%\n", result);
 }
 
-create_vma_allocator :: (zr: *ZRenderer) -> bool, string {
+create_vma_allocator :: (physical_device: VkPhysicalDevice, logical_device: VkDevice, instance: VkInstance) -> bool, string {
 	allocator_create_info : VmaAllocatorCreateInfo;
-	allocator_create_info.physicalDevice = zr.physical_device;
-	allocator_create_info.device = zr.logical_device;
-	allocator_create_info.instance = zr.instance;
+	allocator_create_info.physicalDevice = physical_device;
+	allocator_create_info.device = logical_device;
+	allocator_create_info.instance = instance;
 	allocator_create_info.flags = .VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	allocator_create_info.vulkanApiVersion = VK_API_VERSION_1_3;
-	vmaCreateAllocator(*allocator_create_info, *zr.allocator);
+	vmaCreateAllocator(*allocator_create_info, *VMA_ALLOCATOR);
 
 	return true, "";
 }

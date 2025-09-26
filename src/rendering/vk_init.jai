@@ -312,45 +312,6 @@ vkinit_pipeline_layout_create_info :: (set_layout_count: u32 = 0, set_layouts: *
     return create_info;
 }
 
-vkinit_graphics_pipeline_create_info :: (stage_count: u32, stages: *VkPipelineShaderStageCreateInfo,
-                                         vertex_input_state: *VkPipelineVertexInputStateCreateInfo,
-                                         input_assembly_state: *VkPipelineInputAssemblyStateCreateInfo,
-                                         viewport_state: *VkPipelineViewportStateCreateInfo,
-                                         rasterization_state: *VkPipelineRasterizationStateCreateInfo,
-                                         multisample_state: *VkPipelineMultisampleStateCreateInfo,
-                                         color_blend_state: *VkPipelineColorBlendStateCreateInfo,
-                                         layout: VkPipelineLayout,
-                                         render_pass: VkRenderPass,
-                                         subpass: u32,
-                                         depth_stencil_state: *VkPipelineDepthStencilStateCreateInfo = null,
-                                         dynamic_state: *VkPipelineDynamicStateCreateInfo = null,
-                                         tessellation_state: *VkPipelineTessellationStateCreateInfo = null,
-                                         base_pipeline_handle: VkPipeline = VK_NULL_HANDLE,
-                                         base_pipeline_index: s32 = -1,
-                                         flags: VkPipelineCreateFlags = 0) -> VkGraphicsPipelineCreateInfo {
-    create_info: VkGraphicsPipelineCreateInfo;
-    create_info.sType = .VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    create_info.pNext = null;
-    create_info.flags = flags;
-    create_info.stageCount = stage_count;
-    create_info.pStages = stages;
-    create_info.pVertexInputState = vertex_input_state;
-    create_info.pInputAssemblyState = input_assembly_state;
-    create_info.pTessellationState = tessellation_state;
-    create_info.pViewportState = viewport_state;
-    create_info.pRasterizationState = rasterization_state;
-    create_info.pMultisampleState = multisample_state;
-    create_info.pDepthStencilState = depth_stencil_state;
-    create_info.pColorBlendState = color_blend_state;
-    create_info.pDynamicState = dynamic_state;
-    create_info.layout = layout;
-    create_info.renderPass = render_pass;
-    create_info.subpass = subpass;
-    create_info.basePipelineHandle = base_pipeline_handle;
-    create_info.basePipelineIndex = base_pipeline_index;
-    return create_info;
-}
-
 vkinit_framebuffer_create_info :: (render_pass: VkRenderPass, attachment_count: u32, attachments: *VkImageView,
                                    width: u32, height: u32, layers: u32 = 1,
                                    flags: VkFramebufferCreateFlags = 0) -> VkFramebufferCreateInfo {

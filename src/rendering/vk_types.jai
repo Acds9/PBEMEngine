@@ -7,6 +7,14 @@ COLOR_GREY 		:: Color.{127,127,127,255};
 COLOR_WHITE 	:: Color.{255, 255, 255, 255};
 COLOR_MAGENTA 	:: Color.{255, 0, 255, 255};
 
+color_to_vec4 :: (c: *Color) -> Vector4 {
+	return .{
+			cast,no_check(float)c.r, 
+			cast,no_check(float)c.g, 
+			cast,no_check(float)c.b, 
+			cast,no_check(float)c.a};
+}
+
 Color_HDR :: struct {
 	r, g, b, a : float32;
 
@@ -85,7 +93,7 @@ Pipeline_Builder :: struct {
 		array_reset(*shader_stages);
 	}
 
-	build :: (self: *Pipeline_Builder, logical_device: VkDevice) -> VkPipeline {
+	build :: (self: *Pipeline_Builder, zr: *ZRenderer) -> VkPipeline {
 		using self;
 		viewport_state : VkPipelineViewportStateCreateInfo;
 		viewport_state.sType = .VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -131,7 +139,7 @@ Pipeline_Builder :: struct {
 		pipeline_info.pDynamicState = *dynamic_info;
 
 		new_pipeline : VkPipeline;
-		if(vkCreateGraphicsPipelines(logical_device, VK_NULL_HANDLE, 1, *pipeline_info, null, *new_pipeline) != .VK_SUCCESS) {
+		if(vkCreateGraphicsPipelines(zr.device, VK_NULL_HANDLE, 1, *pipeline_info, null, *new_pipeline) != .VK_SUCCESS) {
 			panic("ERROR: Pipeline creation failed");
 			return null;
 		} else {
@@ -140,8 +148,9 @@ Pipeline_Builder :: struct {
 					panic("ERROR: vk_debug_name not set for pipeline in debug\n");
 					return null;
 				}
-				set_vk_object_name(logical_device, .PIPELINE, cast(u64)new_pipeline, vk_debug_name);
+				set_vk_object_name(zr.device, .PIPELINE, cast(u64)new_pipeline, vk_debug_name);
 			}
+			queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, new_pipeline);
 			return new_pipeline;
 		}
 	}
@@ -269,6 +278,7 @@ Allocated_Buffer :: struct {
 	buffer		: VkBuffer;
 	allocation	: VmaAllocation;
 	info		: VmaAllocationInfo; 
+	base_address: VkDeviceAddress;
 }
 
 Vertex :: struct {
@@ -286,8 +296,8 @@ GPU_Mesh_Buffers :: struct {
 }
 
 GPU_Draw_Push_Constants :: struct {
-	world_matrix	: Matrix4;
-	vertex_buffer	: VkDeviceAddress;
+	transform_address	: VkDeviceAddress;
+	vertex_buffer		: VkDeviceAddress;
 }
 
 GPU_Scene_Data :: struct {
@@ -297,4 +307,40 @@ GPU_Scene_Data :: struct {
 	ambient_color	: Vector4;
 	sunlight_dir	: Vector4;
 	sunlight_color	: Vector4;
+}
+
+Render_Transform :: struct {
+	local_transform	: Matrix4;
+	parent_address	: VkDeviceAddress;
+}
+
+
+Mesh_Instance :: struct {
+	mesh_asset			: *Mesh_Asset; 
+	transform_address	: VkDeviceAddress;
+	generation			: u8;
+
+	get_render_transform :: (using self: *Mesh_Instance) -> *Render_Transform {
+		return cast,no_check(*Render_Transform)transform_address;
+	}
+}
+
+calculate_transform_depth :: (transform: *Render_Transform) -> u8 {
+	depth : u8 = 0;
+	current_transform := transform;
+	while current_transform.parent_address != 0 {
+		depth += 1;
+		current_transform = cast,no_check(*Render_Transform) current_transform.parent_address;
+	}
+	return depth;
+}
+
+calculate_world_transform :: (base_transform: *Render_Transform) -> Matrix4 {
+	current_transform := base_transform;
+	world_transform := current_transform.local_transform;
+	while current_transform.parent_address != 0 {
+		current_transform = cast,no_check(*Render_Transform) current_transform.parent_address;
+		world_transform = current_transform.local_transform * world_transform;
+	}
+	return world_transform;
 }

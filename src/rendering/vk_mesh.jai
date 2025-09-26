@@ -1,18 +1,64 @@
 #import "cgltf";
 
+GEOPOOL_VERTEX_ALLOC_SIZE :: 64 * 1024 * 1024;
+GEOPOOL_INDEX_ALLOC_SIZE :: 64 * 1024 * 1024;
+
+// This contains the raw data for the loaded meshes, and is owned by the ZRenderer
+GPU_Geometry_Pool :: struct {
+	vertex_buffer			: Allocated_Buffer;
+	index_buffer			: Allocated_Buffer;
+	vertex_buffer_address 	: VkDeviceAddress;
+	index_buffer_address	: VkDeviceAddress;
+
+	vertex_offset			: u64;
+	index_offset			: u64;
+
+	vertex_capacity			: u64;
+	index_capacity			: u64;
+
+	init :: (using self: *GPU_Geometry_Pool, device: VkDevice, allocator: VmaAllocator, vertex_alloc_size: u64, index_alloc_size: u64, debug_name: string = "") {
+		vertex_buffer = create_buffer(allocator, vertex_alloc_size, 
+										.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
+										.VMA_MEMORY_USAGE_GPU_ONLY, device, "Vertex Geometry Pool");
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, vertex_buffer.buffer, vertex_buffer.allocation);
+
+		index_buffer = create_buffer(allocator, index_alloc_size, 
+										.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
+										.VMA_MEMORY_USAGE_GPU_ONLY, device, "Index Geometry Pool");
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, index_buffer.buffer, index_buffer.allocation);
+
+		vertex_buffer_info : VkBufferDeviceAddressInfo;
+		vertex_buffer_info.sType = .VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+		vertex_buffer_info.buffer = vertex_buffer.buffer;
+		vertex_buffer_address = vkGetBufferDeviceAddress(device, *vertex_buffer_info);
+
+		index_address_info : VkBufferDeviceAddressInfo;
+		index_address_info.sType = .VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+		index_address_info.buffer = index_buffer.buffer;
+		index_buffer_address = vkGetBufferDeviceAddress(device, *index_address_info);
+
+		vertex_offset = 0;
+        index_offset = 0;
+        vertex_capacity = vertex_alloc_size;
+        index_capacity = index_alloc_size;
+	}
+}
+
 Geo_Surface :: struct {
-	start_index	: u32;
-	count		: u64;
+	// Offsets into shared pool
+	vertex_address	: VkDeviceAddress; // TODO: why call them address if they are offsets?
+	vertex_count	: u32;
+	index_address	: VkDeviceAddress;
+	index_count		: u32;
+
+	pool			: *GPU_Geometry_Pool;
+
+	material	: *Material_Instance;
 }
 
 Mesh_Asset :: struct {
 	name			: string;
 	surfaces		: [..]Geo_Surface;
-	mesh_buffers	: GPU_Mesh_Buffers;
-}
-
-Mesh_Handle :: struct {
-	handle: u32;
 }
 
 load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> []string {
@@ -52,16 +98,12 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> []string {
 
 		for primitive_index: 0..primitive_count-1 {
 			primitive := mesh.primitives[primitive_index];
-
-			new_surface : Geo_Surface;
-			new_surface.start_index = xx indices.count; // These aren't reset between primitives, just meshes
 			
 			initial_vertex : s64 = vertices.count; // Again, need to keep going across loops
 
 
 			// Indices
 			index_accessor : *cgltf_accessor = primitive.indices;
-			new_surface.count = index_accessor.count;
 			array_reserve(*indices, indices.count + xx index_accessor.count);
 
 			for idx: 0..index_accessor.count-1 {
@@ -142,18 +184,21 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> []string {
                 array_add(*vertices, vertex);
 			}
 
-			array_add(*new_mesh.surfaces, new_surface);
-		} 
-
-		override_colors := true;
-		if override_colors {
-			for *vertices {
-				it.color = .{it.normal.x, it.normal.y, it.normal.z, 1};
+			override_colors := true;
+			if override_colors {
+				for *vertices {
+					it.color = .{it.normal.x, it.normal.y, it.normal.z, 1};
+				}
 			}
-		}
-		
-		new_mesh.mesh_buffers = upload_mesh(zr, indices, vertices);
 
+			new_surface := upload_mesh(zr, *zr.geometry_pool, indices, vertices);
+			// TODO: set material?
+			array_add(*new_mesh.surfaces, new_surface);
+
+			array_reset(*indices);
+            array_reset(*vertices);
+		} 
+		
 		array_add(*zr.meshes, new_mesh);
 		mesh_ptr := *zr.meshes[zr.meshes.count - 1];
 		table_add(*zr.mesh_map, mesh_ptr.name, mesh_ptr);
@@ -162,47 +207,57 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> []string {
 	return loaded_mesh_names;
 }
 
-upload_mesh :: (zr: *ZRenderer, indices: []u32, vertices: []Vertex) -> GPU_Mesh_Buffers {
-
+upload_mesh :: (zr: *ZRenderer, pool: *GPU_Geometry_Pool, indices: []u32, vertices: []Vertex) -> Geo_Surface {
 	if vertices.count == 0 || indices.count == 0 {
-			print("WARNING: Trying to upload empty mesh\n");
-			return .{};  
-		}
-	vertex_buffer_size : s64 = vertices.count * size_of(Vertex);
-	index_buffer_size : s64 = indices.count * size_of(u32);
+		print("WARNING: Trying to upload empty mesh\n");
+		return .{};  
+	}
+	vertex_size := vertices.count * size_of(Vertex);
+	index_size := indices.count * size_of(u32);
 
-	new_surface : GPU_Mesh_Buffers;
-
-	new_surface.vertex_buffer = create_buffer(zr, xx vertex_buffer_size, .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, .VMA_MEMORY_USAGE_GPU_ONLY, "Mesh Vertex Buffer");
+	if pool.vertex_offset + xx vertex_size >= pool.vertex_capacity {
+		panic(sprint("Attempted to allocate vertex chunk of size %, but the pool is full", vertex_size));
+	}
+	if pool.index_offset + xx index_size >= pool.index_capacity {
+		panic(sprint("Attempted to allocate index chunk of size %, but the pool is full", index_size));
+	}
 	
-	device_address_info : VkBufferDeviceAddressInfo;
-	device_address_info.sType = .VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-	device_address_info.buffer = new_surface.vertex_buffer.buffer;
-	new_surface.vertex_buffer_address = vkGetBufferDeviceAddress(zr.logical_device, *device_address_info);
-
-	new_surface.index_buffer = create_buffer(zr, xx index_buffer_size, .VK_BUFFER_USAGE_INDEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT, .VMA_MEMORY_USAGE_GPU_ONLY, "Mesh Index Buffer");
-
-	staging : Allocated_Buffer = create_buffer(zr, xx (vertex_buffer_size + index_buffer_size), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .VMA_MEMORY_USAGE_CPU_ONLY, "Mesh Staging Buffer");
+	staging : Allocated_Buffer = create_buffer(VMA_ALLOCATOR, xx (vertex_size + index_size), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .VMA_MEMORY_USAGE_CPU_ONLY, zr.device, "Mesh Staging Buffer");
 
 	data : *void = staging.info.pMappedData;
 
-	memcpy(data, vertices.data, vertex_buffer_size);
-	memcpy(cast,no_check(*u8)data + vertex_buffer_size, indices.data, index_buffer_size);
+	// Save these for later, we need them to init the addresses 
+	vertex_offset := pool.vertex_offset;
+	index_offset := pool.index_offset;
+
+	memcpy(data, vertices.data, vertex_size); // Vertices into data
+	memcpy(cast,no_check(*u8)data + vertex_size, indices.data, index_size); // Indices into data at the offset of vertex size
 
 	immediate_submit(zr, #code {
 		vertex_copy: VkBufferCopy;
-		vertex_copy.dstOffset = 0;
+		vertex_copy.dstOffset = pool.vertex_offset;
 		vertex_copy.srcOffset = 0;
-		vertex_copy.size = cast,no_check(u64) vertex_buffer_size;
-		vkCmdCopyBuffer(cmd, staging.buffer, new_surface.vertex_buffer.buffer, 1, *vertex_copy);
+		vertex_copy.size = cast,no_check(u64) vertex_size;
+		vkCmdCopyBuffer(cmd, staging.buffer, pool.vertex_buffer.buffer, 1, *vertex_copy);
     
 		index_copy: VkBufferCopy;
-		index_copy.dstOffset = 0;
-		index_copy.srcOffset = cast,no_check(u64) vertex_buffer_size;
-		index_copy.size = cast,no_check(u64) index_buffer_size;
-		vkCmdCopyBuffer(cmd, staging.buffer, new_surface.index_buffer.buffer, 1, *index_copy);
+		index_copy.dstOffset = pool.index_offset;
+		index_copy.srcOffset = cast,no_check(u64) vertex_size;
+		index_copy.size = cast,no_check(u64) index_size;
+		vkCmdCopyBuffer(cmd, staging.buffer, pool.index_buffer.buffer, 1, *index_copy);
 	});
 
-	destroy_buffer(zr.allocator, *staging);
-	return new_surface;
+	destroy_buffer(VMA_ALLOCATOR, *staging);
+
+	pool.vertex_offset += xx vertex_size;
+	pool.index_offset += xx index_size;
+
+	surface : Geo_Surface;
+	surface.vertex_address = pool.vertex_buffer_address + vertex_offset;
+	surface.vertex_count = xx vertices.count;
+	surface.index_address = pool.index_buffer_address + index_offset;
+	surface.index_count = xx indices.count;
+	surface.pool = pool;
+
+	return surface;
 }

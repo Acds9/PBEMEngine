@@ -9,7 +9,12 @@
 WINDOW_WIDTH 	:= 1920;
 WINDOW_HEIGHT 	:= 1080;
 
-z_renderer : ZRenderer;
+// Not really constants but only 1 will ever exist
+ZRENDERER 				: ZRenderer;
+VMA_ALLOCATOR 			: VmaAllocator;
+GLOBAL_DELETION_QUEUE 	: Deletion_Queue;
+
+z_scene		: ZScene; // This will later not be constant, so we don't make it a pseudo-constant
 
 main :: () {
 	world := create_zworld();
@@ -20,11 +25,13 @@ main :: () {
 	
 	create_entity_batch(world, Archetype_Ship, 16);
     
-	init_success, init_error := init_zrenderer(*z_renderer);
+	init_success, init_error := init_zrenderer(*ZRENDERER);
 	if !init_success {
 		print("ERROR: %\n", init_error); 
 		return;
 	}
+
+	z_scene = init_zscene(VMA_ALLOCATOR, ZRENDERER.device, SCENE_MESHBUFFER_SIZE, SCENE_TRANSFORMBUFFER_SIZE);
 	
 	event : SDL_Event;
 	quit := false;
@@ -37,30 +44,30 @@ main :: () {
                     if event.key.keysym.sym == SDLK_ESCAPE quit = true;
                 case SDL_WINDOWEVENT;
                     if event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED {
-                        z_renderer.framebuffer_resized = true;
+                        ZRENDERER.framebuffer_resized = true;
                     }
 					else if event.window.event == SDL_WINDOWEVENT_MINIMIZED {
-						z_renderer.minimized = true;
+						ZRENDERER.minimized = true;
 					}
 					else if event.window.event == SDL_WINDOWEVENT_RESTORED  {
-						z_renderer.minimized = false;
+						ZRENDERER.minimized = false;
 					}
             }
         }		
-		if !z_renderer.minimized {
-			draw_frame(*z_renderer);
+		if !ZRENDERER.minimized {
+			draw_frame(*ZRENDERER, *z_scene);
 		}
 		else 
 		{
 			sleep_milliseconds(50);
 		}
-		if z_renderer.resize_requested {
-			resize_swapchain(*z_renderer);
+		if ZRENDERER.resize_requested {
+			resize_swapchain(*ZRENDERER);
 		}
 
-		vkDeviceWaitIdle(z_renderer.logical_device);
+		vkDeviceWaitIdle(ZRENDERER.device);
     }
 
-	deinit_zrenderer(*z_renderer);
+	deinit_zrenderer(*ZRENDERER);
 }
 

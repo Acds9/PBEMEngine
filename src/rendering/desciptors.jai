@@ -38,26 +38,26 @@ init_descriptors :: (zr: *ZRenderer) -> bool, string {
 	array_add(*sizes, .{.VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1});
 
 	global_descriptor_allocator := *zr.global_desc_allocator;
-	global_descriptor_allocator.init(global_descriptor_allocator, zr.logical_device, 10, sizes);
+	global_descriptor_allocator.init(global_descriptor_allocator, zr.device, 10, sizes);
 
 	draw_image_builder : Descriptor_Layout_Builder;
 	draw_image_builder.add_binding(*draw_image_builder, 0, .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-	_, _, zr.draw_image_desc_layout = draw_image_builder.build(*draw_image_builder, zr.logical_device, .VK_SHADER_STAGE_COMPUTE_BIT);
+	_, _, zr.draw_image_desc_layout = draw_image_builder.build(*draw_image_builder, zr.device, .VK_SHADER_STAGE_COMPUTE_BIT);
 	
-	zr.draw_image_descriptors = global_descriptor_allocator.allocate(global_descriptor_allocator, zr.logical_device, zr.draw_image_desc_layout);
+	zr.draw_image_descriptors = global_descriptor_allocator.allocate(global_descriptor_allocator, zr.device, zr.draw_image_desc_layout);
 
 	writer : Descriptor_Writer;
 	writer.write_image(*writer, 0, zr.draw_image.image_view, VK_NULL_HANDLE, .VK_IMAGE_LAYOUT_GENERAL, .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-	writer.update_set(*writer, zr.logical_device, zr.draw_image_descriptors);
+	writer.update_set(*writer, zr.device, zr.draw_image_descriptors);
 
-	array_add(*zr.deletion_queue.desc_allocators, .{zr.logical_device, *zr.global_desc_allocator});
-	array_add(*zr.deletion_queue.desc_layouts, .{zr.logical_device, zr.draw_image_desc_layout});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, *zr.global_desc_allocator);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.draw_image_desc_layout);
 
 	gpu_data_builder : Descriptor_Layout_Builder;
 	gpu_data_builder.add_binding(*gpu_data_builder, 0, .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-	_, _, zr.gpu_scene_data_desc_layout = gpu_data_builder.build(*gpu_data_builder, zr.logical_device, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT);
+	_, _, zr.gpu_scene_data_desc_layout = gpu_data_builder.build(*gpu_data_builder, zr.device, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT);
 	
-	array_add(*zr.deletion_queue.desc_layouts, .{zr.logical_device, zr.gpu_scene_data_desc_layout});
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.gpu_scene_data_desc_layout);
 	
 	for 0..MAX_FRAMES_IN_FLIGHT-1 {
 		frame_sizes : [4]Descriptor_Pool_Size_Ratio = .[
@@ -67,13 +67,13 @@ init_descriptors :: (zr: *ZRenderer) -> bool, string {
 			.{.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4}
 		];
 		descriptors := *zr.frame_data[it].frame_descriptors;
-		descriptors.init(descriptors, zr.logical_device, 1000, frame_sizes); 
+		descriptors.init(descriptors, zr.device, 1000, frame_sizes); 
 	}
 
 	image_builder : Descriptor_Layout_Builder;
 	image_builder.add_binding(*image_builder, 0, .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-	_, _, zr.image_descriptor_layout = image_builder.build(*image_builder, zr.logical_device, .VK_SHADER_STAGE_FRAGMENT_BIT);
-	array_add(*zr.deletion_queue.desc_layouts, .{zr.logical_device, zr.image_descriptor_layout});
+	_, _, zr.image_descriptor_layout = image_builder.build(*image_builder, zr.device, .VK_SHADER_STAGE_FRAGMENT_BIT);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.image_descriptor_layout);
 	
 	return true, "";
 }
