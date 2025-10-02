@@ -1,6 +1,20 @@
+MATERIAL_CONSTANTS_BUFFER_SIZE 			:: 8*1024*1024; // 8MB, probably overkill
+
 MATERIAL_PASS :: enum u8 {
 	MAIN_COLOR 		:: 0;
-	BLACKBODY		:: 1;
+}
+
+Material_Pool :: struct {
+	constants_buffer	: Storage_Buffer;
+
+	init :: (using self: *Material_Pool, device: VkDevice, allocator: VmaAllocator, constants_buffer_size: u64) {
+		constants_buffer = make_storage_buffer(VMA_ALLOCATOR, constants_buffer_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, device, "constants_buffer buffer");
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, constants_buffer.buffer, constants_buffer.allocation);
+	}
+
+	allocate_material_constants :: (using self: *Material_Pool, data: *void, size: u32) -> VkDeviceAddress {
+		return constants_buffer.allocate(*constants_buffer, data, size);
+	}
 }
 
 Material_Pipeline :: struct {
@@ -9,31 +23,26 @@ Material_Pipeline :: struct {
 }
 
 Material_Instance :: struct {
-	pipeline		: Material_Pipeline;
-	material_set	: VkDescriptorSet;
-	pass_type		: MATERIAL_PASS;
+	pipeline			: Material_Pipeline;
+	pass_type			: MATERIAL_PASS;
+
+	constants_address 	: VkDeviceAddress;
+
+	color_texture_index		: u32;
 }
 
 Material_Opaque :: struct {
 	pipeline : Material_Pipeline;
-	layout : VkDescriptorSetLayout;
 
 	Material_Constants :: struct {
 		color_factors		: Vector4;
-		blackbody_factors	: Vector4;
-		padding				: [14]Vector4; // For uniform buffers
+		padding				: [15]Vector4; // For uniform buffers
 	}
 
 	Material_Resources :: struct {
 		color_image			: Allocated_Image;
-		color_sampler		: VkSampler;
-		blackbody_image		: Allocated_Image;
-		blackbody_sampler	: VkSampler;
-		data_buffer			: VkBuffer;
-		data_buffer_offset 	: u32;
+		data_address		: VkDeviceAddress;
 	}
-
-	writer : Descriptor_Writer;
 
 	build :: (using self: *Material_Opaque, zr: *ZRenderer) {
 		success : bool;
@@ -53,17 +62,12 @@ Material_Opaque :: struct {
 		matrix_range : VkPushConstantRange;
 		matrix_range.offset = 0;
 		matrix_range.size = size_of(GPU_Draw_Push_Constants);
-		matrix_range.stageFlags = .VK_SHADER_STAGE_VERTEX_BIT;
+		matrix_range.stageFlags = .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT;
 
-		layout_builder : Descriptor_Layout_Builder;
-		layout_builder.add_binding(*layout_builder, 0, .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		layout_builder.add_binding(*layout_builder, 1, .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-		layout_builder.add_binding(*layout_builder, 2, .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-
-		success, _, layout = layout_builder.build(*layout_builder, zr.device, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT);
-
-
-		layouts : [2]VkDescriptorSetLayout = .[zr.gpu_scene_data_desc_layout, layout];
+		layouts := VkDescriptorSetLayout.[
+            zr.image_array_layout,      
+            zr.sampler_array_layout,    
+        ];
 
 		mesh_layout_info : VkPipelineLayoutCreateInfo = vkinit_pipeline_layout_create_info();
 		mesh_layout_info.setLayoutCount = 2;
@@ -78,7 +82,6 @@ Material_Opaque :: struct {
 		}
 		pipeline.layout = new_layout;
 		queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, pipeline.layout);
-		queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, layout);
 
 		pipeline_builder : Pipeline_Builder;
 		pipeline_builder.set_shaders(*pipeline_builder, mesh_vert_shader, mesh_frag_shader);
@@ -108,18 +111,13 @@ Material_Opaque :: struct {
 		
 	}
 
-	write_material :: (using self: *Material_Opaque, device: VkDevice, pass: MATERIAL_PASS, resources: *Material_Resources, descriptor_allocator: *Descriptor_Allocator) -> Material_Instance {
+	create_material_instance :: (using self: *Material_Opaque, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Opaque.Material_Constants, resources: *Material_Resources) -> Material_Instance {
 		mat_data : Material_Instance;
 		mat_data.pass_type = pass;
+		mat_data.pipeline = *pipeline;		
+		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, *constants, size_of(Material_Opaque.Material_Constants));
 
-		mat_data.pipeline = *pipeline;
-		
-		mat_data.material_set = descriptor_allocator.allocate(descriptor_allocator, device, layout);
-
-		writer.clear(*writer);
-		writer.write_buffer(*writer, 0, resources.data_buffer, size_of(Material_Constants), resources.data_buffer_offset, .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		writer.write_image(*writer, 1, resources.color_image.image_view, resources.color_sampler,  .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-		writer.write_image(*writer, 2, resources.blackbody_image.image_view, resources.blackbody_sampler, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		mat_data.color_texture_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, resources.color_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 		return mat_data;
 	}

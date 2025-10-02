@@ -9,6 +9,7 @@ Required_Extensions :: (*u8).[
 
 Required_Device_Extensions :: (*u8).[
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+	VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
 ];
 
 Desired_Validation_Layers :: (*u8).[
@@ -270,13 +271,19 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 	}
 	device_features : VkPhysicalDeviceFeatures;
 
+	descriptor_buffer_features : VkPhysicalDeviceDescriptorBufferFeaturesEXT;
+	descriptor_buffer_features.sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
+	descriptor_buffer_features.descriptorBuffer = VK_TRUE;
+
 	device_featuresVK13 : VkPhysicalDeviceVulkan13Features;
+	device_featuresVK13.pNext = *descriptor_buffer_features;
 	device_featuresVK13.synchronization2 = VK_TRUE;
 	device_featuresVK13.dynamicRendering = VK_TRUE;
 
 	device_featuresVK12 : VkPhysicalDeviceVulkan12Features;
 	device_featuresVK12.pNext = *device_featuresVK13;
 	device_featuresVK12.bufferDeviceAddress = VK_TRUE;
+	device_featuresVK12.runtimeDescriptorArray = VK_TRUE;
 
 	device_featuresVK11 : VkPhysicalDeviceVulkan11Features;
 	device_featuresVK11.pNext = *device_featuresVK12;
@@ -301,6 +308,11 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 
 	result := vkCreateDevice(zr.physical_device, *device_create_info, null, *zr.device);
 	
+	vkGetDescriptorEXT = cast(PFN_vkGetDescriptorEXT) vkGetDeviceProcAddr(zr.device, "vkGetDescriptorEXT");
+    if !vkGetDescriptorEXT {
+        panic("ERROR: Failed to load vkGetDescriptorEXT");
+    }
+
 	vkGetDeviceQueue(zr.device, cast,no_check(u32)zr.queue_indices.graphics, 0, *zr.graphics_queue);
 	if zr.queue_indices.present != zr.queue_indices.graphics {
     	vkGetDeviceQueue(zr.device, cast,no_check(u32)zr.queue_indices.present, 0, *zr.present_queue);

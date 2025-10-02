@@ -8,6 +8,7 @@ ImGui :: #import "ImGui";
 SDL_Vulkan_GetInstanceExtensions :: (window : *SDL_Window, num_extensions : *u32, extensions : **u8) -> SDL_bool #foreign SDL2;
 SDL_Vulkan_CreateSurface :: (window : *SDL_Window, instance : VkInstance, surface : *VkSurfaceKHR) -> SDL_bool #foreign SDL2;
 SDL_Vulkan_GetDrawableSize :: (window : *SDL_Window, w : *u32, h : *u32) #foreign SDL2;
+vkGetDescriptorEXT : PFN_vkGetDescriptorEXT;
 
 MAX_FRAMES_IN_FLIGHT :: 2;
 
@@ -53,7 +54,7 @@ ZRenderer :: struct {
     swapchain_framebuffers	: [..]VkFramebuffer;
     
     // Render targets
-    draw_image            	: Allocated_Image;
+    draw_image            	: Allocated_Image; // This is what we actually draw to, we then blit it onto the swapchain image
     draw_extent           	: VkExtent2D;
     depth_image           	: Allocated_Image;
     
@@ -64,14 +65,19 @@ ZRenderer :: struct {
     mesh_pipeline_layout  	: VkPipelineLayout;
     mesh_pipeline         	: VkPipeline;
     
-    // Descriptors
-    global_desc_allocator 	: Descriptor_Allocator;
-    draw_image_desc_layout	: VkDescriptorSetLayout;
-    draw_image_descriptors  : VkDescriptorSet;
-	gpu_scene_data_desc_layout : VkDescriptorSetLayout;
-    
+    // Descriptor Buffers
+	image_array_layout		: VkDescriptorSetLayout;
+	sampler_array_layout	: VkDescriptorSetLayout;
+
+	// These are shared between frames so they don't need to be in the frame data
+	descriptor_writer			: Descriptor_Buffer_Writer;
+	image_descriptor_buffer 	: Linear_Buffer;
+	sampler_descriptor_buffer	: Linear_Buffer; 
+
+	descriptor_buffer_properties : VkPhysicalDeviceDescriptorBufferPropertiesEXT;
+
     // Per-frame data
-    frame_data            	: [MAX_FRAMES_IN_FLIGHT]Frame_Data;
+    frames            	: [MAX_FRAMES_IN_FLIGHT]Frame_Data;
     
     // Immediate mode rendering
     immediate_command_pool  : VkCommandPool;
@@ -85,25 +91,45 @@ ZRenderer :: struct {
 
 	geometry_pool			: GPU_Geometry_Pool; // Maybe split this up later
 
+	material_pool			: Material_Pool;
+
 	// Textures
 	white_image				: Allocated_Image;
+	white_image_index		: u32;
 	black_image				: Allocated_Image;
+	black_image_index		: u32;
 	grey_image				: Allocated_Image;
+	grey_image_index		: u32;
 	error_checkerboard		: Allocated_Image;
+	error_image_index		: u32;
 
-	default_sampler_linear	: VkSampler;
 	default_sampler_nearest	: VkSampler;
-
-	image_descriptor_layout : VkDescriptorSetLayout;
+	sampler_nearest_index	: u32 = 0;
+	default_sampler_linear	: VkSampler;
+	sampler_linear_index	: u32 = 1;
+	
 
 	default_material		: Material_Instance;
 	opaque_material			: Material_Opaque;
 
 	frame_surfaces			: Frame_Surface_Buckets;
     
+	Frame_Data :: struct {
+		command_pool 				: VkCommandPool;
+		command_buffer				: VkCommandBuffer;
+
+		swapchain_semaphore 		: VkSemaphore;
+		render_semaphore 			: VkSemaphore;
+		render_fence				: VkFence;
+
+		camera_buffer				: Allocated_Buffer;
+
+		deletion_queue				: Deletion_Queue;
+	}
+
     // Methods
     get_current_frame_data :: (using self: *ZRenderer) -> *Frame_Data {
-        return *frame_data[current_frame];
+        return *frames[current_frame];
     }
 }
 
@@ -147,11 +173,14 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	if !success return false, error;
 	success, error = create_framebuffers(zr);
 	if !success return false, error;
-	success, error = init_commands(zr);
-	if !success return false, error;
 	success, error = create_sync_objects(zr);
 	if !success return false, error;
-	success, error = init_descriptors(zr);
+
+	init_descriptor_buffers(zr);
+	init_descriptor_layouts(zr);
+	init_frames(zr);
+
+	success, error = init_commands(zr);
 	if !success return false, error;
 	success, error = init_pipelines(zr);
 	if !success return false, error;
@@ -161,12 +190,13 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	zr.meshes.allocator = allocator;
 
 	zr.geometry_pool.init(*zr.geometry_pool, zr.device, VMA_ALLOCATOR, GEOPOOL_VERTEX_ALLOC_SIZE, GEOPOOL_INDEX_ALLOC_SIZE);
-
+	zr.material_pool.init(*zr.material_pool, zr.device, VMA_ALLOCATOR, MATERIAL_CONSTANTS_BUFFER_SIZE);
 	load_glt_meshes(zr, "H:/PBEMJai/content/meshes/basicmesh.glb");
 
 	init_default_data(zr);
 
 	zr.initialized = true;
+
 	return true, "";
 }
 
@@ -196,6 +226,39 @@ init_pipelines :: (zr: *ZRenderer) -> bool, string {
 	return true, "";
 }
 
+init_frames :: (zr: *ZRenderer) {
+	queue_family_indices := zr.queue_indices;
+
+	pool_info : VkCommandPoolCreateInfo ;
+	pool_info.sType = .VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	pool_info.flags = .VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	pool_info.queueFamilyIndex = xx queue_family_indices.graphics;
+
+	for *frame: zr.frames {
+		// Create cpmmand pool first
+		result := vkCreateCommandPool(zr.device, *pool_info, null, *frame.command_pool);
+		if result != .VK_SUCCESS 
+			panic("Could not create command pool");
+
+		// Now allocate the buffer
+		alloc_info : VkCommandBufferAllocateInfo;
+		alloc_info.sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		alloc_info.commandPool = frame.command_pool;
+		alloc_info.level = .VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		alloc_info.commandBufferCount = 1; // Just one tied to this pool, but we have multiple pools
+		
+		result = vkAllocateCommandBuffers(zr.device, *alloc_info, *frame.command_buffer);
+		if result != .VK_SUCCESS 
+			panic("Could not create command buffer");
+
+		// Now init the other buffers:
+		frame.camera_buffer = create_buffer(VMA_ALLOCATOR, size_of(Render_Camera.GPU_Camera_Data),
+										.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+										.VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device,sprint("Frame % Camera Buffer", it_index));
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *frame.camera_buffer);
+	}
+}
+
 draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	if zr.swapchain_extent.width == 0 || zr.swapchain_extent.height == 0 {
         return;
@@ -203,8 +266,11 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	update_scene(zr);
 
 	frame_data := zr.get_current_frame_data(zr);
+
+	// Wait for CPU fence, this will be signalled by the GPU as we pass it in vkQueueSubmit2 further down
 	vkWaitForFences(zr.device, 1, *frame_data.render_fence, VK_TRUE, U64_MAX);
 
+	// Ask the swapchain which image index is available for rendering next, it is blocking and will return when an image is available OR an error occurs, see timeout of U64_MAX
 	image_idx : u32;
 	acquire_result := vkAcquireNextImageKHR(zr.device, zr.swapchain, U64_MAX, frame_data.swapchain_semaphore, VK_NULL_HANDLE, *image_idx);
 	if acquire_result == .VK_ERROR_OUT_OF_DATE_KHR {
@@ -216,41 +282,44 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		return;
 	}
 
+	// Flush the frame stuff
 	frame_data.deletion_queue.flush_deletion_queue(*frame_data.deletion_queue);
-	frame_data.frame_descriptors.clear_pools(*frame_data.frame_descriptors, zr.device);
+	// Reset frame stuff
+	vkResetFences(zr.device, 1, *frame_data.render_fence);
+	vkResetCommandBuffer(frame_data.command_buffer, 0);
 
+	// Set the draw image extents to match the swapchain
 	zr.draw_extent.height = cast,no_check(u32)(min(zr.swapchain_extent.height, zr.draw_image.image_extent.height) * zr.render_scale);
 	zr.draw_extent.width = cast,no_check(u32)(min(zr.swapchain_extent.width, zr.draw_image.image_extent.width) * zr.render_scale);
 
-	vkResetFences(zr.device, 1, *frame_data.render_fence);
-
-	vkResetCommandBuffer(frame_data.command_buffer, 0);
-
 	begin_info := vkinit_command_buffer_begin_info();
 
+	// Begin the command buffer to record commands, everything after this is command recording
     vkBeginCommandBuffer(frame_data.command_buffer, *begin_info);
+	{
+		// Transition main draw image (and depth image) into general layout so we can draw into it
+		vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
+		vkutil_transition_image(frame_data.command_buffer, zr.depth_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_DEPTH_BIT);
 
-	 // Transition main draw image into general layout so we can write to it
-    vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_GENERAL, .VK_IMAGE_ASPECT_COLOR_BIT);
+		// Draw geometry stuff
+		draw_geometry(zr, scene, frame_data.command_buffer);
+		//
 
-	vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_GENERAL, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
-	vkutil_transition_image(frame_data.command_buffer, zr.depth_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_DEPTH_BIT);
+		// Transition the draw image to be copied FROM
+		vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
+		// Transition the swapchain image to be copied INTO
+		vkutil_transition_image(frame_data.command_buffer, zr.swapchain_images[image_idx], .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 
-	draw_geometry(zr, scene, frame_data.command_buffer);
-	//
+		// Execute a copy from the draw image into the swapchain with blitting
+		vkutil_blit_copy_image_image(frame_data.command_buffer, zr.draw_image.image, zr.swapchain_images[image_idx], zr.draw_extent, zr.swapchain_extent);
 
-	// Transition the draw image and the swapchain image into their correct transfer layouts
-    vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
-	vkutil_transition_image(frame_data.command_buffer, zr.swapchain_images[image_idx], .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
-
-	// Execute a copy from the draw image into the swapchain
-    vkutil_blit_copy_image_image(frame_data.command_buffer, zr.draw_image.image, zr.swapchain_images[image_idx], zr.draw_extent, zr.swapchain_extent);
-
-    // set swapchain image layout to Present so we can show it on the screen
-    vkutil_transition_image(frame_data.command_buffer, zr.swapchain_images[image_idx], .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .VK_IMAGE_ASPECT_COLOR_BIT);
-
+		// Set the swapchain image layout to be presented to the surface (AKA the window)
+		vkutil_transition_image(frame_data.command_buffer, zr.swapchain_images[image_idx], .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .VK_IMAGE_ASPECT_COLOR_BIT);
+	}
+	// End command recording to this buffer
 	vkEndCommandBuffer(frame_data.command_buffer);
 
+	// Create info for command buffer submission
 	submit_info : VkSubmitInfo2;
 	submit_info.sType = .VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
 
@@ -258,7 +327,6 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		frame_data.swapchain_semaphore,
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR
     );
-	
 	submit_info.waitSemaphoreInfoCount = 1;
 	submit_info.pWaitSemaphoreInfos = *wait_semaphore_info;
 
@@ -266,7 +334,6 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
         frame_data.render_semaphore,
         VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT
     );
-
 	submit_info.signalSemaphoreInfoCount  = 1;
 	submit_info.pSignalSemaphoreInfos  = *signal_semaphore_info;
 
@@ -278,29 +345,33 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	submit_info.commandBufferInfoCount = 1;
 	submit_info.pCommandBufferInfos = *command_buffer_submit_info;
 
+	// Actually submit the command buffer for the GPU to start working on
 	result := vkQueueSubmit2(zr.graphics_queue, 1, *submit_info, frame_data.render_fence);
 	if result != .VK_SUCCESS {
 		print("%\n", result);
+		vkResetCommandBuffer(frame_data.command_buffer, 0);
 		return;
 	}
-		
+	
+	// Prepare info to present an image to the surface
 	present_info : VkPresentInfoKHR;
 	present_info.sType = .VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	present_info.waitSemaphoreCount = 1;
 	present_info.pWaitSemaphores = *frame_data.render_semaphore;
 
-	swap_chains : [..]VkSwapchainKHR;
-	array_add(*swap_chains, zr.swapchain);
+	// If we want to have mulltimonitor windows later, we can create and pass a pointer to an array of swapchains
 	present_info.swapchainCount = 1;
-	present_info.pSwapchains = swap_chains.data;
+	present_info.pSwapchains = *zr.swapchain;
 	present_info.pImageIndices = *image_idx;
 	present_info.pResults = null;
 
+	// Increment the frame
 	zr.current_frame = zr.current_frame + 1;
 	if zr.current_frame >= MAX_FRAMES_IN_FLIGHT{
 		zr.current_frame = 0;
 	}
 
+	// Actually present the image on the surface/window
 	present_result := vkQueuePresentKHR(zr.present_queue, *present_info);
 	if present_result == .VK_ERROR_OUT_OF_DATE_KHR {
 		zr.resize_requested = true;
@@ -314,7 +385,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	}
 }
 
-draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer ) {
+draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
 	frame_data := zr.get_current_frame_data(zr);;
 	// Begin a render pass connected to our draw image
 	color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, null, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -322,74 +393,63 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 
 	render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
 	vkCmdBeginRendering(command_buffer, *render_info);
+	{
+		// Set dynamic viewport and scissor
+		viewport : VkViewport;
+		viewport.x = 0;
+		viewport.y = 0;
+		viewport.width = cast,no_check(float)zr.draw_extent.width;
+		viewport.height = cast,no_check(float)zr.draw_extent.height;
+		viewport.minDepth = 0;
+		viewport.maxDepth = 1;
 
-	// Set dynamic viewport and scissor
-	viewport : VkViewport;
-	viewport.x = 0;
-	viewport.y = 0;
-	viewport.width = cast,no_check(float)zr.draw_extent.width;
-	viewport.height = cast,no_check(float)zr.draw_extent.height;
-	viewport.minDepth = 0;
-	viewport.maxDepth = 1;
+		vkCmdSetViewport(command_buffer, 0, 1, *viewport);
 
-	vkCmdSetViewport(command_buffer, 0, 1, *viewport);
+		scissor : VkRect2D;
+		scissor.offset.x = 0;
+		scissor.offset.y = 0;
+		scissor.extent.width = zr.draw_extent.width;
+		scissor.extent.height = zr.draw_extent.height;
 
-	scissor : VkRect2D;
-	scissor.offset.x = 0;
-	scissor.offset.y = 0;
-	scissor.extent.width = zr.draw_extent.width;
-	scissor.extent.height = zr.draw_extent.height;
-
-	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
+		vkCmdSetScissor(command_buffer, 0, 1, *scissor);
 	
-	// Allocated onto heap, ok?
-	gpu_scene_data_buffer := New(Allocated_Buffer);
-	<<gpu_scene_data_buffer = create_buffer(VMA_ALLOCATOR, size_of(GPU_Scene_Data), .VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device, "Frame Buffer");
+		push_constants : GPU_Draw_Push_Constants;
 
-	array_add(*frame_data.deletion_queue.buffers, .{VMA_ALLOCATOR, gpu_scene_data_buffer.buffer, gpu_scene_data_buffer.allocation});
+		camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
+		<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
+		push_constants.camera_data_address = frame_data.camera_buffer.base_address;
+		
+		// Generate the surface buckets (per material)
+		frame_generate_surface_buckets(zr, scene);
+		/*for bucket: zr.frame_surfaces.buckets {
+			material := bucket.material;
+			if material == null {
+				material = *zr.default_material;
+				print("Warning: No material found for mesh, defaulting to zr.default_material (this is slow)\n");
+			}
+		
+			// Bind the pipeline for this material bucket
+			vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipeline.pipeline);
 
-	// Weird way of doing it but sets scene_uniform_data to be equal to zr.scene_data
-	void_ptr : *void;
-	vmaMapMemory(VMA_ALLOCATOR, gpu_scene_data_buffer.allocation, *void_ptr);
-	scene_uniform_data : *GPU_Scene_Data = cast,no_check(*GPU_Scene_Data)void_ptr;	
-	scene_uniform_data.view = zr.camera.gpu_data.view;
-	scene_uniform_data.proj = zr.camera.gpu_data.proj;
-	scene_uniform_data.view_proj = zr.camera.gpu_data.view_proj;
+			vkCmdBindDescriptorSets(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, 
+						material.pipeline.layout, 0, 1, 
+						*global_descriptor, 0, null);
+			vkCmdBindDescriptorSets(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, 
+						material.pipeline.layout, 1, 1, 
+						*material.material_set, 0, null); 
 
-	global_descriptor := frame_data.frame_descriptors.allocate(*frame_data.frame_descriptors, zr.device, zr.gpu_scene_data_desc_layout);
+			for t_surface: bucket.surfaces {
+				index_offset := t_surface.surface.index_address - zr.geometry_pool.index_buffer_address;
+				vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
 
-	writer : Descriptor_Writer;
-	writer.write_buffer(*writer, 0, gpu_scene_data_buffer.buffer, size_of(GPU_Scene_Data), 0, .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-	writer.update_set(*writer, zr.device, global_descriptor);
+				push_constants.vertex_buffer = t_surface.surface.vertex_address;
+				push_constants.transform_address = t_surface.transform_address;
+				push_constants.material_address = material.constants_address;
 
-	image_set : VkDescriptorSet = frame_data.frame_descriptors.allocate(*frame_data.frame_descriptors, zr.device, zr.image_descriptor_layout);
-	writer_image : Descriptor_Writer;
-	writer_image.write_image(*writer_image, 0, zr.error_checkerboard.image_view, zr.default_sampler_nearest, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-	writer_image.update_set(*writer_image, zr.device, image_set);
-
-	frame_generate_surface_buckets(zr, scene);
-	for bucket: zr.frame_surfaces.buckets {
-		material := bucket.material;
-
-		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipeline.pipeline);
-
-		vkCmdBindDescriptorSets(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, 
-                       material.pipeline.layout, 0, 1, 
-                       *global_descriptor, 0, null);
-		vkCmdBindDescriptorSets(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, 
-                       material.pipeline.layout, 1, 1, 
-                       *bucket.material.material_set, 0, null); 
-
-		for t_surface: bucket.surfaces {
-			index_offset := t_surface.surface.index_address - zr.geometry_pool.index_buffer_address;
-			vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
-
-			push_constants : GPU_Draw_Push_Constants;
-			push_constants.vertex_buffer = t_surface.surface.vertex_address;
-			push_constants.transform_address = t_surface.transform_address;
-			vkCmdPushConstants(command_buffer, material.pipeline.layout, .VK_SHADER_STAGE_VERTEX_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
-			vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);
-		}
+				vkCmdPushConstants(command_buffer, material.pipeline.layout, .VK_SHADER_STAGE_VERTEX_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
+				vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);
+			}
+		}*/
 	}
 	vkCmdEndRendering(command_buffer);
 }
@@ -429,12 +489,11 @@ deinit_zrenderer :: (zr: *ZRenderer) {
 
 		vkDestroyRenderPass(zr.device, zr.render_pass, null);
 
-		for zr.frame_data {
+		for zr.frames {
 			vkDestroySemaphore(zr.device, it.swapchain_semaphore, null);
 			vkDestroySemaphore(zr.device, it.render_semaphore, null);
 			vkDestroyFence(zr.device, it.render_fence, null);
 			vkDestroyCommandPool(zr.device, it.command_pool, null);
-			it.frame_descriptors.destroy_pools(*it.frame_descriptors, zr.device);
 
 			it.deletion_queue.flush_deletion_queue(*it.deletion_queue);
 		}

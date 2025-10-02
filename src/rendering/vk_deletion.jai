@@ -1,7 +1,6 @@
 Deletion_Queue :: struct {
 	image_views		: [..] struct {device: VkDevice; view: VkImageView;};
 	images 			: [..] struct {allocator: VmaAllocator; image: VkImage; allocation: VmaAllocation;};
-	desc_allocators : [..] struct {device: VkDevice; allocator: *Descriptor_Allocator;};
 	desc_layouts	: [..] struct {device: VkDevice; layout: VkDescriptorSetLayout;};
 	pipelines		: [..] struct {device: VkDevice; pipeline: VkPipeline;};
 	pipeline_layouts: [..] struct {device: VkDevice; layout: VkPipelineLayout;};
@@ -16,9 +15,6 @@ Deletion_Queue :: struct {
 		}
 		for <images {
 			vmaDestroyImage(it.allocator, it.image, it.allocation);
-		}
-		for <desc_allocators {
-			it.allocator.destroy_pools(it.allocator, it.device);
 		}
 		for <desc_layouts {
 			vkDestroyDescriptorSetLayout(it.device, it.layout, null);
@@ -61,10 +57,6 @@ queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, image: VkIma
     array_add(*queue.images, .{allocator, image, allocation});
 }
 
-queue_deletion :: (queue: *Deletion_Queue, device: VkDevice, allocator: *Descriptor_Allocator) {
-    array_add(*queue.desc_allocators, .{device, allocator});
-}
-
 queue_deletion :: (queue: *Deletion_Queue, device: VkDevice, layout: VkDescriptorSetLayout) {
     array_add(*queue.desc_layouts, .{device, layout});
 }
@@ -87,6 +79,22 @@ queue_deletion :: (queue: *Deletion_Queue, device: VkDevice, fence: VkFence) {
 
 queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, buffer: VkBuffer, allocation: VmaAllocation) {
     array_add(*queue.buffers, .{allocator, buffer, allocation});
+}
+
+queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, buffer: *Allocated_Buffer) {
+    array_add(*queue.buffers, .{allocator, buffer.buffer, buffer.allocation});
+}
+
+queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, buffer: *Storage_Buffer) {
+    array_add(*queue.buffers, .{allocator, buffer.buffer, buffer.allocation});
+}
+
+queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, buffer: *Linear_Buffer) {
+    array_add(*queue.buffers, .{allocator, buffer.buffer, buffer.allocation});
+}
+
+queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, buffer: *Uniform_Storage_Buffer) {
+    array_add(*queue.buffers, .{allocator, buffer.buffer, buffer.allocation});
 }
 
 queue_deletion :: (queue: *Deletion_Queue, device: VkDevice, sampler: VkSampler) {

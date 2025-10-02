@@ -12,7 +12,6 @@ layout (location = 1) out vec3 out_color;
 layout (location = 2) out vec2 out_UV;
 
 struct Vertex {
-
 	vec3 position;
 	float uv_x;
 	vec3 normal;
@@ -28,14 +27,9 @@ layout(buffer_reference, std430) readonly buffer TransformBuffer {
     mat4 transform;
 };
 
-// Push constants block
-layout(push_constant) uniform constants {
-    uint64_t transform_address;    // VkDeviceAddress to transform
-    uint64_t vertex_buffer;        // VkDeviceAddress to vertex buffer
-} push_constants;
-
 void main() {
-    // Dereference the transform address
+    CameraData camera = CameraData(push_constants.camera_data_address);
+    MaterialData mat = MaterialData(push_constants.material_address);
     TransformBuffer transform_ref = TransformBuffer(push_constants.transform_address);
     mat4 world_matrix = transform_ref.transform;
     
@@ -46,11 +40,11 @@ void main() {
     vec4 position = vec4(v.position, 1.0);
     
     // Transform to clip space
-    gl_Position = scene_data.view_proj * world_matrix * position;
+    gl_Position = camera.view_proj * world_matrix * position;
     
     // Transform normal to world space
     out_normal = (world_matrix * vec4(v.normal, 0.0)).xyz;
-    out_color = v.color.xyz * material_data.color_factors.xyz;
+    out_color = v.color.xyz * mat.color_factors.xyz;
     out_UV.x = v.uv_x;
     out_UV.y = v.uv_y;
 }

@@ -62,3 +62,7 @@ get_mip_levels :: (width: u32, height: u32) -> u32 {
     }
     return level + 1;
 }
+
+align_up :: (value: u64, alignment: u64) -> u64 {
+    return (value + alignment - 1) & ~(alignment - 1);
+}

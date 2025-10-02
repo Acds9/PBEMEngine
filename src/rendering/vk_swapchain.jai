@@ -25,6 +25,7 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 	available_formats := zr.swapchain_details.formats;
 	chosen_format : VkSurfaceFormatKHR;
 	found_format : bool;
+	// TODO: HDR
 	for available_formats {
 		if it.format == .VK_FORMAT_B8G8R8A8_SRGB && it.colorSpace == .VK_COLOR_SPACE_SRGB_NONLINEAR_KHR {
 			found_format = true;
@@ -32,8 +33,10 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 			break;
 		}
 	}
-	if !found_format
+	if !found_format {
 		return false, "No suitable surface format found";
+	}
+		
 	
 	// PRESENT MODES
 	available_modes :=  zr.swapchain_details.present_modes;
@@ -41,17 +44,21 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 	for available_modes {
 		if it == .VK_PRESENT_MODE_MAILBOX_KHR {
 			chosen_mode = it;
+			break;
 		}
 	}
-	if chosen_mode != .VK_PRESENT_MODE_MAILBOX_KHR
-		chosen_mode = .VK_PRESENT_MODE_FIFO_KHR;
+	if chosen_mode != .VK_PRESENT_MODE_MAILBOX_KHR {
+		chosen_mode = .VK_PRESENT_MODE_IMMEDIATE_KHR;
+	}
+		
 
 	// EXTENTS
 	capabilities := zr.swapchain_details.capabilities;
 	chosen_extent : VkExtent2D;
 
-	if capabilities.currentExtent.width != U32_MAX
+	if capabilities.currentExtent.width != U32_MAX {
 		chosen_extent = capabilities.currentExtent;
+	}
 	else {
 		w : u32;
 		h : u32;
@@ -98,8 +105,6 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 	}
 
 	result := vkCreateSwapchainKHR(zr.device, *create_info, null, *zr.swapchain);
-
-	
 	if result != .VK_SUCCESS 
 		return false, sprint("%\n", result);
 
@@ -209,6 +214,7 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 
 resize_swapchain :: (zr: *ZRenderer) {
 	vkDeviceWaitIdle(zr.device);
+
 	destroy_swapchain(zr);
 
 	w : u32;

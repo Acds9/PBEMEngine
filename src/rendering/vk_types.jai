@@ -52,19 +52,6 @@ Queue_Family_Indices :: struct {
     }
 }
 
-Frame_Data :: struct {
-	command_pool 				: VkCommandPool;
-	command_buffer				: VkCommandBuffer;
-
-	swapchain_semaphore 		: VkSemaphore;
-	render_semaphore 			: VkSemaphore;
-	render_fence				: VkFence;
-
-	frame_descriptors			: Descriptor_Allocator;
-
-	deletion_queue				: Deletion_Queue;
-}
-
 Pipeline_Builder :: struct {
 	shader_stages 			: [..]VkPipelineShaderStageCreateInfo;
 
@@ -274,13 +261,6 @@ Pipeline_Builder :: struct {
 	}
 }
 
-Allocated_Buffer :: struct {
-	buffer		: VkBuffer;
-	allocation	: VmaAllocation;
-	info		: VmaAllocationInfo; 
-	base_address: VkDeviceAddress;
-}
-
 Vertex :: struct {
 	position	: Vector3;
 	uv_x		: float;
@@ -298,15 +278,10 @@ GPU_Mesh_Buffers :: struct {
 GPU_Draw_Push_Constants :: struct {
 	transform_address	: VkDeviceAddress;
 	vertex_buffer		: VkDeviceAddress;
-}
-
-GPU_Scene_Data :: struct {
-	view			: Matrix4;
-	proj			: Matrix4;
-	view_proj		: Matrix4;
-	ambient_color	: Vector4;
-	sunlight_dir	: Vector4;
-	sunlight_color	: Vector4;
+	material_address	: VkDeviceAddress;
+	camera_data_address : VkDeviceAddress;
+	image_index			: u32;      
+    sampler_index		: u32;    
 }
 
 Render_Transform :: struct {
