@@ -34,8 +34,11 @@ main :: () {
 	z_scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device, SCENE_MESHBUFFER_SIZE, SCENE_TRANSFORMBUFFER_SIZE);
 	
 	mesh, found := table_find(*ZRENDERER.mesh_map, "Suzanne");
-	
+	if !found {
+		panic("Could not find Suzanne");
+	}
 	add_scene_mesh(*z_scene, mesh, Matrix4_Identity);
+
 	event : SDL_Event;
 	quit := false;
     while !quit {

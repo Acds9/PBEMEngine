@@ -106,6 +106,7 @@ Pipeline_Builder :: struct {
 		pipeline_info.pNext = *render_info;
 	
 		pipeline_info.stageCount = cast,no_check(u32)shader_stages.count;
+		pipeline_info.flags = .VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
 		pipeline_info.pStages = shader_stages.data;
 		pipeline_info.pVertexInputState = *vertex_input_info;
 		pipeline_info.pInputAssemblyState = *input_assembly;
@@ -276,8 +277,8 @@ GPU_Mesh_Buffers :: struct {
 }
 
 GPU_Draw_Push_Constants :: struct {
+	vertex_address		: VkDeviceAddress;
 	transform_address	: VkDeviceAddress;
-	vertex_buffer		: VkDeviceAddress;
 	material_address	: VkDeviceAddress;
 	camera_data_address : VkDeviceAddress;
 	image_index			: u32;      

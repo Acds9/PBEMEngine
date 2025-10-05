@@ -232,10 +232,10 @@ select_physical_device :: (zr: *ZRenderer) -> bool, string {
 
 query_extension_support :: (zr: *ZRenderer) -> bool {
 	device_extensions : [..]*u8;
-		for Required_Device_Extensions {
+	for Required_Device_Extensions {
 		array_add(*device_extensions, it);
 	}
-
+	
 	extension_count : u32;
 	vkEnumerateDeviceExtensionProperties(zr.physical_device, null, *extension_count, null);
 
@@ -309,6 +309,9 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 	result := vkCreateDevice(zr.physical_device, *device_create_info, null, *zr.device);
 	
 	vkGetDescriptorEXT = cast(PFN_vkGetDescriptorEXT) vkGetDeviceProcAddr(zr.device, "vkGetDescriptorEXT");
+	vkCmdBindDescriptorBuffersEXT = cast(PFN_vkCmdBindDescriptorBuffersEXT) vkGetDeviceProcAddr(zr.device, "vkCmdBindDescriptorBuffersEXT");
+	vkCmdSetDescriptorBufferOffsetsEXT = cast(PFN_vkCmdSetDescriptorBufferOffsetsEXT) vkGetDeviceProcAddr(zr.device, "vkCmdSetDescriptorBufferOffsetsEXT");
+
     if !vkGetDescriptorEXT {
         panic("ERROR: Failed to load vkGetDescriptorEXT");
     }

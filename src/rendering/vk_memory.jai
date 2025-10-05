@@ -49,7 +49,8 @@ Uniform_Storage_Buffer :: struct {
 		if free_list.count > 0 {
 			write_index = pop(*free_list);;
 			generations[write_index] += 1;
-			gen = *generations[write_index];
+			if gen != null then <<gen = generations[write_index];
+			//gen = *generations[write_index]; TEST!!!
 		}
 		else {
 			write_index = count;

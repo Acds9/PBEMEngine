@@ -18,16 +18,15 @@ init_descriptor_buffers :: (zr: *ZRenderer) {
 	aligned_size := align_up(DESCRIPTOR_BUFFER_SIZE, zr.descriptor_buffer_properties.descriptorBufferOffsetAlignment);
 	zr.image_descriptor_buffer = make_linear_buffer(VMA_ALLOCATOR, xx image_buffer_size, xx image_descriptor_size, .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 																								.VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device, sprint("Image Descriptor Buffer"));
-	zr.image_descriptor_buffer.element_size = zr.descriptor_buffer_properties.combinedImageSamplerDescriptorSize;
+	//zr.image_descriptor_buffer.element_size = zr.descriptor_buffer_properties.combinedImageSamplerDescriptorSize; // TEST!!!
+	zr.image_descriptor_buffer.element_size = zr.descriptor_buffer_properties.sampledImageDescriptorSize;
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *zr.image_descriptor_buffer);
 
 	sampler_descriptor_size := zr.descriptor_buffer_properties.samplerDescriptorSize;
 	sampler_buffer_size := 64*MAX_SAMPLERS;
-	zr.sampler_descriptor_buffer = make_linear_buffer(VMA_ALLOCATOR, xx sampler_buffer_size, xx sampler_descriptor_size, .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+	zr.sampler_descriptor_buffer = make_linear_buffer(VMA_ALLOCATOR, xx sampler_buffer_size, xx sampler_descriptor_size, .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT ,
 																								.VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device, "Sampler Descriptor Buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *zr.sampler_descriptor_buffer);
-
-	
 }
 
 create_descriptor_set_layout :: (device: VkDevice, bindings: []VkDescriptorSetLayoutBinding, flags: VkDescriptorSetLayoutCreateFlags = 0) -> VkDescriptorSetLayout {

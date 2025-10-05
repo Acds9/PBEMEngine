@@ -88,8 +88,8 @@ Material_Opaque :: struct {
 		pipeline_builder.set_input_topology(*pipeline_builder, .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		pipeline_builder.set_polygon_mode(*pipeline_builder, .VK_POLYGON_MODE_FILL);
 		pipeline_builder.set_cull_mode(*pipeline_builder, .VK_CULL_MODE_NONE, .VK_FRONT_FACE_CLOCKWISE);
-		pipeline_builder.set_multisampling_none(*pipeline_builder, );
-		pipeline_builder.disable_blending(*pipeline_builder, );
+		pipeline_builder.set_multisampling_none(*pipeline_builder);
+		pipeline_builder.disable_blending(*pipeline_builder);
 		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_GREATER_OR_EQUAL);
 
 		pipeline_builder.set_color_attachment_format(*pipeline_builder, zr.draw_image.image_format);

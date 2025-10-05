@@ -188,7 +188,6 @@ init_default_data :: (zr: *ZRenderer) {
 	sampler_info.minFilter = .VK_FILTER_LINEAR;
 	vkCreateSampler(zr.device, *sampler_info, null, *zr.default_sampler_linear);
 
-
 	// Nearest
     zr.sampler_nearest_index = xx zr.descriptor_writer.write_sampler(*zr.descriptor_writer, *zr.sampler_descriptor_buffer,  zr.default_sampler_nearest);
 	// Linear
@@ -205,6 +204,12 @@ init_default_data :: (zr: *ZRenderer) {
 
 	zr.opaque_material.build(*zr.opaque_material, zr);
 	zr.default_material = zr.opaque_material.create_material_instance(*zr.opaque_material, zr, .MAIN_COLOR, *material_constants, *material_resources);
+
+	zr.camera.position = .{-5, 0, 0};
+	zr.camera.rotation = QUAT_IDENTITY;
+	zr.camera.fov = 70.0;
+	zr.camera.near_plane = 0.1;
+	zr.camera.far_plane = 10000.0;
 }
 
 set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, handle: u64, name: string) {

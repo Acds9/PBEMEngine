@@ -9,6 +9,8 @@ SDL_Vulkan_GetInstanceExtensions :: (window : *SDL_Window, num_extensions : *u32
 SDL_Vulkan_CreateSurface :: (window : *SDL_Window, instance : VkInstance, surface : *VkSurfaceKHR) -> SDL_bool #foreign SDL2;
 SDL_Vulkan_GetDrawableSize :: (window : *SDL_Window, w : *u32, h : *u32) #foreign SDL2;
 vkGetDescriptorEXT : PFN_vkGetDescriptorEXT;
+vkCmdBindDescriptorBuffersEXT : PFN_vkCmdBindDescriptorBuffersEXT;
+vkCmdSetDescriptorBufferOffsetsEXT : PFN_vkCmdSetDescriptorBufferOffsetsEXT;
 
 MAX_FRAMES_IN_FLIGHT :: 2;
 
@@ -196,7 +198,6 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	init_default_data(zr);
 
 	zr.initialized = true;
-
 	return true, "";
 }
 
@@ -216,9 +217,8 @@ immediate_submit :: (zr: *ZRenderer, body: Code) #expand {
 	cmd_info : VkCommandBufferSubmitInfo = vkinit_command_buffer_submit_info(cmd);
 	submit_info : VkSubmitInfo2 = vk_init_submit_info2(*cmd_info, null, null);
 
-	vkQueueSubmit2(zr.graphics_queue, 1, *submit_info, zr.immediate_fence);
-
-	vkWaitForFences(zr.device, 1, *zr.immediate_fence, 1, 1000000000);
+	result := vkQueueSubmit2(zr.graphics_queue, 1, *submit_info, zr.immediate_fence);
+	result = vkWaitForFences(zr.device, 1, *zr.immediate_fence, 1, 1000000000);
 }
 
 init_pipelines :: (zr: *ZRenderer) -> bool, string {
@@ -412,68 +412,102 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 		scissor.extent.height = zr.draw_extent.height;
 
 		vkCmdSetScissor(command_buffer, 0, 1, *scissor);
-	
-		push_constants : GPU_Draw_Push_Constants;
 
+		// Fetch this once per frame
 		camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
 		<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
-		push_constants.camera_data_address = frame_data.camera_buffer.base_address;
+
+		// Bind descriptor buffers before all draws
+		bindings := VkDescriptorBufferBindingInfoEXT.[
+			.{
+				sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT,
+				address = zr.image_descriptor_buffer.base_address,
+				usage = .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT,
+			},
+			.{
+				sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT,
+				address = zr.sampler_descriptor_buffer.base_address,
+				usage = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT,
+			},
+		];
+		vkCmdBindDescriptorBuffersEXT(command_buffer, 2, bindings.data);
+
+		// Set descriptor buffer offsets (more weird Vulkan ways of doing things)
+		buffer_indices : [2]u32 = .[0, 1];
+		offsets : [2]VkDeviceSize = .[0, 0];
+		vkCmdSetDescriptorBufferOffsetsEXT(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS,
+			zr.opaque_material.pipeline.layout,  // Any material's layout works they all use same descriptor layout
+			0, 2, buffer_indices.data, offsets.data);
 		
 		// Generate the surface buckets (per material)
 		frame_generate_surface_buckets(zr, scene);
-		/*for bucket: zr.frame_surfaces.buckets {
+
+		for bucket: zr.frame_surfaces.buckets {
 			material := bucket.material;
 			if material == null {
 				material = *zr.default_material;
-				print("Warning: No material found for mesh, defaulting to zr.default_material (this is slow)\n");
+				//print("Warning: No material found for mesh, defaulting to zr.default_material (this is slow)\n");
 			}
 		
 			// Bind the pipeline for this material bucket
 			vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipeline.pipeline);
 
-			vkCmdBindDescriptorSets(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, 
-						material.pipeline.layout, 0, 1, 
-						*global_descriptor, 0, null);
-			vkCmdBindDescriptorSets(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, 
-						material.pipeline.layout, 1, 1, 
-						*material.material_set, 0, null); 
-
 			for t_surface: bucket.surfaces {
-				index_offset := t_surface.surface.index_address - zr.geometry_pool.index_buffer_address;
+				index_offset := t_surface.surface.index_address - zr.geometry_pool.index_buffer.base_address;
 				vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
-
-				push_constants.vertex_buffer = t_surface.surface.vertex_address;
+				
+				push_constants : GPU_Draw_Push_Constants;
+				push_constants.vertex_address = t_surface.surface.vertex_address;
 				push_constants.transform_address = t_surface.transform_address;
 				push_constants.material_address = material.constants_address;
+				push_constants.camera_data_address = frame_data.camera_buffer.base_address;
+				push_constants.image_index = material.color_texture_index;
+            	push_constants.sampler_index = zr.sampler_nearest_index;  
 
-				vkCmdPushConstants(command_buffer, material.pipeline.layout, .VK_SHADER_STAGE_VERTEX_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
+				vkCmdPushConstants(command_buffer, material.pipeline.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
 				vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);
 			}
-		}*/
+		}
 	}
 	vkCmdEndRendering(command_buffer);
 }
 
+
 update_scene :: (zr: *ZRenderer) {
-	/*zr.scene_data.view = make_translation_matrix4(Vector3.{0, 0, -5});
-	fov_degrees := 70.0;
-	fov_radians := fov_degrees * PI / 180.0;
-	aspect_ratio := cast(float)zr.draw_extent.width / cast(float)zr.draw_extent.height;
-
-	zr.scene_data.proj = make_projection_matrix(
-		fov_vertical = fov_radians,
-		aspect_ratio_horizontal_over_vertical = aspect_ratio,
-		z_near = 10000,
-		z_far = 0.1,
-		depth_range_01 = true  // Important for Vulkan
-	);
-	zr.scene_data.proj._22 *= -1;
-	zr.scene_data.view_proj = zr.scene_data.proj * zr.scene_data.view;
-	zr.scene_data.view_proj = transpose(zr.scene_data.view_proj);
-
-	zr.scene_data.ambient_color = color_to_vec4(*COLOR_GREY);
-	zr.scene_data.sunlight_color = color_to_vec4(*COLOR_WHITE);
-	zr.scene_data.sunlight_dir = .{0,1,0.5,1};*/
+    // Build camera basis in your coordinate system (X-forward, Y-right, Z-up)
+    forward := rotate(AXIS_FORWARD, zr.camera.rotation);  // X-forward
+    right   := rotate(AXIS_RIGHT, zr.camera.rotation);  // Y-right  
+    up      := rotate(AXIS_UP, zr.camera.rotation);  // Z-up
+    
+    // View matrix is inverse of camera transform
+    // For a right-handed camera system (which you want), it's:
+    view_matrix := Matrix4.{
+        right.x,    up.x,    -forward.x,   0,
+        right.y,    up.y,    -forward.y,   0,
+        right.z,    up.z,    -forward.z,   0,
+        -dot(right, zr.camera.position), 
+        -dot(up, zr.camera.position), 
+        dot(forward, zr.camera.position),
+        1
+    };
+    
+	view_matrix = transpose(view_matrix);
+    // Set up projection (same as before)
+    fov_radians := zr.camera.fov * PI / 180.0;
+    aspect_ratio := cast(float)zr.draw_extent.width / cast(float)zr.draw_extent.height;
+    
+    proj_matrix := make_projection_matrix(
+        fov_vertical = fov_radians,
+        aspect_ratio_horizontal_over_vertical = aspect_ratio,
+        z_near = zr.camera.near_plane,
+        z_far = zr.camera.far_plane,
+        depth_range_01 = true
+    );
+    proj_matrix._22 *= -1;
+    
+    zr.camera.gpu_data.view = view_matrix;
+    zr.camera.gpu_data.proj = proj_matrix;
+    zr.camera.gpu_data.view_proj = transpose(proj_matrix * view_matrix);
 }
 
 deinit_zrenderer :: (zr: *ZRenderer) {

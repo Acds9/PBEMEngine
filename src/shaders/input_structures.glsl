@@ -1,15 +1,15 @@
-layout(buffer_reference, std430) readonly buffer CameraData {
+layout(buffer_reference, scalar) readonly buffer CameraData {
 	mat4 view;
 	mat4 proj;
 	mat4 view_proj;
 };
 
-layout(buffer_reference, std430) readonly buffer MaterialData { 
+layout(buffer_reference, scalar) readonly buffer MaterialData { 
 	vec4 color_factors;
 };
 
 layout(push_constant) uniform Push_Constants {
-    uint64_t vertex_buffer;
+    uint64_t vertex_address;
     uint64_t transform_address;
     uint64_t material_address;
     uint64_t camera_data_address;

@@ -4,6 +4,7 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_buffer_reference2 : require 
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require  
+#extension GL_EXT_scalar_block_layout : require
 
 #include "input_structures.glsl"
 
@@ -19,12 +20,13 @@ struct Vertex {
 	vec4 color;
 }; 
 
-layout(buffer_reference, std430) readonly buffer VertexBuffer { 
+layout(buffer_reference, scalar) readonly buffer VertexBuffer { 
     Vertex vertices[];
 };
 
-layout(buffer_reference, std430) readonly buffer TransformBuffer {
+layout(buffer_reference, scalar) readonly buffer TransformBuffer {
     mat4 transform;
+    uint64_t parent_address;
 };
 
 void main() {
@@ -34,9 +36,9 @@ void main() {
     mat4 world_matrix = transform_ref.transform;
     
     // Get vertex data
-    VertexBuffer vertex_buffer = VertexBuffer(push_constants.vertex_buffer);
+    VertexBuffer vertex_buffer = VertexBuffer(push_constants.vertex_address);
     Vertex v = vertex_buffer.vertices[gl_VertexIndex];
-    
+
     vec4 position = vec4(v.position, 1.0);
     
     // Transform to clip space

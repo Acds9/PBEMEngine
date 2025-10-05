@@ -3,16 +3,21 @@
 GEOPOOL_VERTEX_ALLOC_SIZE :: 64 * 1024 * 1024;
 GEOPOOL_INDEX_ALLOC_SIZE :: 64 * 1024 * 1024;
 
+GLTF_TO_ZENGINE_COORDINATES :: Matrix4.{
+    0,  0,  1,  0,   // glTF Z to ZEngine X
+   -1,  0,  0,  0,   // glTF -X to  ZEngine Y
+    0,  1,  0,  0,   // glTF Y to  ZEngine Z
+    0,  0,  0,  1
+};
+
 // This contains the raw data for the loaded meshes, and is owned by the ZRenderer. It is not a Uniform_Storage_Buffer because meshe vertex/index SETS are not uniform, even if vertices/indices are
 GPU_Geometry_Pool :: struct {
 	vertex_buffer			: Storage_Buffer;
 	index_buffer			: Storage_Buffer;
-	vertex_buffer_address 	: VkDeviceAddress;
-	index_buffer_address	: VkDeviceAddress;
 
 	init :: (using self: *GPU_Geometry_Pool, device: VkDevice, allocator: VmaAllocator, vertex_alloc_size: u64, index_alloc_size: u64, debug_name: string = "") {
 		vertex_buffer = make_storage_buffer(allocator, vertex_alloc_size, 
-										.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
+										.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
 										.VMA_MEMORY_USAGE_GPU_ONLY, device, "Vertex Geometry Pool");
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, vertex_buffer.buffer, vertex_buffer.allocation);
 
@@ -20,16 +25,6 @@ GPU_Geometry_Pool :: struct {
 										.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
 										.VMA_MEMORY_USAGE_GPU_ONLY, device, "Index Geometry Pool");
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, index_buffer.buffer, index_buffer.allocation);
-
-		vertex_buffer_info : VkBufferDeviceAddressInfo;
-		vertex_buffer_info.sType = .VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-		vertex_buffer_info.buffer = vertex_buffer.buffer;
-		vertex_buffer_address = vkGetBufferDeviceAddress(device, *vertex_buffer_info);
-
-		index_address_info : VkBufferDeviceAddressInfo;
-		index_address_info.sType = .VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-		index_address_info.buffer = index_buffer.buffer;
-		index_buffer_address = vkGetBufferDeviceAddress(device, *index_address_info);
 	}
 }
 
@@ -116,23 +111,24 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> []string {
 			initial_vertex_count := vertices.count;
 			array_reserve(*vertices, vertices.count + xx vertex_count);
 	
+			// All coordinates are swizzled to convert from gltf2 to ZEngine
 			for vertex_idx: 0..vertex_count-1 {
 				vertex : Vertex;
 
 				// Position
 				position : [3]float32;
 				cgltf_accessor_read_float(position_accessor, vertex_idx, position.data, 3);
-				vertex.position.x = position[0];
-				vertex.position.y = position[1];
-				vertex.position.z = position[2];
+				vertex.position.x = position[2];
+				vertex.position.y = -position[0];
+				vertex.position.z = position[1];
 
 				// Normal
 				if normal_accessor {
 					normal : [3]float32;
 					cgltf_accessor_read_float(normal_accessor, vertex_idx, normal.data, 3);
-					vertex.normal.x = normal[0];
-                    vertex.normal.y = normal[1];
-                    vertex.normal.z = normal[2];
+					vertex.normal.x = normal[2];
+                    vertex.normal.y = -normal[0];
+                    vertex.normal.z = normal[1];
 				} else {
                     vertex.normal = .{0, 1, 0};
                 }
@@ -164,9 +160,9 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> []string {
                 if tangent_accessor {
                     tangent: [4]float32;
                     cgltf_accessor_read_float(tangent_accessor, vertex_idx, tangent.data, 4);
-                    //vertex.tangent.x = tangent[0];
-                   	//vertex.tangent.y = tangent[1];
-                    //vertex.tangent.z = tangent[2];
+                    //vertex.tangent.x = tangent[2];
+                   	//vertex.tangent.y = -tangent[0];
+                    //vertex.tangent.z = tangent[1];
                    
                 }
                 
@@ -181,6 +177,7 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> []string {
 			}
 
 			new_surface := upload_mesh(zr, *zr.geometry_pool, indices, vertices);
+
 			// TODO: set material?
 			array_add(*new_mesh.surfaces, new_surface);
 
@@ -219,6 +216,9 @@ upload_mesh :: (zr: *ZRenderer, pool: *GPU_Geometry_Pool, indices: []u32, vertic
 	vertex_offset := pool.vertex_buffer.offset;
 	index_offset := pool.index_buffer.offset;
 
+	 // Calculate vertex offset in terms of vertex count (not bytes)
+    vertex_count_offset := pool.vertex_buffer.offset / size_of(Vertex);
+
 	memcpy(data, vertices.data, vertex_size); // Vertices into data
 	memcpy(cast,no_check(*u8)data + vertex_size, indices.data, index_size); // Indices into data at the offset of vertex size
 
@@ -235,16 +235,15 @@ upload_mesh :: (zr: *ZRenderer, pool: *GPU_Geometry_Pool, indices: []u32, vertic
 		index_copy.size = cast,no_check(u64) index_size;
 		vkCmdCopyBuffer(cmd, staging.buffer, pool.index_buffer.buffer, 1, *index_copy);
 	});
-
 	destroy_buffer(VMA_ALLOCATOR, *staging);
 
 	pool.vertex_buffer.offset += xx vertex_size;
 	pool.index_buffer.offset += xx index_size;
 
 	surface : Geo_Surface;
-	surface.vertex_address = pool.vertex_buffer_address + vertex_offset;
+	surface.vertex_address = pool.vertex_buffer.base_address + vertex_offset;
 	surface.vertex_count = xx vertices.count;
-	surface.index_address = pool.index_buffer_address + index_offset;
+	surface.index_address = pool.index_buffer.base_address + index_offset;
 	surface.index_count = xx indices.count;
 	surface.pool = pool;
 

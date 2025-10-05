@@ -73,6 +73,7 @@ frame_generate_surface_buckets :: (zr: *ZRenderer, scene: *ZScene) {
 add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, parent_transform: VkDeviceAddress = 0) -> VkDeviceAddress {
 	mesh_render : Mesh_Instance;
 	mesh_render.mesh_asset = mesh;
+
 	render_transform : Render_Transform;
 	render_transform.local_transform = local_transform;
 	render_transform.parent_address = parent_transform;
