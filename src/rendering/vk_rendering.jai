@@ -114,6 +114,8 @@ ZRenderer :: struct {
 	default_material		: Material_Instance;
 	opaque_material			: Material_Opaque;
 
+	default_clearvalue		: VkClearValue;
+
 	frame_surfaces			: Frame_Surface_Buckets;
     
 	Frame_Data :: struct {
@@ -193,9 +195,10 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 
 	zr.geometry_pool.init(*zr.geometry_pool, zr.device, VMA_ALLOCATOR, GEOPOOL_VERTEX_ALLOC_SIZE, GEOPOOL_INDEX_ALLOC_SIZE);
 	zr.material_pool.init(*zr.material_pool, zr.device, VMA_ALLOCATOR, MATERIAL_CONSTANTS_BUFFER_SIZE);
-	load_glt_meshes(zr, "H:/PBEMJai/content/meshes/basicmesh.glb");
-
+	
 	init_default_data(zr);
+
+	load_glt_meshes(zr, "H:/PBEMJai/content/meshes/basicmesh.glb");
 
 	zr.initialized = true;
 	return true, "";
@@ -388,8 +391,13 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
 	frame_data := zr.get_current_frame_data(zr);;
 	// Begin a render pass connected to our draw image
-	color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, null, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, *zr.default_clearvalue, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+	depth_clear : VkClearValue;
+	depth_clear.depthStencil.depth = 1.0;
 	depth_attachment : VkRenderingAttachmentInfo = vkinit_depth_attachment_info(zr.depth_image.image_view, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+	depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depth_attachment.clearValue = depth_clear;
 
 	render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
 	vkCmdBeginRendering(command_buffer, *render_info);
@@ -446,7 +454,7 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 			material := bucket.material;
 			if material == null {
 				material = *zr.default_material;
-				//print("Warning: No material found for mesh, defaulting to zr.default_material (this is slow)\n");
+				print("Warning: No material found for mesh, defaulting to zr.default_material (this is slow)\n");
 			}
 		
 			// Bind the pipeline for this material bucket
@@ -474,40 +482,35 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 
 
 update_scene :: (zr: *ZRenderer) {
-    // Build camera basis in your coordinate system (X-forward, Y-right, Z-up)
-    forward := rotate(AXIS_FORWARD, zr.camera.rotation);  // X-forward
-    right   := rotate(AXIS_RIGHT, zr.camera.rotation);  // Y-right  
-    up      := rotate(AXIS_UP, zr.camera.rotation);  // Z-up
+    // Build camera basis in  coordinate system
+	using zr.camera;
+    forward = rotate(AXIS_FORWARD, rotation);  // X-forward
+    right   = rotate(AXIS_RIGHT, rotation);  // Y-right  
+    up      = rotate(AXIS_UP, rotation);  // Z-up
     
-    // View matrix is inverse of camera transform
-    // For a right-handed camera system (which you want), it's:
+	// Jai matrices are ROW MAJOR
     view_matrix := Matrix4.{
-        right.x,    up.x,    -forward.x,   0,
-        right.y,    up.y,    -forward.y,   0,
-        right.z,    up.z,    -forward.z,   0,
-        -dot(right, zr.camera.position), 
-        -dot(up, zr.camera.position), 
-        dot(forward, zr.camera.position),
-        1
+        right.x,    right.y,    right.z,    -dot(right, position),
+        up.x,       up.y,       up.z,       -dot(up, position),
+        -forward.x, -forward.y, -forward.z, dot(forward, position),
+        0,          0,          0,          1
     };
     
-	view_matrix = transpose(view_matrix);
-    // Set up projection (same as before)
-    fov_radians := zr.camera.fov * PI / 180.0;
-    aspect_ratio := cast(float)zr.draw_extent.width / cast(float)zr.draw_extent.height;
+    fov_radians := fov * PI / 180.0;
+    aspect_ratio = cast(float)zr.draw_extent.width / cast(float)zr.draw_extent.height;
     
     proj_matrix := make_projection_matrix(
         fov_vertical = fov_radians,
         aspect_ratio_horizontal_over_vertical = aspect_ratio,
-        z_near = zr.camera.near_plane,
-        z_far = zr.camera.far_plane,
+        z_near = near_plane,
+        z_far = far_plane,
         depth_range_01 = true
     );
     proj_matrix._22 *= -1;
     
-    zr.camera.gpu_data.view = view_matrix;
-    zr.camera.gpu_data.proj = proj_matrix;
-    zr.camera.gpu_data.view_proj = transpose(proj_matrix * view_matrix);
+    gpu_data.view = view_matrix;
+    gpu_data.proj = proj_matrix;
+    gpu_data.view_proj = transpose(proj_matrix * view_matrix);
 }
 
 deinit_zrenderer :: (zr: *ZRenderer) {

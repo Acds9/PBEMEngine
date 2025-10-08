@@ -197,7 +197,7 @@ init_default_data :: (zr: *ZRenderer) {
 	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_linear);
 
 	material_resources : Material_Opaque.Material_Resources;
-	material_resources.color_image = zr.white_image;
+	material_resources.color_image = zr.error_checkerboard;
 
 	material_constants : Material_Opaque.Material_Constants;
 	material_constants.color_factors = .{1,1,1,1};
@@ -206,10 +206,12 @@ init_default_data :: (zr: *ZRenderer) {
 	zr.default_material = zr.opaque_material.create_material_instance(*zr.opaque_material, zr, .MAIN_COLOR, *material_constants, *material_resources);
 
 	zr.camera.position = .{-5, 0, 0};
-	zr.camera.rotation = QUAT_IDENTITY;
+	zr.camera.rotation = ROTOR_IDENTITY;
 	zr.camera.fov = 70.0;
 	zr.camera.near_plane = 0.1;
 	zr.camera.far_plane = 10000.0;
+
+	zr.default_clearvalue.color._float32 = .[0.0, 0.025, 0.025, 1.0];
 }
 
 set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, handle: u64, name: string) {

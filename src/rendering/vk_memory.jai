@@ -56,6 +56,7 @@ Uniform_Storage_Buffer :: struct {
 			write_index = count;
 			count += 1;
 			array_resize(*generations, count);
+			if gen != null then <<gen = generations[write_index];
 		}
 
 		if count >= capacity {
@@ -81,14 +82,12 @@ Linear_Buffer :: struct {
 
 	// Allocate space for one descriptor, returns the binding offset (not address)
     allocate_descriptor :: (using self: *Linear_Buffer, alignement: u64) -> u64 {
-        aligned_offset := align_up(offset, alignement);
-        
-        if aligned_offset + element_size > info.size {
-            panic(sprint("Linear_Buffer out of space. Used: %, Capacity: %", aligned_offset + element_size, info.size));
+        if offset + element_size > info.size {
+            panic(sprint("Linear_Buffer out of space. Used: %, Capacity: %", offset + element_size, info.size));
         }
         
-        binding_offset := aligned_offset / element_size;
-        offset = aligned_offset + element_size;
+        binding_offset := offset / element_size;
+        offset +=  element_size;
         
         return binding_offset;
     }

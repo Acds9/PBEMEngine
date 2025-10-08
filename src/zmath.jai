@@ -22,6 +22,16 @@ Rotor	:: struct {
 	yz		: float;
 	xz		: float;
 }
+ROTOR_IDENTITY :: Rotor.{1, 0, 0, 0};
+
+operator * :: (r1: Rotor, r2: Rotor) -> Rotor {
+    return .{
+        r1.scalar*r2.scalar - r1.xy*r2.xy - r1.yz*r2.yz - r1.xz*r2.xz,
+        r1.scalar*r2.xy + r1.xy*r2.scalar + r1.yz*r2.xz - r1.xz*r2.yz,
+        r1.scalar*r2.yz + r1.yz*r2.scalar + r1.xz*r2.xy - r1.xy*r2.xz,
+        r1.scalar*r2.xz + r1.xz*r2.scalar + r1.xy*r2.yz - r1.yz*r2.xy
+    };
+}
 
 magnitude :: (r: Rotor) -> float {
 	return sqrt(square(r.scalar) + square(r.xy) + square(r.yz) + square(r.xz));
@@ -46,7 +56,7 @@ make_rotor :: (from: Vector3, to: Vector3) -> Rotor {
     }
 
 	wedge := cross_product(to, from);
-	r := Rotor.{1 + dot, wedge.x, wedge.y, wedge.z};
+	r := Rotor.{1 + dot, wedge.z, wedge.x, wedge.y};
 	return normalize(r);
 }
 
@@ -81,11 +91,40 @@ rot_to_quat :: (r: Rotor) -> Quaternion {
 	return q;
 }
 
-/*
-normalize :: (r: *Rotor) {
-	<<r = r / sqrt(square(r.scalar) + square(r.xy) + square(r.yz) + square(r.xz));
+rotate :: (v: Vector3, r: Rotor) -> Vector3 {
+    // Extract bivector as a pseudo-vector for cross product
+    bivec := Vector3.{r.yz, r.xz, r.xy};
+    
+    // Standard quaternion-style rotation formula
+    t := cross_product(bivec, v) * 2.0;
+    return v + t * r.scalar + cross_product(bivec, t);
 }
 
-normalize_copy :: (r: Rotor) -> Rotor{
-	return r / sqrt(square(r.scalar) + square(r.xy) + square(r.yz) + square(r.xz));
-}*/
+inverse :: (r: Rotor) -> Rotor {
+    return .{r.scalar, -r.xy, -r.yz, -r.xz};
+}
+
+slerp :: (r1: Rotor, r2: Rotor, t: float) -> Rotor {
+    dot := r1.scalar*r2.scalar + r1.xy*r2.xy + r1.yz*r2.yz + r1.xz*r2.xz;
+    
+    r2_adjusted := r2;
+    if dot < 0 {
+        r2_adjusted = .{-r2.scalar, -r2.xy, -r2.yz, -r2.xz};
+        dot = -dot;
+    }
+    
+    if dot > 0.9995 {
+        // Linear interpolation for very close rotors
+        result := Rotor.{
+            lerp(r1.scalar, r2_adjusted.scalar, t),
+            lerp(r1.xy, r2_adjusted.xy, t),
+            lerp(r1.yz, r2_adjusted.yz, t),
+            lerp(r1.xz, r2_adjusted.xz, t)
+        };
+        return normalize(result);
+    }
+    
+    angle := acos(dot);
+  /*  return add_scaled(r1, sin((1-t)*angle)/sin(angle), 
+                      r2_adjusted, sin(t*angle)/sin(angle));*/
+}

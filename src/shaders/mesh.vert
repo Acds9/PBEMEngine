@@ -46,7 +46,7 @@ void main() {
     
     // Transform normal to world space
     out_normal = (world_matrix * vec4(v.normal, 0.0)).xyz;
-    out_color = v.color.xyz * mat.color_factors.xyz;
+    out_color =  mat.color_factors.xyz; // Removed v.color.xyz * for now, bugged
     out_UV.x = v.uv_x;
     out_UV.y = v.uv_y;
 }

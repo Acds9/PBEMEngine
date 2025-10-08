@@ -13,23 +13,21 @@ Render_Camera :: struct {
 
 	position		: Vector3;
 	fov				: float;
-	rotation		: Quaternion;
+	rotation		: Rotor;
 	aspect_ratio	: float;
 	near_plane		: float;
 	far_plane		: float;
+
+	forward			: Vector3;
+	right			: Vector3;
+	up				: Vector3;
 
 	translate :: (using self: *Render_Camera, translation: Vector3) {
 		position += translation;
 	}
 
-	pitch :: (using self: *Render_Camera, value: float) {
-		rotation = quaternion_from_axis_angle_fast(AXIS_RIGHT, value) * rotation;
-	}
-	yaw :: (using self: *Render_Camera, value: float) {
-		rotation = quaternion_from_axis_angle_fast(AXIS_UP, value) * rotation;
-	}
-	roll :: (using self: *Render_Camera, value: float) {
-		rotation = quaternion_from_axis_angle_fast(AXIS_FORWARD, value) * rotation;
+	rotate :: (using self: *Render_Camera, new_rotation: Rotor) {
+		rotation = new_rotation;
 	}
 }
 

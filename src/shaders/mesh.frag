@@ -28,7 +28,7 @@ void main()
 
 	float light_value = max(dot(in_normal, sunlight_direction.xyz), 0.1f);
 
-	vec3 color = in_color * tex_color;
+	vec3 color = tex_color; // in_color * 
     vec3 ambient = color * ambient_color.xyz;
     
     out_frag_color = vec4(color * light_value * sunlight_color.w + ambient, 1.0f);

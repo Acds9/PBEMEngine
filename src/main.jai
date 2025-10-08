@@ -14,6 +14,12 @@ ZRENDERER 				: ZRenderer;
 VMA_ALLOCATOR 			: VmaAllocator;
 GLOBAL_DELETION_QUEUE 	: Deletion_Queue;
 
+ZRENDERER_DELTATIME		: float64;
+ZRENDERER_FRAMESPERSECOND : u32;
+
+MOUSELOOK_SENSITIVITY	: float = 1;
+CAMERA_MOVESPEED		: float = 0.01;
+
 z_scene		: ZScene; // This will later not be constant, so we don't make it a pseudo-constant
 
 main :: () {
@@ -37,11 +43,25 @@ main :: () {
 	if !found {
 		panic("Could not find Suzanne");
 	}
-	add_scene_mesh(*z_scene, mesh, Matrix4_Identity);
+	add_scene_mesh(*z_scene, mesh, Matrix4.{_11=-1, _22=-1, _33=1, _44=1});
+
+	SDL_SetRelativeMouseMode(SDL_TRUE);
+	SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1"); 
+
+	// Deltatime and performance
+	frequency 		: u64 = SDL_GetPerformanceFrequency();
+	last_counter	: u64 = SDL_GetPerformanceCounter();
 
 	event : SDL_Event;
 	quit := false;
     while !quit {
+
+		// deltatime and fps
+		current_counter : u64 = SDL_GetPerformanceCounter();
+		ZRENDERER_DELTATIME = cast,no_check(float64)(current_counter - last_counter)/cast,no_check(float64)frequency;
+		ZRENDERER_FRAMESPERSECOND = cast,no_check(u32)(1/ZRENDERER_DELTATIME);
+		last_counter = current_counter;
+
         while SDL_PollEvent(*event) {
             if event.type == {
                 case SDL_QUIT;
@@ -58,8 +78,39 @@ main :: () {
 					else if event.window.event == SDL_WINDOWEVENT_RESTORED  {
 						ZRENDERER.minimized = false;
 					}
+				case SDL_MOUSEMOTION;
+					   	delta_x := cast,no_check(float) event.motion.xrel;
+						delta_y := -cast,no_check(float) event.motion.yrel;
+    
+						sensitivity : float = cast,no_check(float)(MOUSELOOK_SENSITIVITY * ZRENDERER_DELTATIME);
+
+						delta_yaw   := make_rotor(.{0, 0, 1}, delta_x * sensitivity);
+    					delta_pitch := make_rotor(.{0, 1, 0}, -delta_y * sensitivity);
+    
+						// Apply to camera rotor
+						ZRENDERER.camera.rotation = normalize(delta_yaw * ZRENDERER.camera.rotation * delta_pitch);
+
             }
         }		
+
+		keyboard_state := SDL_GetKeyboardState(null);
+
+		if keyboard_state[SDL_SCANCODE_W] {
+			ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.forward * CAMERA_MOVESPEED);
+		}
+		else if keyboard_state[SDL_SCANCODE_S] {
+			ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.forward * -CAMERA_MOVESPEED);
+		}
+		if keyboard_state[SDL_SCANCODE_D] {
+			ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.right * CAMERA_MOVESPEED);
+		}
+		else if keyboard_state[SDL_SCANCODE_A] {
+			ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.right * -CAMERA_MOVESPEED);
+		}
+		
+		if keyboard_state[SDL_SCANCODE_SPACE] {
+			// Space is held
+		}
 		if !ZRENDERER.minimized {
 			draw_frame(*ZRENDERER, *z_scene);
 		}

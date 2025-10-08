@@ -166,19 +166,13 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> []string {
                    
                 }
                 
+				vertex.color = .{1, 1, 1, 1};
                 array_add(*vertices, vertex);
 			}
 
-			override_colors := true;
-			if override_colors {
-				for *vertices {
-					it.color = .{it.normal.x, it.normal.y, it.normal.z, 1};
-				}
-			}
-
 			new_surface := upload_mesh(zr, *zr.geometry_pool, indices, vertices);
-
-			// TODO: set material?
+			new_surface.material = *zr.default_material;
+			// TODO: need to load the actual material
 			array_add(*new_mesh.surfaces, new_surface);
 
 			array_reset(*indices);

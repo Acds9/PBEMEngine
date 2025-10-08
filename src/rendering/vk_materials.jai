@@ -87,10 +87,10 @@ Material_Opaque :: struct {
 		pipeline_builder.set_shaders(*pipeline_builder, mesh_vert_shader, mesh_frag_shader);
 		pipeline_builder.set_input_topology(*pipeline_builder, .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		pipeline_builder.set_polygon_mode(*pipeline_builder, .VK_POLYGON_MODE_FILL);
-		pipeline_builder.set_cull_mode(*pipeline_builder, .VK_CULL_MODE_NONE, .VK_FRONT_FACE_CLOCKWISE);
+		pipeline_builder.set_cull_mode(*pipeline_builder, .VK_CULL_MODE_BACK_BIT, .VK_FRONT_FACE_COUNTER_CLOCKWISE);
 		pipeline_builder.set_multisampling_none(*pipeline_builder);
 		pipeline_builder.disable_blending(*pipeline_builder);
-		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_GREATER_OR_EQUAL);
+		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_LESS_OR_EQUAL);
 
 		pipeline_builder.set_color_attachment_format(*pipeline_builder, zr.draw_image.image_format);
 		pipeline_builder.set_depth_format(*pipeline_builder, zr.depth_image.image_format);
@@ -116,9 +116,9 @@ Material_Opaque :: struct {
 		mat_data.pass_type = pass;
 		mat_data.pipeline = *pipeline;		
 		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, *constants, size_of(Material_Opaque.Material_Constants));
-
+		
 		mat_data.color_texture_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, resources.color_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
+		
 		return mat_data;
 	}
 

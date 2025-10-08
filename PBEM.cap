@@ -7,7 +7,7 @@
         ],
         "executable": "H:\\PBEMJai\\bin\\PBEM.exe",
         "inject": false,
-        "numQueuedFrames": 0,
+        "numQueuedFrames": 1,
         "options": {
             "allowFullscreen": true,
             "allowVSync": true,
@@ -22,7 +22,7 @@
             "softMemoryLimit": 0,
             "verifyBufferAccess": false
         },
-        "queuedFrameCap": 0,
+        "queuedFrameCap": 5,
         "workingDir": ""
     }
 }
