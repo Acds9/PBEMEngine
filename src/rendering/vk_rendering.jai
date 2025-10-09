@@ -444,7 +444,7 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 		buffer_indices : [2]u32 = .[0, 1];
 		offsets : [2]VkDeviceSize = .[0, 0];
 		vkCmdSetDescriptorBufferOffsetsEXT(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS,
-			zr.opaque_material.pipeline.layout,  // Any material's layout works they all use same descriptor layout
+			zr.opaque_material.layout,  // Any material's layout works they all use same descriptor layout
 			0, 2, buffer_indices.data, offsets.data);
 		
 		// Generate the surface buckets (per material)
@@ -458,7 +458,7 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 			}
 		
 			// Bind the pipeline for this material bucket
-			vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipeline.pipeline);
+			vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipeline);
 
 			for t_surface: bucket.surfaces {
 				index_offset := t_surface.surface.index_address - zr.geometry_pool.index_buffer.base_address;
@@ -472,7 +472,7 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 				push_constants.image_index = material.color_texture_index;
             	push_constants.sampler_index = zr.sampler_nearest_index;  
 
-				vkCmdPushConstants(command_buffer, material.pipeline.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
+				vkCmdPushConstants(command_buffer, material.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
 				vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);
 			}
 		}

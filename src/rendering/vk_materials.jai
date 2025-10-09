@@ -17,13 +17,9 @@ Material_Pool :: struct {
 	}
 }
 
-Material_Pipeline :: struct {
+Material_Instance :: struct {
 	pipeline 	: VkPipeline;
 	layout		: VkPipelineLayout;
-}
-
-Material_Instance :: struct {
-	pipeline			: Material_Pipeline;
 	pass_type			: MATERIAL_PASS;
 
 	constants_address 	: VkDeviceAddress;
@@ -32,7 +28,8 @@ Material_Instance :: struct {
 }
 
 Material_Opaque :: struct {
-	pipeline : Material_Pipeline;
+	pipeline 	: VkPipeline;
+	layout		: VkPipelineLayout;
 
 	Material_Constants :: struct {
 		color_factors		: Vector4;
@@ -80,8 +77,8 @@ Material_Opaque :: struct {
 		if result != .VK_SUCCESS {
 			panic("Failed to create Material_Opaque layout");
 		}
-		pipeline.layout = new_layout;
-		queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, pipeline.layout);
+		layout = new_layout;
+		queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, layout);
 
 		pipeline_builder : Pipeline_Builder;
 		pipeline_builder.set_shaders(*pipeline_builder, mesh_vert_shader, mesh_frag_shader);
@@ -98,8 +95,8 @@ Material_Opaque :: struct {
 
 		pipeline_builder.pipeline_layout = new_layout;
 
-		pipeline.pipeline = pipeline_builder.build(*pipeline_builder, zr);
-		if pipeline.pipeline == VK_NULL_HANDLE {
+		pipeline = pipeline_builder.build(*pipeline_builder, zr);
+		if pipeline == VK_NULL_HANDLE {
 			panic("Failed to create opaque pipeline");
 		}
 
@@ -114,7 +111,8 @@ Material_Opaque :: struct {
 	create_material_instance :: (using self: *Material_Opaque, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Opaque.Material_Constants, resources: *Material_Resources) -> Material_Instance {
 		mat_data : Material_Instance;
 		mat_data.pass_type = pass;
-		mat_data.pipeline = *pipeline;		
+		mat_data.pipeline = pipeline;	
+		mat_data.layout = layout;
 		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, *constants, size_of(Material_Opaque.Material_Constants));
 		
 		mat_data.color_texture_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, resources.color_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
