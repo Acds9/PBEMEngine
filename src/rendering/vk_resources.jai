@@ -196,10 +196,10 @@ init_default_data :: (zr: *ZRenderer) {
 	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_nearest);
 	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_linear);
 
-	material_resources : Material_Opaque.Material_Resources;
+	material_resources : Material_Pipeline_Opaque.Material_Resources;
 	material_resources.color_image = zr.error_checkerboard;
 
-	material_constants : Material_Opaque.Material_Constants;
+	material_constants : Material_Pipeline_Opaque.Material_Constants;
 	material_constants.color_factors = .{1,1,1,1};
 
 	zr.opaque_material.build(*zr.opaque_material, zr);

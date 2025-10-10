@@ -103,28 +103,3 @@ rotate :: (v: Vector3, r: Rotor) -> Vector3 {
 inverse :: (r: Rotor) -> Rotor {
     return .{r.scalar, -r.xy, -r.yz, -r.xz};
 }
-
-slerp :: (r1: Rotor, r2: Rotor, t: float) -> Rotor {
-    dot := r1.scalar*r2.scalar + r1.xy*r2.xy + r1.yz*r2.yz + r1.xz*r2.xz;
-    
-    r2_adjusted := r2;
-    if dot < 0 {
-        r2_adjusted = .{-r2.scalar, -r2.xy, -r2.yz, -r2.xz};
-        dot = -dot;
-    }
-    
-    if dot > 0.9995 {
-        // Linear interpolation for very close rotors
-        result := Rotor.{
-            lerp(r1.scalar, r2_adjusted.scalar, t),
-            lerp(r1.xy, r2_adjusted.xy, t),
-            lerp(r1.yz, r2_adjusted.yz, t),
-            lerp(r1.xz, r2_adjusted.xz, t)
-        };
-        return normalize(result);
-    }
-    
-    angle := acos(dot);
-  /*  return add_scaled(r1, sin((1-t)*angle)/sin(angle), 
-                      r2_adjusted, sin(t*angle)/sin(angle));*/
-}

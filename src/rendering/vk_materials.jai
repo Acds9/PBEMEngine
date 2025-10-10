@@ -18,16 +18,16 @@ Material_Pool :: struct {
 }
 
 Material_Instance :: struct {
-	pipeline 	: VkPipeline;
-	layout		: VkPipelineLayout;
+	pipeline 			: VkPipeline;
+	layout				: VkPipelineLayout;
 	pass_type			: MATERIAL_PASS;
 
 	constants_address 	: VkDeviceAddress;
 
-	color_texture_index		: u32;
+	color_texture_index	: u32;
 }
 
-Material_Opaque :: struct {
+Material_Pipeline_Opaque :: struct {
 	pipeline 	: VkPipeline;
 	layout		: VkPipelineLayout;
 
@@ -41,7 +41,7 @@ Material_Opaque :: struct {
 		data_address		: VkDeviceAddress;
 	}
 
-	build :: (using self: *Material_Opaque, zr: *ZRenderer) {
+	build :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer) {
 		success : bool;
 		mesh_frag_shader : VkShaderModule;
 		success, mesh_frag_shader = create_shader_module(zr, "src/shaders/mesh.frag.spv");
@@ -104,16 +104,16 @@ Material_Opaque :: struct {
 		vkDestroyShaderModule(zr.device, mesh_vert_shader, null);
 	}
 
-	clear_resources :: (using self: *Material_Opaque, device: VkDevice) {
+	clear_resources :: (using self: *Material_Pipeline_Opaque, device: VkDevice) {
 		
 	}
 
-	create_material_instance :: (using self: *Material_Opaque, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Opaque.Material_Constants, resources: *Material_Resources) -> Material_Instance {
+	create_material_instance :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Pipeline_Opaque.Material_Constants, resources: *Material_Pipeline_Opaque.Material_Resources) -> Material_Instance {
 		mat_data : Material_Instance;
 		mat_data.pass_type = pass;
 		mat_data.pipeline = pipeline;	
 		mat_data.layout = layout;
-		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, *constants, size_of(Material_Opaque.Material_Constants));
+		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, *constants, size_of(Material_Pipeline_Opaque.Material_Constants));
 		
 		mat_data.color_texture_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, resources.color_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		

@@ -112,7 +112,7 @@ ZRenderer :: struct {
 	
 
 	default_material		: Material_Instance;
-	opaque_material			: Material_Opaque;
+	opaque_material			: Material_Pipeline_Opaque;
 
 	default_clearvalue		: VkClearValue;
 
@@ -451,14 +451,15 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 		frame_generate_surface_buckets(zr, scene);
 
 		for bucket: zr.frame_surfaces.buckets {
-			material := bucket.material;
-			if material == null {
-				material = *zr.default_material;
+			pipeline := bucket.material_pipeline;
+			layout := bucket.material_pipeline_layout;
+			if pipeline == VK_NULL_HANDLE {
+				pipeline = zr.default_material.pipeline;
 				print("Warning: No material found for mesh, defaulting to zr.default_material (this is slow)\n");
 			}
 		
 			// Bind the pipeline for this material bucket
-			vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipeline);
+			vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
 			for t_surface: bucket.surfaces {
 				index_offset := t_surface.surface.index_address - zr.geometry_pool.index_buffer.base_address;
@@ -467,12 +468,12 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 				push_constants : GPU_Draw_Push_Constants;
 				push_constants.vertex_address = t_surface.surface.vertex_address;
 				push_constants.transform_address = t_surface.transform_address;
-				push_constants.material_address = material.constants_address;
+				push_constants.material_address = t_surface.constants_address;
 				push_constants.camera_data_address = frame_data.camera_buffer.base_address;
-				push_constants.image_index = material.color_texture_index;
+				push_constants.image_index = t_surface.image_index;
             	push_constants.sampler_index = zr.sampler_nearest_index;  
 
-				vkCmdPushConstants(command_buffer, material.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
+				vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
 				vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);
 			}
 		}

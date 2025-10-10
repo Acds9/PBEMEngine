@@ -19,12 +19,15 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice, mesh_buffer_size: u
 
 Frame_Surface_Buckets :: struct {
 	Transformed_Surface	:: struct {
-		transform_address: VkDeviceAddress;
-		surface: *Geo_Surface;
+		constants_address	: VkDeviceAddress;
+		transform_address	: VkDeviceAddress;
+		image_index			: u32;
+		surface				: *Geo_Surface;
 	}
 	Material_Bucket :: struct {
-		material: *Material_Instance; 
-		surfaces: [..]Transformed_Surface;
+		material_pipeline			: VkPipeline; 
+		material_pipeline_layout 	: VkPipelineLayout;
+		surfaces					: [..]Transformed_Surface;
 	}
 
 	buckets		: [..]Material_Bucket;
@@ -40,7 +43,6 @@ frame_generate_surface_buckets :: (zr: *ZRenderer, scene: *ZScene) {
 		return;
 
 	for 0..scene.scene_mesh_instances.count-1 {
-		
 		mesh := *mapped_meshes[it];
 
 		// Skip if generation doesn't match
@@ -51,18 +53,23 @@ frame_generate_surface_buckets :: (zr: *ZRenderer, scene: *ZScene) {
 		for *surface: mesh.mesh_asset.surfaces {
 			surface_material := surface.material;
 			for *bucket: zr.frame_surfaces.buckets {
-				if surface_material == bucket.material {
+				if surface_material.pipeline == bucket.material_pipeline {
 					transformed_surface : Frame_Surface_Buckets.Transformed_Surface;
+					transformed_surface.constants_address = surface_material.constants_address;
 					transformed_surface.transform_address = mesh.transform_address;
+					transformed_surface.image_index	= surface_material.color_texture_index;
 					transformed_surface.surface = surface;
 					array_add(*bucket.surfaces, transformed_surface);
 					continue surface; // This will skip the array add below
 				}
 			}
 			new_bucket : Frame_Surface_Buckets.Material_Bucket;
-			new_bucket.material = surface_material;
+			new_bucket.material_pipeline = surface_material.pipeline;
+			new_bucket.material_pipeline_layout = surface_material.layout;
 			transformed_surface : Frame_Surface_Buckets.Transformed_Surface;
+			transformed_surface.constants_address = surface_material.constants_address;
 			transformed_surface.transform_address = mesh.transform_address;
+			transformed_surface.image_index	= surface_material.color_texture_index;
 			transformed_surface.surface = surface;
 			array_add(*new_bucket.surfaces, transformed_surface); 
 			array_add(*zr.frame_surfaces.buckets, new_bucket);
