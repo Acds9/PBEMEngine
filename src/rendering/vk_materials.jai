@@ -35,10 +35,9 @@ Material_Pipeline_Opaque :: struct {
 		color_factors		: Vector4;
 		padding				: [15]Vector4; // For uniform buffers
 	}
-
+	// TODO: the problem is here, we use Allocated_Image instead of an index into the image_descriptor_buffer, but we only write image_view into said buffer keep in mind
 	Material_Resources :: struct {
-		color_image			: Allocated_Image;
-		data_address		: VkDeviceAddress;
+		color_image_index	: u32;
 	}
 
 	build :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer) {
@@ -115,7 +114,7 @@ Material_Pipeline_Opaque :: struct {
 		mat_data.layout = layout;
 		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, *constants, size_of(Material_Pipeline_Opaque.Material_Constants));
 		
-		mat_data.color_texture_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, resources.color_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		mat_data.color_texture_index = resources.color_image_index;
 		
 		return mat_data;
 	}

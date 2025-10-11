@@ -13,6 +13,7 @@ vkCmdBindDescriptorBuffersEXT : PFN_vkCmdBindDescriptorBuffersEXT;
 vkCmdSetDescriptorBufferOffsetsEXT : PFN_vkCmdSetDescriptorBufferOffsetsEXT;
 
 MAX_FRAMES_IN_FLIGHT :: 2;
+DEFAULT_CLEARVALUE :: #run color_to_array(*COLOR_DARK_GREY);
 
 ZRenderer :: struct {
     // Core state
@@ -96,14 +97,7 @@ ZRenderer :: struct {
 	material_pool			: Material_Pool;
 
 	// Textures
-	white_image				: Allocated_Image;
-	white_image_index		: u32;
-	black_image				: Allocated_Image;
-	black_image_index		: u32;
-	grey_image				: Allocated_Image;
-	grey_image_index		: u32;
-	error_checkerboard		: Allocated_Image;
-	error_image_index		: u32;
+	image_table				: Table(string, Allocated_Image);
 
 	default_sampler_nearest	: VkSampler;
 	sampler_nearest_index	: u32 = 0;
@@ -137,11 +131,12 @@ ZRenderer :: struct {
     }
 }
 
-flush_meshes :: (zr: *ZRenderer) {
-	/*for mesh: zr.meshes {
-		destroy_buffer(VMA_ALLOCATOR, *mesh.mesh_buffers.vertex_buffer);
-		destroy_buffer(VMA_ALLOCATOR, *mesh.mesh_buffers.index_buffer);
-	}*/
+flush_images :: (zr: *ZRenderer) {
+	for *entry: zr.image_table {
+		vkDestroyImageView(zr.device, entry.image_view, null);
+		vmaDestroyImage(VMA_ALLOCATOR, entry.image, entry.allocation);
+
+	}
 }
 
 init_zrenderer :: (zr: *ZRenderer) -> bool, string {
@@ -196,7 +191,11 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	zr.geometry_pool.init(*zr.geometry_pool, zr.device, VMA_ALLOCATOR, GEOPOOL_VERTEX_ALLOC_SIZE, GEOPOOL_INDEX_ALLOC_SIZE);
 	zr.material_pool.init(*zr.material_pool, zr.device, VMA_ALLOCATOR, MATERIAL_CONSTANTS_BUFFER_SIZE);
 	
-	init_default_data(zr);
+	generate_default_images(zr);
+	create_default_samplers(zr);
+	create_default_materials(zr);
+	
+	init_camera(*zr.camera);
 
 	load_glt_meshes(zr, "H:/PBEMJai/content/meshes/basicmesh.glb");
 
@@ -391,7 +390,9 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
 	frame_data := zr.get_current_frame_data(zr);;
 	// Begin a render pass connected to our draw image
-	color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, *zr.default_clearvalue, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	clear_value : VkClearValue;
+	clear_value.color._float32 = DEFAULT_CLEARVALUE;
+	color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, *clear_value, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 	depth_clear : VkClearValue;
 	depth_clear.depthStencil.depth = 1.0;
@@ -538,8 +539,7 @@ deinit_zrenderer :: (zr: *ZRenderer) {
 
 		GLOBAL_DELETION_QUEUE.flush_deletion_queue(*GLOBAL_DELETION_QUEUE);
 
-
-		flush_meshes(zr);
+		flush_images(zr);
 
 		vmaDestroyAllocator(VMA_ALLOCATOR);
 

@@ -1,4 +1,4 @@
 Need to:
-1. Fix geo surface generation, in fact fix most of the gltf loading into structures due to changes - DONE (?)
-2. go through the draw functions and update pretty much everything 
-3. get camera movement going once meshes are loaded in and rendering
+the image writing is weird: we write textures and save them to CPU in ZRenderer as Allocated_Image, then we also write them into the buffer for GPU
+but whenever we make a new material instance, we don't write the index of an existing texture, but rather write a NEW texture into the buffer
+We should load all images at startup, then store the indices for GPU side use

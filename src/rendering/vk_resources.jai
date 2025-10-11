@@ -125,31 +125,31 @@ create_sync_objects :: (zr: *ZRenderer) -> bool, string {
 	return true, "";
 }
 
-init_default_data :: (zr: *ZRenderer) {
-	zr.white_image = create_image(zr, *COLOR_WHITE, .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_White");
-	zr.white_image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, zr.white_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.white_image.image, zr.white_image.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.white_image.image_view);
+generate_default_images :: (zr: *ZRenderer) {
+	white_image := create_image(zr, *color_to_bytes(COLOR_WHITE), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_White");
+	white_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, white_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	white_image.image_name = "white_image";
+	table_add(*zr.image_table, white_image.image_name, white_image);
 
-	zr.grey_image = create_image(zr, *COLOR_GREY, .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Grey");
-	zr.grey_image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, zr.grey_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.grey_image.image, zr.grey_image.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.grey_image.image_view);
+	grey_image := create_image(zr, *color_to_bytes(COLOR_GREY), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Grey");
+	grey_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, grey_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	grey_image.image_name = "grey_image";
+	table_add(*zr.image_table, grey_image.image_name, grey_image);
 
-	zr.black_image = create_image(zr, *COLOR_BLACK, .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Black");
-	zr.black_image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, zr.black_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.black_image.image, zr.black_image.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.black_image.image_view);
+	black_image := create_image(zr, *color_to_bytes(COLOR_BLACK), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Black");
+	black_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, black_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	black_image.image_name = "black_image";
+	table_add(*zr.image_table, black_image.image_name, black_image);
 
-	pixels : [16*16]Color;
+	pixels : [16*16][4]u8;
 	x, y : u32;
 	for *pixels {  
 		x_block := x / 2;
 		y_block := y / 2;
 		if (x_block + y_block) % 2 == 0 {
-			<<it = COLOR_BLACK;
+			<<it = color_to_bytes(COLOR_BLACK);
 		} else {
-			<<it = COLOR_MAGENTA;
+			<<it = color_to_bytes(COLOR_MAGENTA);
 		}
 		x += 1;
 		if x == 16 {
@@ -158,11 +158,13 @@ init_default_data :: (zr: *ZRenderer) {
 		}
 	}
 	
-	zr.error_checkerboard = create_image(zr, pixels.data, .{16,16,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Error");
-	zr.error_image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, zr.error_checkerboard.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.error_checkerboard.image, zr.error_checkerboard.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.error_checkerboard.image_view);
+	error_checkerboard := create_image(zr, pixels.data, .{16,16,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Error");
+	error_checkerboard.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, error_checkerboard.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	error_checkerboard.image_name = "error_image";
+	table_add(*zr.image_table, error_checkerboard.image_name, error_checkerboard);
+}
 
+create_default_samplers :: (zr: *ZRenderer) {
 	sampler_info : VkSamplerCreateInfo;
 	sampler_info.sType = .VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 
@@ -195,23 +197,18 @@ init_default_data :: (zr: *ZRenderer) {
 	
 	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_nearest);
 	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_linear);
+}
 
+create_default_materials :: (zr: *ZRenderer) {
 	material_resources : Material_Pipeline_Opaque.Material_Resources;
-	material_resources.color_image = zr.error_checkerboard;
+	image, success := table_find(*zr.image_table, "error_image");
+	material_resources.color_image_index = image.image_index;
 
 	material_constants : Material_Pipeline_Opaque.Material_Constants;
 	material_constants.color_factors = .{1,1,1,1};
 
 	zr.opaque_material.build(*zr.opaque_material, zr);
 	zr.default_material = zr.opaque_material.create_material_instance(*zr.opaque_material, zr, .MAIN_COLOR, *material_constants, *material_resources);
-
-	zr.camera.position = .{-5, 0, 0};
-	zr.camera.rotation = ROTOR_IDENTITY;
-	zr.camera.fov = 70.0;
-	zr.camera.near_plane = 0.1;
-	zr.camera.far_plane = 10000.0;
-
-	zr.default_clearvalue.color._float32 = .[0.0, 0.025, 0.025, 1.0];
 }
 
 set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, handle: u64, name: string) {
@@ -280,7 +277,7 @@ create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkIm
 }
 
 create_image :: (zr: *ZRenderer, data: *void, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped : bool= false, name: string = "") -> Allocated_Image {
-	data_size := size.width * size.height * size.depth * 4;
+	data_size := size.width * size.height * size.depth * 16;
 	upload_buffer : Allocated_Buffer = create_buffer(VMA_ALLOCATOR, data_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device, "Temp Buffer");
 
 	memcpy(upload_buffer.info.pMappedData, data, data_size);

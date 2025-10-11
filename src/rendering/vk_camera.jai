@@ -31,6 +31,15 @@ Render_Camera :: struct {
 	}
 }
 
+// Init camera with default values
+init_camera :: (camera: *Render_Camera) {
+	camera.position = .{-5, 0, 0};
+	camera.rotation = ROTOR_IDENTITY;
+	camera.fov = 95.0;
+	camera.near_plane = 0.1;
+	camera.far_plane = 10000.0;
+}
+
 quaternion_from_axis_angle :: (axis: Vector3, angle: float) -> Quaternion {
     normalized_axis := normalize(axis);
     
