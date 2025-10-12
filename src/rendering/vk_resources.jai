@@ -126,17 +126,17 @@ create_sync_objects :: (zr: *ZRenderer) -> bool, string {
 }
 
 generate_default_images :: (zr: *ZRenderer) {
-	white_image := create_image(zr, *color_to_bytes(COLOR_WHITE), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_White");
+	white_image := create_image(zr, *color_to_bytes(COLOR_WHITE), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, 0, "Image_White");
 	white_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, white_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	white_image.image_name = "white_image";
 	table_add(*zr.image_table, white_image.image_name, white_image);
 
-	grey_image := create_image(zr, *color_to_bytes(COLOR_GREY), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Grey");
+	grey_image := create_image(zr, *color_to_bytes(COLOR_GREY), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, 0, "Image_Grey");
 	grey_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, grey_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	grey_image.image_name = "grey_image";
 	table_add(*zr.image_table, grey_image.image_name, grey_image);
 
-	black_image := create_image(zr, *color_to_bytes(COLOR_BLACK), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Black");
+	black_image := create_image(zr, *color_to_bytes(COLOR_BLACK), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, 0, "Image_Black");
 	black_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, black_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	black_image.image_name = "black_image";
 	table_add(*zr.image_table, black_image.image_name, black_image);
@@ -158,10 +158,12 @@ generate_default_images :: (zr: *ZRenderer) {
 		}
 	}
 	
-	error_checkerboard := create_image(zr, pixels.data, .{16,16,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Error");
+	error_checkerboard := create_image(zr, pixels.data, .{16,16,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, 0, "Image_Error");
 	error_checkerboard.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, error_checkerboard.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	error_checkerboard.image_name = "error_image";
 	table_add(*zr.image_table, error_checkerboard.image_name, error_checkerboard);
+
+	import_KTX2(*ZRENDERER, "H:/PBEMJai/content/textures/Ion_Frigate.ktx2");
 }
 
 create_default_samplers :: (zr: *ZRenderer) {
@@ -201,7 +203,7 @@ create_default_samplers :: (zr: *ZRenderer) {
 
 create_default_materials :: (zr: *ZRenderer) {
 	material_resources : Material_Pipeline_Opaque.Material_Resources;
-	image, success := table_find(*zr.image_table, "grey_image");
+	image, success := table_find(*zr.image_table, "test_image");
 	material_resources.color_image_index = image.image_index;
 
 	material_constants : Material_Pipeline_Opaque.Material_Constants;
@@ -226,7 +228,7 @@ set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, hand
     vkSetDebugUtilsObjectNameEXT(logical_device, *name_info);
 }
 
-create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped: bool = false, name: string = "") -> Allocated_Image {
+create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped: bool = false, mip_levels : u32 = 0, name: string = "") -> Allocated_Image {
 	if(ENABLE_VALIDATION_LAYERS && name == "") {
 		panic_no_name("image");
 	}
@@ -237,7 +239,12 @@ create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkIm
 
 	image_info := vkinit_image_create_info(format, usage, size);
 	if mip_mapped {
-		image_info.mipLevels = get_mip_levels(size.width, size.height);
+		if mip_levels == 0 {
+			image_info.mipLevels = get_mip_levels(size.width, size.height);
+		}
+		else {
+			image_info.mipLevels = mip_levels;
+		}
 	}
 
 	// Allocate on GPU memory always-ish
@@ -276,13 +283,13 @@ create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkIm
 	return new_image;
 }
 
-create_image :: (zr: *ZRenderer, data: *void, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped : bool= false, name: string = "") -> Allocated_Image {
+create_image :: (zr: *ZRenderer, data: *void, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped : bool = false, mip_levels : u32 = 0, name: string = "") -> Allocated_Image {
 	data_size := size.width * size.height * size.depth * 16;
 	upload_buffer : Allocated_Buffer = create_buffer(VMA_ALLOCATOR, data_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device, "Temp Buffer");
 
 	memcpy(upload_buffer.info.pMappedData, data, data_size);
 
-	new_image : Allocated_Image = create_image(zr, size, format, usage | .VK_IMAGE_USAGE_TRANSFER_DST_BIT | .VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mip_mapped, name);
+	new_image : Allocated_Image = create_image(zr, size, format, usage | .VK_IMAGE_USAGE_TRANSFER_DST_BIT | .VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mip_mapped, mip_levels, name);
 
 	immediate_submit(zr, #code {
 		vkutil_transition_image(cmd, new_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
