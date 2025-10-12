@@ -197,7 +197,7 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	
 	init_camera(*zr.camera);
 
-	load_glt_meshes(zr, "H:/PBEMJai/content/meshes/basicmesh.glb");
+	load_glt_meshes(zr, "H:/PBEMJai/content/meshes/ship_test.glb");
 
 	zr.initialized = true;
 	return true, "";

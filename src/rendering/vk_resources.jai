@@ -201,7 +201,7 @@ create_default_samplers :: (zr: *ZRenderer) {
 
 create_default_materials :: (zr: *ZRenderer) {
 	material_resources : Material_Pipeline_Opaque.Material_Resources;
-	image, success := table_find(*zr.image_table, "error_image");
+	image, success := table_find(*zr.image_table, "grey_image");
 	material_resources.color_image_index = image.image_index;
 
 	material_constants : Material_Pipeline_Opaque.Material_Constants;

@@ -18,7 +18,7 @@ ZRENDERER_DELTATIME		: float64;
 ZRENDERER_FRAMESPERSECOND : u32;
 
 MOUSELOOK_SENSITIVITY	: float = 1;
-CAMERA_MOVESPEED		: float = 0.01;
+CAMERA_MOVESPEED		: float = 0.1;
 
 z_scene		: ZScene; // This will later not be constant, so we don't make it a pseudo-constant
 
@@ -39,9 +39,10 @@ main :: () {
 
 	z_scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device, SCENE_MESHBUFFER_SIZE, SCENE_TRANSFORMBUFFER_SIZE);
 	
-	mesh, found := table_find(*ZRENDERER.mesh_map, "Suzanne");
+	mesh_name := "Hull";
+	mesh, found := table_find(*ZRENDERER.mesh_map, mesh_name);
 	if !found {
-		panic("Could not find Suzanne");
+		panic(sprint("Could not find %", mesh_name));
 	}
 	add_scene_mesh(*z_scene, mesh, Matrix4.{_11=-1, _22=-1, _33=1, _44=1});
 
