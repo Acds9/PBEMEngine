@@ -163,7 +163,7 @@ generate_default_images :: (zr: *ZRenderer) {
 	error_checkerboard.image_name = "error_image";
 	table_add(*zr.image_table, error_checkerboard.image_name, error_checkerboard);
 
-	import_KTX2(*ZRENDERER, "H:/PBEMJai/content/textures/Ion_Frigate.ktx2");
+	load_image(*ZRENDERER, "H:/PBEMJai/content/textures/Ion_Frigate.ktx2");
 }
 
 create_default_samplers :: (zr: *ZRenderer) {
@@ -203,7 +203,7 @@ create_default_samplers :: (zr: *ZRenderer) {
 
 create_default_materials :: (zr: *ZRenderer) {
 	material_resources : Material_Pipeline_Opaque.Material_Resources;
-	image, success := table_find(*zr.image_table, "test_image");
+	image, success := table_find(*zr.image_table, "error_image");
 	material_resources.color_image_index = image.image_index;
 
 	material_constants : Material_Pipeline_Opaque.Material_Constants;

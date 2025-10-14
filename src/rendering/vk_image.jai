@@ -19,6 +19,14 @@ KTX2 :: struct {
 	}
 }
 
+load_image :: (zr: *ZRenderer, file_path: string) {
+	new_image := import_KTX2(zr, file_path);
+	new_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, new_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	success, left, right := split_from_right(file_path, ".");
+	success, left, new_image.image_name = split_from_right(left, "/");
+	table_add(*zr.image_table, new_image.image_name, new_image);
+}
+
 import_KTX2 :: (zr: *ZRenderer, file_path: string) -> Allocated_Image {
 	file_string, success := read_entire_file(file_path);
 	if !success {
@@ -119,10 +127,6 @@ import_KTX2 :: (zr: *ZRenderer, file_path: string) -> Allocated_Image {
     });
 
 	destroy_buffer(VMA_ALLOCATOR, *upload_buffer);
-	
-	// TODO: this should not be in here I think
-	new_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, new_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	new_image.image_name = "test_image";
-	table_add(*zr.image_table, new_image.image_name, new_image);
+
 	return new_image;
 }
