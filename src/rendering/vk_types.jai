@@ -289,8 +289,6 @@ GPU_Draw_Push_Constants :: struct {
 	transform_address	: VkDeviceAddress;
 	material_address	: VkDeviceAddress;
 	camera_data_address : VkDeviceAddress;
-	image_index			: u32;      
-    sampler_index		: u32;    
 }
 
 Render_Transform :: struct {

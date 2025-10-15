@@ -22,9 +22,10 @@ vec4 sunlight_color = vec4(1.f, 1.f, 1.f, 1.f);
 void main() 
 {
 	CameraData scene = CameraData(push_constants.camera_data_address);
+	MaterialData mat = MaterialData(push_constants.material_address);
 	
 	// Sample texture using bindless array
-    vec3 tex_color = texture(sampler2D(images[push_constants.color_texture_index], samplers[push_constants.sampler_index]), in_UV).xyz;
+    vec3 tex_color = texture(sampler2D(images[mat.albedo_image_index], samplers[mat.albedo_sampler_index]), in_UV).xyz;
 
 	float light_value = max(dot(in_normal, sunlight_direction.xyz), 0.1f);
 

@@ -469,10 +469,8 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 				push_constants : GPU_Draw_Push_Constants;
 				push_constants.vertex_address = t_surface.surface.vertex_address;
 				push_constants.transform_address = t_surface.transform_address;
-				push_constants.material_address = t_surface.constants_address;
+				push_constants.material_address = t_surface.constants_address; // TODO: the whole material thing is broken sending zr.default material doesnt work either
 				push_constants.camera_data_address = frame_data.camera_buffer.base_address;
-				push_constants.image_index = t_surface.image_index;
-            	push_constants.sampler_index = zr.sampler_nearest_index;  
 
 				vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
 				vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);

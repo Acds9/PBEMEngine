@@ -37,7 +37,6 @@ Frame_Surface_Buckets :: struct {
 	Transformed_Surface	:: struct {
 		constants_address	: VkDeviceAddress;
 		transform_address	: VkDeviceAddress;
-		image_index			: u32;
 		surface				: *Geo_Surface;
 	}
 	Material_Bucket :: struct {
@@ -73,7 +72,6 @@ frame_generate_surface_buckets :: (zr: *ZRenderer, scene: *ZScene) {
 					transformed_surface : Frame_Surface_Buckets.Transformed_Surface;
 					transformed_surface.constants_address = surface_material.constants_address;
 					transformed_surface.transform_address = mesh.transform_address;
-					transformed_surface.image_index	= surface_material.color_texture_index;
 					transformed_surface.surface = surface;
 					array_add(*bucket.surfaces, transformed_surface);
 					continue surface; // This will skip the array add below
@@ -85,7 +83,6 @@ frame_generate_surface_buckets :: (zr: *ZRenderer, scene: *ZScene) {
 			transformed_surface : Frame_Surface_Buckets.Transformed_Surface;
 			transformed_surface.constants_address = surface_material.constants_address;
 			transformed_surface.transform_address = mesh.transform_address;
-			transformed_surface.image_index	= surface_material.color_texture_index;
 			transformed_surface.surface = surface;
 			array_add(*new_bucket.surfaces, transformed_surface); 
 			array_add(*zr.frame_surfaces.buckets, new_bucket);

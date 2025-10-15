@@ -8,7 +8,7 @@ Material_Pool :: struct {
 	constants_buffer	: Storage_Buffer;
 
 	init :: (using self: *Material_Pool, device: VkDevice, allocator: VmaAllocator, constants_buffer_size: u64) {
-		constants_buffer = make_storage_buffer(VMA_ALLOCATOR, constants_buffer_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, device, "constants_buffer buffer");
+		constants_buffer = make_storage_buffer(VMA_ALLOCATOR, constants_buffer_size, .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, device, "constants_buffer buffer");
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, constants_buffer.buffer, constants_buffer.allocation);
 	}
 
@@ -23,8 +23,6 @@ Material_Instance :: struct {
 	pass_type			: MATERIAL_PASS;
 
 	constants_address 	: VkDeviceAddress;
-
-	color_texture_index	: u32;
 }
 
 Material_Pipeline_Opaque :: struct {
@@ -32,12 +30,9 @@ Material_Pipeline_Opaque :: struct {
 	layout		: VkPipelineLayout;
 
 	Material_Constants :: struct {
-		color_factors		: Vector4;
-		padding				: [15]Vector4; // For uniform buffers
-	}
-	// TODO: the problem is here, we use Allocated_Image instead of an index into the image_descriptor_buffer, but we only write image_view into said buffer keep in mind
-	Material_Resources :: struct {
-		color_image_index	: u32;
+		color_factors			: Vector4;
+		albedo_image_index		: u32;
+		albedo_sampler_index 	: u32;
 	}
 
 	build :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer) {
@@ -107,15 +102,12 @@ Material_Pipeline_Opaque :: struct {
 		
 	}
 
-	create_material_instance :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Pipeline_Opaque.Material_Constants, resources: *Material_Pipeline_Opaque.Material_Resources) -> Material_Instance {
+	create_material_instance :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Pipeline_Opaque.Material_Constants) -> Material_Instance {
 		mat_data : Material_Instance;
 		mat_data.pass_type = pass;
 		mat_data.pipeline = pipeline;	
 		mat_data.layout = layout;
-		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, *constants, size_of(Material_Pipeline_Opaque.Material_Constants));
-		
-		mat_data.color_texture_index = resources.color_image_index;
-		
+		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, constants, size_of(Material_Pipeline_Opaque.Material_Constants));
 		return mat_data;
 	}
 

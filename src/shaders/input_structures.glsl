@@ -6,15 +6,15 @@ layout(buffer_reference, scalar) readonly buffer CameraData {
 
 layout(buffer_reference, scalar) readonly buffer MaterialData { 
 	vec4 color_factors;
+    uint albedo_image_index;
+	uint albedo_sampler_index;
 };
 
-layout(push_constant) uniform Push_Constants {
+layout(push_constant) uniform PushConstants {
     uint64_t vertex_address;
     uint64_t transform_address;
     uint64_t material_address;
     uint64_t camera_data_address;
-    uint color_texture_index;
-    uint sampler_index;
 } push_constants;
 
 layout(set = 0, binding = 0) uniform texture2D images[];
