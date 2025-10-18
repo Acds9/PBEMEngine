@@ -12,6 +12,7 @@
 layout (location = 0) in vec3 in_normal;
 layout (location = 1) in vec3 in_color;
 layout (location = 2) in vec2 in_UV;
+layout (location = 3) in vec3 in_world_pos;
 
 layout (location = 0) out vec4 out_frag_color;
 
@@ -21,16 +22,39 @@ vec4 sunlight_color = vec4(1.f, 1.f, 1.f, 1.f);
 
 void main() 
 {
-	CameraData scene = CameraData(push_constants.camera_data_address);
-	MaterialData mat = MaterialData(push_constants.material_address);
-	
-	// Sample texture using bindless array
+    CameraData scene = CameraData(push_constants.camera_data_address);
+    MaterialData mat = MaterialData(push_constants.material_address);
+    Point_Light_Data point_lights = Point_Light_Data(push_constants.point_lights_address);
+    
+    // Sample texture
     vec3 tex_color = texture(sampler2D(images[mat.albedo_image_index], samplers[mat.albedo_sampler_index]), in_UV).xyz;
 
-	float light_value = max(dot(in_normal, sunlight_direction.xyz), 0.1f);
-
-	vec3 color = tex_color; // in_color * 
-    vec3 ambient = color * ambient_color.xyz;
+    // Start with ambient
+    vec3 ambient = tex_color * ambient_color.xyz * 0.1; // Reduced ambient so lights show up
     
-    out_frag_color = vec4(color * light_value * sunlight_color.w + ambient, 1.0f);
+    // Directional sunlight (your existing code)
+    float sun_diffuse = max(dot(in_normal, normalize(sunlight_direction)), 0.0);
+    vec3 lighting = sunlight_color.xyz * sun_diffuse;
+    
+    // Add point lights
+    for (uint i = 0; i < push_constants.point_lights_count; i++) {
+        PointLight light = point_lights.lights[i];
+        
+        // Vector from fragment to light
+        vec3 light_dir = light.position - in_world_pos; // Need world position here, see below
+        float distance = length(light_dir);
+        light_dir = normalize(light_dir);
+        
+        // Simple attenuation: light fades to zero at radius
+        float attenuation = max(0.0, 1.0 - (distance / light.radius));
+        attenuation = attenuation * attenuation; // Squared falloff looks better
+        
+        // Diffuse lighting
+        float diffuse = max(dot(in_normal, light_dir), 0.0);
+        
+        // Accumulate
+        lighting += light.color.xyz * diffuse * attenuation;
+    }
+    
+    out_frag_color = vec4(tex_color * lighting + ambient, 1.0);
 }

@@ -1,5 +1,12 @@
 MATERIAL_CONSTANTS_BUFFER_SIZE 			:: 8*1024*1024; // 8MB, probably overkill
 
+Material_Type :: enum {
+    OPAQUE;
+    TRANSPARENT;
+    EMISSIVE;
+	ADDITIVE;
+}
+
 MATERIAL_PASS :: enum u8 {
 	MAIN_COLOR 		:: 0;
 }
@@ -25,15 +32,21 @@ Material_Instance :: struct {
 	constants_address 	: VkDeviceAddress;
 }
 
+Material_Constants_Opaque :: struct {
+	color_factors			: Vector4;
+	albedo_image_index		: u32;
+	albedo_sampler_index 	: u32;
+}
+
+Material_Constants :: struct {
+	union {
+		opaque : Material_Constants_Opaque;
+	}
+}
+
 Material_Pipeline_Opaque :: struct {
 	pipeline 	: VkPipeline;
 	layout		: VkPipelineLayout;
-
-	Material_Constants :: struct {
-		color_factors			: Vector4;
-		albedo_image_index		: u32;
-		albedo_sampler_index 	: u32;
-	}
 
 	build :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer) {
 		success : bool;
@@ -102,14 +115,13 @@ Material_Pipeline_Opaque :: struct {
 		
 	}
 
-	create_material_instance :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Pipeline_Opaque.Material_Constants) -> Material_Instance {
+	create_material_instance :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Constants_Opaque) -> Material_Instance {
 		mat_data : Material_Instance;
 		mat_data.pass_type = pass;
 		mat_data.pipeline = pipeline;	
 		mat_data.layout = layout;
-		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, constants, size_of(Material_Pipeline_Opaque.Material_Constants));
+		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, constants, size_of(Material_Constants_Opaque));
 		return mat_data;
 	}
 
 }
-

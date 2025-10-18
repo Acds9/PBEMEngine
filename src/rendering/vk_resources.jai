@@ -162,8 +162,6 @@ generate_default_images :: (zr: *ZRenderer) {
 	error_checkerboard.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, error_checkerboard.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	error_checkerboard.image_name = "error_image";
 	table_add(*zr.image_table, error_checkerboard.image_name, error_checkerboard);
-
-	load_image(*ZRENDERER, "H:/PBEMJai/content/textures/Ion_Frigate.ktx2");
 }
 
 create_default_samplers :: (zr: *ZRenderer) {
@@ -202,7 +200,7 @@ create_default_samplers :: (zr: *ZRenderer) {
 }
 
 create_default_materials :: (zr: *ZRenderer) {
-	material_constants : Material_Pipeline_Opaque.Material_Constants;
+	material_constants : Material_Constants_Opaque;
 	material_constants.color_factors = .{0,1,0,1};
 	image, success := table_find(*zr.image_table, "error_image");
 	if !success {

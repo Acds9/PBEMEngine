@@ -19,12 +19,12 @@ KTX2 :: struct {
 	}
 }
 
-load_image :: (zr: *ZRenderer, file_path: string) {
+load_image :: (zr: *ZRenderer, file_path: string) -> *Allocated_Image {
 	new_image := import_KTX2(zr, file_path);
 	new_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, new_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	success, left, right := split_from_right(file_path, ".");
 	success, left, new_image.image_name = split_from_right(left, "/");
-	table_add(*zr.image_table, new_image.image_name, new_image);
+	return table_add(*zr.image_table, new_image.image_name, new_image);
 }
 
 import_KTX2 :: (zr: *ZRenderer, file_path: string) -> Allocated_Image {

@@ -37,14 +37,24 @@ main :: () {
 		return;
 	}
 
+	load_assets(*ZRENDERER);
+
 	z_scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device, SCENE_MESHBUFFER_SIZE, SCENE_TRANSFORMBUFFER_SIZE);
 	
-	mesh_name := "Hull";
+	mesh_name := "ion_frigate";
 	mesh, found := table_find(*ZRENDERER.mesh_map, mesh_name);
 	if !found {
-		panic(sprint("Could not find %", mesh_name));
+		print("WARNING: Could not find % mesh\n", mesh_name);
 	}
 	add_scene_mesh(*z_scene, mesh, Matrix4.{_11=-1, _22=-1, _33=1, _44=1});
+
+	light : Point_Light; 
+	light.position 	= .{10,1,10};
+	light.radius	= 24;
+	light.color		= .{1,0,0,1};
+
+	add_scene_point_light(*z_scene, light);
+
 
 	SDL_SetRelativeMouseMode(SDL_TRUE);
 	SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1"); 

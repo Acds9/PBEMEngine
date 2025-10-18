@@ -11,6 +11,7 @@
 layout (location = 0) out vec3 out_normal;
 layout (location = 1) out vec3 out_color;
 layout (location = 2) out vec2 out_UV;
+layout (location = 3) out vec3 out_world_pos;
 
 struct Vertex {
 	vec3 position;
@@ -41,6 +42,8 @@ void main() {
 
     vec4 position = vec4(v.position, 1.0);
     
+    vec4 world_pos = world_matrix * position;
+   
     // Transform to clip space
     gl_Position = camera.view_proj * world_matrix * position;
     
@@ -49,4 +52,5 @@ void main() {
     out_color =  mat.color_factors.xyz; // Removed v.color.xyz * for now, bugged
     out_UV.x = v.uv_x;
     out_UV.y = v.uv_y;
+    out_world_pos = world_pos.xyz;
 }

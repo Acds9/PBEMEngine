@@ -10,11 +10,23 @@ layout(buffer_reference, scalar) readonly buffer MaterialData {
 	uint albedo_sampler_index;
 };
 
+struct PointLight {
+    vec3 position;
+    float radius; 
+    vec4 color;
+};
+
+layout(buffer_reference, scalar) readonly buffer Point_Light_Data { 
+    PointLight lights[];
+};
+
 layout(push_constant) uniform PushConstants {
     uint64_t vertex_address;
     uint64_t transform_address;
     uint64_t material_address;
     uint64_t camera_data_address;
+    uint64_t point_lights_address;
+    uint     point_lights_count;
 } push_constants;
 
 layout(set = 0, binding = 0) uniform texture2D images[];

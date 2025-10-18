@@ -8,8 +8,7 @@ ZScene :: struct {
 	scene_mesh_instances	: Uniform_Storage_Buffer;
 	scene_transforms		: Uniform_Storage_Buffer; 
 
-	scene_lights			: Uniform_Storage_Buffer;
-	scene_light_indices		: Uniform_Storage_Buffer;
+	scene_point_lights		: Uniform_Storage_Buffer;
 }
 
 create_zscene :: (allocator: VmaAllocator, device: VkDevice, mesh_buffer_size: u64, transform_buffer_size: u64) -> ZScene {
@@ -22,13 +21,9 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice, mesh_buffer_size: u
 																															.VMA_MEMORY_USAGE_CPU_TO_GPU, device, "scene_transforms buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.scene_transforms.buffer, scene.scene_transforms.allocation);
 
-	scene.scene_lights = make_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_LIGHTBUFFER_SIZE, size_of(Light), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
-																															.VMA_MEMORY_USAGE_CPU_TO_GPU, device, "scene_lights buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.scene_lights.buffer, scene.scene_lights.allocation);
-
-	scene.scene_light_indices = make_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_LIGHTINDEXBUFFER_SIZE, size_of(u32), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
-																															.VMA_MEMORY_USAGE_CPU_TO_GPU, device, "scene_light_indices buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.scene_light_indices.buffer, scene.scene_light_indices.allocation);
+	scene.scene_point_lights = make_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_LIGHTBUFFER_SIZE, size_of(Point_Light), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
+																															.VMA_MEMORY_USAGE_CPU_TO_GPU, device, "scene_point_lights buffer");
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.scene_point_lights.buffer, scene.scene_point_lights.allocation);
 
 	return scene;
 }
@@ -103,6 +98,11 @@ add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, 
 	mesh_render.transform_address = transform_buffer.allocate(transform_buffer, render_transform, *mesh_render.generation);
 
 	return scene.scene_mesh_instances.allocate(*scene.scene_mesh_instances, mesh_render);
+}
+
+add_scene_point_light :: (scene: *ZScene, light: Point_Light) -> u32 {
+	scene.scene_point_lights.allocate(*scene.scene_point_lights, light);
+	return scene.scene_point_lights.count-1;
 }
 
 remove_scene_mesh :: (scene: *ZScene, address: VkDeviceAddress) {

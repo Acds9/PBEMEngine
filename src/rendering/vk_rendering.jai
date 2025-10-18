@@ -108,6 +108,8 @@ ZRenderer :: struct {
 	default_material		: Material_Instance;
 	opaque_material			: Material_Pipeline_Opaque;
 
+	material_instance_table	: Table(string, Material_Instance);
+
 	default_clearvalue		: VkClearValue;
 
 	frame_surfaces			: Frame_Surface_Buckets;
@@ -191,13 +193,18 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	zr.geometry_pool.init(*zr.geometry_pool, zr.device, VMA_ALLOCATOR, GEOPOOL_VERTEX_ALLOC_SIZE, GEOPOOL_INDEX_ALLOC_SIZE);
 	zr.material_pool.init(*zr.material_pool, zr.device, VMA_ALLOCATOR, MATERIAL_CONSTANTS_BUFFER_SIZE);
 	
+	// TODO: need to load all meshes
+	
+	
 	generate_default_images(zr);
 	create_default_samplers(zr);
 	create_default_materials(zr);
+
+	//load_glt_meshes(zr, "H:/PBEMJai/content/meshes/ion_frigate.glb");
 	
 	init_camera(*zr.camera);
 
-	load_glt_meshes(zr, "H:/PBEMJai/content/meshes/ship_test.glb");
+
 
 	zr.initialized = true;
 	return true, "";
@@ -388,7 +395,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 }
 
 draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
-	frame_data := zr.get_current_frame_data(zr);;
+	frame_data := zr.get_current_frame_data(zr);
 	// Begin a render pass connected to our draw image
 	clear_value : VkClearValue;
 	clear_value.color._float32 = DEFAULT_CLEARVALUE;
@@ -399,6 +406,8 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 	depth_attachment : VkRenderingAttachmentInfo = vkinit_depth_attachment_info(zr.depth_image.image_view, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 	depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depth_attachment.clearValue = depth_clear;
+
+	
 
 	render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
 	vkCmdBeginRendering(command_buffer, *render_info);
@@ -469,8 +478,10 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 				push_constants : GPU_Draw_Push_Constants;
 				push_constants.vertex_address = t_surface.surface.vertex_address;
 				push_constants.transform_address = t_surface.transform_address;
-				push_constants.material_address = t_surface.constants_address; // TODO: the whole material thing is broken sending zr.default material doesnt work either
+				push_constants.material_address = t_surface.constants_address; 
 				push_constants.camera_data_address = frame_data.camera_buffer.base_address;
+				push_constants.point_lights_address = scene.scene_point_lights.base_address; // TODO: this stuff needs to be moved later anyway, we can do this per draw right now
+				push_constants.point_lights_count = scene.scene_point_lights.count;
 
 				vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
 				vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);
