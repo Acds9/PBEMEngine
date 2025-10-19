@@ -40,32 +40,3 @@ init_camera :: (camera: *Render_Camera) {
 	camera.far_plane = 10000.0;
 }
 
-quaternion_from_axis_angle :: (axis: Vector3, angle: float) -> Quaternion {
-    normalized_axis := normalize(axis);
-    
-    half_angle := angle * 0.5;
-    s := sin(half_angle);
-    
-    result: Quaternion;
-    result.x = normalized_axis.x * s;
-    result.y = normalized_axis.y * s;
-    result.z = normalized_axis.z * s;
-    result.w = cos(half_angle);
-    
-    return result;
-}
-
-// Axis must already be normalized
-quaternion_from_axis_angle_fast :: (axis: Vector3, angle: float) -> Quaternion {
-    half_angle := angle * 0.5;
-    s := sin(half_angle);
-    
-    result: Quaternion;
-    result.x = axis.x * s;
-    result.y = axis.y * s;
-    result.z = axis.z * s;
-    result.w = cos(half_angle);
-    
-    return result;
-}
-

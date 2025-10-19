@@ -9,7 +9,7 @@ Position :: struct{
 
 Rotation :: struct{
 	using #as entity_component: Entity_Component;
-	rot : Quaternion = QUAT_IDENTITY;
+	rot : Rotor = ROTOR_IDENTITY;
 }
 
 Scale :: struct{
