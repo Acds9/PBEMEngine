@@ -104,6 +104,8 @@ ZRenderer :: struct {
 	default_sampler_linear	: VkSampler;
 	sampler_linear_index	: u32 = 1;
 	
+	wireframe_material		: Material_Pipeline_Wireframe;
+	wireframe_material_instance : Material_Instance;
 
 	default_material		: Material_Instance;
 	opaque_material			: Material_Pipeline_Opaque;
@@ -204,8 +206,6 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	
 	init_camera(*zr.camera);
 
-
-
 	zr.initialized = true;
 	return true, "";
 }
@@ -231,7 +231,8 @@ immediate_submit :: (zr: *ZRenderer, body: Code) #expand {
 }
 
 init_pipelines :: (zr: *ZRenderer) -> bool, string {
-	init_mesh_pipeline(zr);
+	zr.wireframe_material.build(*zr.wireframe_material, zr);
+	zr.opaque_material.build(*zr.opaque_material, zr);
 	return true, "";
 }
 
@@ -310,6 +311,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 		vkutil_transition_image(frame_data.command_buffer, zr.depth_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_DEPTH_BIT);
 
+		draw_debug(zr, scene, frame_data.command_buffer);
 		// Draw geometry stuff
 		draw_geometry(zr, scene, frame_data.command_buffer);
 		//
@@ -394,7 +396,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	}
 }
 
-draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
+draw_debug :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
 	frame_data := zr.get_current_frame_data(zr);
 	// Begin a render pass connected to our draw image
 	clear_value : VkClearValue;
@@ -407,7 +409,85 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 	depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depth_attachment.clearValue = depth_clear;
 
-	
+	render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
+	vkCmdBeginRendering(command_buffer, *render_info);
+	{
+		// Set dynamic viewport and scissor
+		viewport : VkViewport;
+		viewport.x = 0;
+		viewport.y = 0;
+		viewport.width = cast,no_check(float)zr.draw_extent.width;
+		viewport.height = cast,no_check(float)zr.draw_extent.height;
+		viewport.minDepth = 0;
+		viewport.maxDepth = 1;
+
+		vkCmdSetViewport(command_buffer, 0, 1, *viewport);
+
+		scissor : VkRect2D;
+		scissor.offset.x = 0;
+		scissor.offset.y = 0;
+		scissor.extent.width = zr.draw_extent.width;
+		scissor.extent.height = zr.draw_extent.height;
+
+		vkCmdSetScissor(command_buffer, 0, 1, *scissor);
+
+		// Fetch this once per frame
+		camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
+		<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
+		material := zr.wireframe_material_instance;
+		
+		pipeline := material.pipeline;
+		layout := material.layout;
+
+		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+		meshes := *scene.scene_debug_mesh_instances;
+		if meshes.count == 0 {
+			vkCmdEndRendering(command_buffer);
+			return;
+		}
+
+		mapped_meshes := *meshes.info.pMappedData;
+		transforms := *scene.scene_debug_transforms;
+
+		for 0..meshes.count-1 {
+			mesh : *Mesh_Instance = cast,no_check(*Mesh_Instance)mapped_meshes[it];
+			
+			if mesh.generation != meshes.generations[it] {
+				continue; 
+			}
+
+			mesh_asset : *Mesh_Asset = mesh.mesh_asset;
+			for surface: mesh_asset.surfaces {
+				index_offset := surface.index_address - zr.geometry_pool.index_buffer.base_address;
+				vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
+				
+				push_constants : GPU_Draw_Push_Constants;
+				push_constants.vertex_address = surface.vertex_address;
+				push_constants.transform_address = mesh.transform_address;
+				push_constants.material_address = material.constants_address; 
+				push_constants.camera_data_address = frame_data.camera_buffer.base_address;
+				push_constants.point_lights_address = scene.scene_point_lights.base_address; 
+				push_constants.point_lights_count = scene.scene_point_lights.count;
+
+				vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
+				vkCmdDrawIndexed(command_buffer, surface.index_count, 1, 0, 0, 0);
+
+			}
+		}
+	}
+	vkCmdEndRendering(command_buffer);
+}
+
+draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
+	frame_data := zr.get_current_frame_data(zr);
+	// Begin a render pass connected to our draw image
+	// TODO: we clear in debug and load in here, maybe these functions should just be outside of the draw_ functions?
+	color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, null, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    color_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_LOAD;  // load existing, do not clear
+    
+    depth_attachment : VkRenderingAttachmentInfo = vkinit_depth_attachment_info(zr.depth_image.image_view, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+    depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_LOAD;  
 
 	render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
 	vkCmdBeginRendering(command_buffer, *render_info);

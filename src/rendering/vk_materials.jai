@@ -32,6 +32,10 @@ Material_Instance :: struct {
 	constants_address 	: VkDeviceAddress;
 }
 
+Material_Constants_Wireframe :: struct {
+	color_factors			: Vector4;
+}
+
 Material_Constants_Opaque :: struct {
 	color_factors			: Vector4;
 	albedo_image_index		: u32;
@@ -40,7 +44,88 @@ Material_Constants_Opaque :: struct {
 
 Material_Constants :: struct {
 	union {
-		opaque : Material_Constants_Opaque;
+		wireframe	: Material_Constants_Wireframe;
+		opaque 		: Material_Constants_Opaque;
+	}
+}
+
+Material_Pipeline_Wireframe :: struct {
+	pipeline 	: VkPipeline;
+	layout		: VkPipelineLayout;
+
+	build :: (using self: *Material_Pipeline_Wireframe, zr: *ZRenderer) {
+		success : bool;
+		wireframe_frag_shader : VkShaderModule;
+		success, wireframe_frag_shader = create_shader_module(zr, "src/shaders/wireframe.frag.spv");
+		if !success {
+			panic("Error: Failed to create wireframe fragment shader");
+		}
+		wireframe_vert_shader : VkShaderModule;
+		success, wireframe_vert_shader = create_shader_module(zr, "src/shaders/wireframe.vert.spv");
+		if !success {
+			panic("Error: Failed to create wireframe vertex shader");
+		}
+
+		matrix_range : VkPushConstantRange;
+		matrix_range.offset = 0;
+		matrix_range.size = size_of(GPU_Draw_Push_Constants);
+		matrix_range.stageFlags = .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		layouts := VkDescriptorSetLayout.[
+            zr.image_array_layout,      
+            zr.sampler_array_layout,    
+        ];
+
+		mesh_layout_info : VkPipelineLayoutCreateInfo = vkinit_pipeline_layout_create_info();
+		mesh_layout_info.setLayoutCount = 2;
+		mesh_layout_info.pSetLayouts = layouts.data;
+		mesh_layout_info.pPushConstantRanges = *matrix_range;
+		mesh_layout_info.pushConstantRangeCount = 1;
+
+		new_layout : VkPipelineLayout;
+		result := vkCreatePipelineLayout(zr.device, *mesh_layout_info, null, *new_layout);
+		if result != .VK_SUCCESS {
+			panic("Failed to create Material_Wireframe layout");
+		}
+		layout = new_layout;
+		queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, layout);
+
+		pipeline_builder : Pipeline_Builder;
+		pipeline_builder.set_shaders(*pipeline_builder, wireframe_vert_shader, wireframe_frag_shader);
+		pipeline_builder.set_input_topology(*pipeline_builder, .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+		pipeline_builder.set_polygon_mode(*pipeline_builder, .VK_POLYGON_MODE_LINE);
+		pipeline_builder.set_cull_mode(*pipeline_builder, .VK_CULL_MODE_NONE, .VK_FRONT_FACE_COUNTER_CLOCKWISE);
+		pipeline_builder.set_line_width(*pipeline_builder, 1);
+		pipeline_builder.set_multisampling_none(*pipeline_builder);
+		pipeline_builder.disable_blending(*pipeline_builder);
+		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_LESS_OR_EQUAL);
+
+		pipeline_builder.set_color_attachment_format(*pipeline_builder, zr.draw_image.image_format);
+		pipeline_builder.set_depth_format(*pipeline_builder, zr.depth_image.image_format);
+		pipeline_builder.set_vk_object_name(*pipeline_builder, "Opaque Pipeline");
+
+		pipeline_builder.pipeline_layout = new_layout;
+
+		pipeline = pipeline_builder.build(*pipeline_builder, zr);
+		if pipeline == VK_NULL_HANDLE {
+			panic("Failed to create wireframe pipeline");
+		}
+
+		vkDestroyShaderModule(zr.device, wireframe_frag_shader, null);
+		vkDestroyShaderModule(zr.device, wireframe_vert_shader, null);
+	}
+
+	clear_resources :: (using self: *Material_Pipeline_Wireframe, device: VkDevice) {
+		
+	}
+
+	create_material_instance :: (using self: *Material_Pipeline_Wireframe, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Constants_Wireframe) -> Material_Instance {
+		mat_data : Material_Instance;
+		mat_data.pass_type = pass;
+		mat_data.pipeline = pipeline;	
+		mat_data.layout = layout;
+		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, constants, size_of(Material_Constants_Wireframe));
+		return mat_data;
 	}
 }
 

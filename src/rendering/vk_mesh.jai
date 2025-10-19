@@ -184,7 +184,6 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 	}
 	array_add(*zr.meshes, new_mesh);
 	mesh_ptr := *zr.meshes[zr.meshes.count - 1];
-	table_add(*zr.mesh_map, mesh_ptr.name, mesh_ptr);
 
 	return mesh_ptr;
 }

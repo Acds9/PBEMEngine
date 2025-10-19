@@ -181,6 +181,12 @@ Pipeline_Builder :: struct {
 		rasterizer.frontFace = front_face;
 	}
 
+	set_line_width :: (self: *Pipeline_Builder, width: float) {
+		using self;
+
+		rasterizer.lineWidth = width;
+	}
+
 	set_multisampling_none :: (self: *Pipeline_Builder) { // Expand later
 		using self;
 

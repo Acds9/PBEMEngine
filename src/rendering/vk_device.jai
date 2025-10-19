@@ -290,6 +290,7 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 
 	device_featuresVk : VkPhysicalDeviceFeatures2;
 	device_featuresVk.features.shaderInt64 = VK_TRUE;
+	device_featuresVk.features.fillModeNonSolid = VK_TRUE; 
 	device_featuresVk.pNext = *device_featuresVK11;
 
 	device_create_info : VkDeviceCreateInfo;

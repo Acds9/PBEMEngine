@@ -201,15 +201,18 @@ create_default_samplers :: (zr: *ZRenderer) {
 
 create_default_materials :: (zr: *ZRenderer) {
 	material_constants : Material_Constants_Opaque;
-	material_constants.color_factors = .{0,1,0,1};
+	material_constants.color_factors = .{1,1,1,1};
 	image, success := table_find(*zr.image_table, "error_image");
 	if !success {
 		panic("Could not find error_image");
 	}
 	material_constants.albedo_image_index = image.image_index;
 	material_constants.albedo_sampler_index = zr.sampler_nearest_index;
-	zr.opaque_material.build(*zr.opaque_material, zr);
 	zr.default_material = zr.opaque_material.create_material_instance(*zr.opaque_material, zr, .MAIN_COLOR, *material_constants);
+
+	wireframe_constants : Material_Constants_Wireframe;
+	wireframe_constants.color_factors = .{1,0,0,1};
+	zr.wireframe_material_instance = zr.wireframe_material.create_material_instance(*zr.wireframe_material, zr, .MAIN_COLOR, *wireframe_constants);
 }
 
 set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, handle: u64, name: string) {

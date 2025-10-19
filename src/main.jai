@@ -55,6 +55,7 @@ main :: () {
 
 	add_scene_point_light(*z_scene, light);
 
+	add_scene_debug_sphere(*z_scene, Matrix4.{_11=-1, _22=-1, _33=1, _44=1});
 
 	SDL_SetRelativeMouseMode(SDL_TRUE);
 	SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1"); 

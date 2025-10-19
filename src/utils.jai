@@ -40,6 +40,11 @@ string_to_byte_array :: (str: string) -> [..]u8 {
 	return bytes;
 }
 
+warn :: (msg: string) {
+	print("WARNING: %\n", msg);
+	debug_break();
+}
+
 panic :: (msg: string) {
 	print("%\n", msg);
 	debug_break();

@@ -59,6 +59,7 @@ load_assets :: (zr: *ZRenderer) {
 	{
 		ion_frigate_mesh := load_glt_meshes(zr, "H:/PBEMJai/content/meshes/ion_frigate.glb");
 		ion_frigate_mesh.name = "ion_frigate";
+		table_add(*zr.mesh_map, ion_frigate_mesh.name, ion_frigate_mesh);
 
 		image := load_image(*ZRENDERER, "H:/PBEMJai/content/textures/ion_frigate_hull_albedo.ktx2");
 		constants : Material_Constants_Opaque;
@@ -66,5 +67,12 @@ load_assets :: (zr: *ZRenderer) {
 		constants.albedo_sampler_index = zr.sampler_nearest_index;
 		ion_frigate_hull_material := zr.opaque_material.create_material_instance(*zr.opaque_material, zr, .MAIN_COLOR, *constants);
 		ion_frigate_mesh.surfaces[0].material = table_add(*zr.material_instance_table, "ion_frigate_hull_material", ion_frigate_hull_material);
+	}
+
+	//Debug sphere
+	{
+		debug_sphere_mesh := load_glt_meshes(zr, "H:/PBEMJai/content/meshes/sphere_debug_1x1.glb");
+		debug_sphere_mesh.name = "debug_sphere";
+		table_add(*zr.mesh_map, debug_sphere_mesh.name, debug_sphere_mesh);
 	}
 }
