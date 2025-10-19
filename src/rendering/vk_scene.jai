@@ -110,6 +110,12 @@ add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, 
 	return scene.scene_mesh_instances.allocate(*scene.scene_mesh_instances, mesh_render);
 }
 
+
+add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, transform: Transform, parent_transform: VkDeviceAddress = 0) -> VkDeviceAddress {
+	transform_to_matrix4(transform);
+	return add_scene_mesh(scene, mesh, transform_to_matrix4(transform), parent_transform);
+}
+
 remove_scene_mesh :: (scene: *ZScene, address: VkDeviceAddress) {
     scene.scene_transforms.buffer_remove(*scene.scene_transforms, address);
     scene.scene_mesh_instances.buffer_remove(*scene.scene_mesh_instances, address);

@@ -17,3 +17,6 @@ examples/*
 modules/*
 content/*
 .vscode/*
+
+# IDE
+*.10x

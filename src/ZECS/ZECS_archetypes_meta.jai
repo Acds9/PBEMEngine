@@ -6,6 +6,7 @@ generate_file_loads :: () -> string {
 	builder: String_Builder;
    	
 	files := string.[
+		"H:/PBEMJai/src/zmath.jai",
 		"ZECS/ZECS_types.jai",
 		"ZECS/generated/ZECS_constants_gen.jai",
 	];
@@ -389,6 +390,7 @@ generate_archetype_component_index_getters :: (metadata: []Archetype_Build_Metad
 }
 
 #load "ZECS_types.jai";
+#load "H:/PBEMJai/src/zmath.jai";
 #load "generated/ZECS_constants_gen.jai";
 #load "ZECS_components.jai";
 #load "generated/ZECS_components_gen.jai";

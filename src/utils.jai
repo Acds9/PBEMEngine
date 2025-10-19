@@ -1,4 +1,5 @@
 #import "File";
+#import "String";
 #import "File_Utilities";
 
 // Files
