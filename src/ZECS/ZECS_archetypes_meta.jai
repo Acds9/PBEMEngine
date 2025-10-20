@@ -60,7 +60,7 @@ generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string 
     print_to_builder(*builder, "ARCHETYPE_DATABASE :: Archetype_Data.[\n");
     
     for arch: metadata {
-		print_to_builder(*builder, "\t.{\n");
+		print_to_builder(*builder, "\tArchetype_Data.{\n");
         print_to_builder(*builder, "\t\tname = \"%\",\n", arch.name);
 		print_to_builder(*builder, "\t\tindex = %,\n", it_index);
 		print_to_builder(*builder, "\t\ttype = %,\n", arch.name);
@@ -114,7 +114,7 @@ generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string 
 
 		// We do not need to add defaults, they are already initialized constants in the component definition, just refer to them directly
 
-		print_to_builder(*builder, "\t}\n");
+		print_to_builder(*builder, "\t},\n");
     }
     print_to_builder(*builder, "];\n");
 
@@ -335,12 +335,10 @@ generate_archetype_component_index_getters :: (metadata: []Archetype_Build_Metad
 			for e_c: archetype.entity_components {
 				print_to_builder(*builder, "\t\t\tcase %; return %;\n", e_c, it_index);
 			}
-			print_to_builder(*builder, "\t\t\tcase; return 0;\n");
 			print_to_builder(*builder, "\t\t}\n");
-			print_to_builder(*builder, "\t\tcase; return 0;\n");
 		}
 		print_to_builder(*builder, "\t}\n");
-	
+		print_to_builder(*builder, "\t\treturn 0;\n");
 	print_to_builder(*builder, "}\n");
 
 	print_to_builder(*builder, "get_archetype_component_index :: (archetype: Type, archetype_component: Type) -> u16 {\n");
@@ -350,11 +348,10 @@ generate_archetype_component_index_getters :: (metadata: []Archetype_Build_Metad
 			for a_c: archetype.arch_components {
 				print_to_builder(*builder, "\t\t\tcase %; return %;\n", a_c, it_index);
 			}
-			print_to_builder(*builder, "\t\t\tcase; return 0;\n");
 			print_to_builder(*builder, "\t\t}\n");
-			print_to_builder(*builder, "\t\tcase; return 0;\n");
 		}
 		print_to_builder(*builder, "\t}\n");
+		print_to_builder(*builder, "\treturn 0;\n");
 	print_to_builder(*builder, "}\n");
 
 	print_to_builder(*builder, "get_entity_component_type :: (archetype: Type, index: u16) -> Type {\n");
@@ -366,9 +363,9 @@ generate_archetype_component_index_getters :: (metadata: []Archetype_Build_Metad
 			}
 			print_to_builder(*builder, "\t\t\tcase; return Position;\n");
 			print_to_builder(*builder, "\t\t}\n");
-			print_to_builder(*builder, "\tcase; return void;\n");
 		}
 		print_to_builder(*builder, "\t}\n");
+		print_to_builder(*builder, "\treturn void;\n");
 	print_to_builder(*builder, "}\n");
 
 	print_to_builder(*builder, "get_archetype_component_type :: (archetype: Type, index: u16) -> Type {\n");
@@ -378,11 +375,11 @@ generate_archetype_component_index_getters :: (metadata: []Archetype_Build_Metad
 			for a_c: archetype.arch_components {
 				print_to_builder(*builder, "\t\t\tcase %; return %;\n", it_index, a_c);
 			}
-			print_to_builder(*builder, "\t\t\tcase; return void;\n");
 			print_to_builder(*builder, "\t\t}\n");
-			print_to_builder(*builder, "\tcase; return void;\n");
+			
 		}
 		print_to_builder(*builder, "\t}\n");
+		print_to_builder(*builder, "\treturn void;\n");
 	print_to_builder(*builder, "}\n");
 	
 	
