@@ -2,6 +2,7 @@ Observer_Flags :: enum_flags u8 {
 	NONE;
 }
 
+
 Observer :: struct {}
 
 Observer_Ship_Spawn :: struct {

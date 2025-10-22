@@ -45,8 +45,14 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 
 			print_to_builder(*builder, "\tMATCHING_ARCHETYPES		:: u16.%;\n", matching_archetypes);
 			print_to_builder(*builder, "\tfor arch_idx: MATCHING_ARCHETYPES {\n");
-				
 				print_to_builder(*builder, "\t\tentry := Observer_Entry.{priority = %, proc = execute_%};\n", observer.priority, observer.name);
+				
+				print_to_builder(*builder, "\t\tfor *world.observer_registry.on_created[arch_idx] {\n");
+					print_to_builder(*builder, "\t\t\tif it.proc == entry.proc {\n");
+						print_to_builder(*builder, "\t\t\t\tprint(\"WARNING: Attempted to register an already registered observer: \%\\n\", entry);\n");
+						print_to_builder(*builder, "\t\t\t\treturn;\n");
+					print_to_builder(*builder, "\t\t\t}\n");
+				print_to_builder(*builder, "\t\t}\n");
 			
 				print_to_builder(*builder, "\t\tarray_add(*world.observer_registry.on_created[arch_idx], entry);\n");
 
@@ -57,4 +63,3 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
     return builder_to_string(*builder);
 }
 
-// Add the observer registry and flushing and try registering an observer

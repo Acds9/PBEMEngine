@@ -17,6 +17,12 @@ register_Observer_Ship_Spawn :: (world: *ZWorld) {
 	MATCHING_ARCHETYPES		:: u16.[0];
 	for arch_idx: MATCHING_ARCHETYPES {
 		entry := Observer_Entry.{priority = 0, proc = execute_Observer_Ship_Spawn};
+		for *world.observer_registry.on_created[arch_idx] {
+			if it.proc == entry.proc {
+				print("WARNING: Attempted to register an already registered observer: %\n", entry);
+				return;
+			}
+		}
 		array_add(*world.observer_registry.on_created[arch_idx], entry);
 	}
 }

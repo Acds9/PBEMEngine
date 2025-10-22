@@ -58,7 +58,7 @@ game_init :: (using state: *Game_State) -> bool {
     light.color = .{1,0,0,1};
     add_scene_point_light(*scene, light);
     add_scene_debug_sphere(*scene, Matrix4.{_11=-1, _22=-1, _33=1, _44=1});
-
+	   register_Observer_Ship_Spawn(*world);
     register_Observer_Ship_Spawn(*world);
 	create_entity(*world, Archetype_Ship); // TODO: observer isn't triggering
     // Input setup
