@@ -7,7 +7,7 @@ Observer :: struct {}
 Observer_Ship_Spawn :: struct {
 	using #as observer: Observer;
 
-	ENTITY_COMPONENTS 		:: Type.[Position, Rotation, Scale];
+	ENTITY_COMPONENTS 		:: Type.[Position, Rotation, Scale, Mesh_Instance_Address];
 	ARCHETYPE_COMPONENTS 	:: Type.[Mesh_Rep];
 	TAGS					:: ZTags.SHIP;
 
@@ -16,6 +16,6 @@ Observer_Ship_Spawn :: struct {
 
 	// THIS CODE IS CALLED PER-ENTITY!
 	PROC :: (entity_idx: ZEntity, archetype_idx: u16, world: *ZWorld) {
-		//print("Ship % created!\n", get_entity_component(world, entity_idx, Scale).scale);
+		print("Ship % created!\n", get_entity_component(world, entity_idx, Scale).scale);
 	}
 }

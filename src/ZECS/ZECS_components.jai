@@ -26,6 +26,12 @@ Entity_Representation_Flags :: struct {
 	flags : Representation_Flags;
 }
 
+Mesh_Instance_Address :: struct {
+	using #as entity_component: Entity_Component;
+
+	mesh_address	: u64;
+}
+
 Archetype_Component :: struct{}
 
 Mesh_Rep :: struct {

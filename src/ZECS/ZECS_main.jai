@@ -60,15 +60,11 @@ ZWorld :: struct {
 
 }
 
-create_zworld :: (pool_size: s64 = DEFAULT_POOL_SIZE) -> *ZWorld {
-	world := New(ZWorld);
-
+init_zworld :: (world: *ZWorld, pool_size: s64 = DEFAULT_POOL_SIZE) {
 	fp.init(*world.world_pool, pool_size);
 	allocator := Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
 
 	world.world_entities.allocator = allocator;
-
-	return world;
 }
 
 reset_world :: (world: *ZWorld) {
@@ -92,10 +88,10 @@ tick_world :: (world: *ZWorld, delta_time: float64) {
 	flush_observers(world);
 }
 
-observe_created_entities :: (world: *ZWorld, archetype: u16, entity: ZEntity) { 
+observer_add_created_entities :: (world: *ZWorld, archetype: u16, entity: ZEntity) { 
 	array_add(*world.observer_buffer.created[archetype], entity);
 }
-observe_created_entities :: (world: *ZWorld, archetype: u16, entities: [..]ZEntity) { 
+observer_add_created_entities :: (world: *ZWorld, archetype: u16, entities: [..]ZEntity) { 
 	array_append(*world.observer_buffer.created[archetype], entities);
 }
 
@@ -172,7 +168,7 @@ create_entity :: (world: *ZWorld, arch: Type, idx : u32 = 0, gen : u16 = 0) -> Z
 	};
 
 	array_add(*world.world_entities, entity);
-	observe_created_entities(world, get_arch_index(arch), entity);
+	observer_add_created_entities(world, get_arch_index(arch), entity);
 	return entity;
 }
 
@@ -249,7 +245,7 @@ create_entity_batch :: (world: *ZWorld, $arch_type: Type, count: u32) -> []ZEnti
         array_add(*world.world_entities, it);
     }
     
-	observe_created_entities(world, get_arch_index(arch_type), entities);
+	observer_add_created_entities(world, get_arch_index(arch_type), entities);
     return entities;
 }
 

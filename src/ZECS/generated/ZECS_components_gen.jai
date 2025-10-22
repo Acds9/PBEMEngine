@@ -3,9 +3,10 @@
 get_entity_component_bit_index :: (t: Type) -> u32 {
 	if t == {
 		case Entity_Representation_Flags; return 0;
-		case Position; return 1;
-		case Rotation; return 2;
-		case Scale; return 3;
+		case Mesh_Instance_Address; return 1;
+		case Position; return 2;
+		case Rotation; return 3;
+		case Scale; return 4;
 		case; return 0;
 	}
 }
@@ -14,9 +15,10 @@ get_entity_component_bit_index :: (t: Type) -> u32 {
 get_entity_component_bit_type :: (idx: u32) -> Type {
 	if idx == {
 		case 0; return Entity_Representation_Flags;
-		case 1; return Position;
-		case 2; return Rotation;
-		case 3; return Scale;
+		case 1; return Mesh_Instance_Address;
+		case 2; return Position;
+		case 3; return Rotation;
+		case 4; return Scale;
 		case; return Type;
 	}
 }
@@ -25,6 +27,7 @@ get_entity_component_bit_type :: (idx: u32) -> Type {
 get_entity_component_size :: (T: Type) -> u32 {
 	if T == {
 		case Entity_Representation_Flags; return size_of(Entity_Representation_Flags);
+		case Mesh_Instance_Address; return size_of(Mesh_Instance_Address);
 		case Position; return size_of(Position);
 		case Rotation; return size_of(Rotation);
 		case Scale; return size_of(Scale);
@@ -60,6 +63,7 @@ get_archetype_component_size :: (T: Type) -> u32 {
 get_entity_component_type :: (name: string) -> Type {
 	if name == {
 		case "Entity_Representation_Flags"; return Entity_Representation_Flags;
+		case "Mesh_Instance_Address"; return Mesh_Instance_Address;
 		case "Position"; return Position;
 		case "Rotation"; return Rotation;
 		case "Scale"; return Scale;
@@ -71,6 +75,7 @@ get_entity_component_type :: (name: string) -> Type {
 get_entity_component_string :: (t: Type) -> string {
 	if t == {
 		case Entity_Representation_Flags; return "Entity_Representation_Flags";
+		case Mesh_Instance_Address; return "Mesh_Instance_Address";
 		case Position; return "Position";
 		case Rotation; return "Rotation";
 		case Scale; return "Scale";

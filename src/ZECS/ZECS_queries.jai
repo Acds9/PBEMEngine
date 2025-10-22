@@ -6,11 +6,11 @@ Query_Flags		:: enum_flags u8 {
 
 Query :: struct {
 }
-// TODO: chec what's generated, indices are fucked
+
 Query_Position_Randomizer :: struct {
 	using #as query: Query;
 	
-	ENTITY_COMPONENTS 		:: Type.[Scale];
+	ENTITY_COMPONENTS 		:: Type.[Position];
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.SHIP;
 
