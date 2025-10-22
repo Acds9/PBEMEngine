@@ -32,7 +32,8 @@ CAMERA_MOVESPEED		: float = 0.1;
 game_init :: (using state: *Game_State) -> bool {
 	init_zworld(*world);
     init_archetype(*world, Archetype_Ship);
-    
+    register_observers(*world);
+
     // Renderer setup
     init_success, init_error := init_zrenderer(*ZRENDERER);
     if !init_success {
@@ -58,8 +59,7 @@ game_init :: (using state: *Game_State) -> bool {
     light.color = .{1,0,0,1};
     add_scene_point_light(*scene, light);
     add_scene_debug_sphere(*scene, Matrix4.{_11=-1, _22=-1, _33=1, _44=1});
-	   register_Observer_Ship_Spawn(*world);
-    register_Observer_Ship_Spawn(*world);
+
 	create_entity(*world, Archetype_Ship); // TODO: observer isn't triggering
     // Input setup
     SDL_SetRelativeMouseMode(SDL_TRUE);

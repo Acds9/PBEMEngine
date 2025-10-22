@@ -26,3 +26,8 @@ register_Observer_Ship_Spawn :: (world: *ZWorld) {
 		array_add(*world.observer_registry.on_created[arch_idx], entry);
 	}
 }
+
+// Observer Registration Function
+register_observers :: (world: *ZWorld) {
+	register_Observer_Ship_Spawn(world);
+}

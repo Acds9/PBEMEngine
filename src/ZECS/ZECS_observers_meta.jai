@@ -60,6 +60,12 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 		
 		print_to_builder(*builder, "}\n");
 	}
+	print_to_builder(*builder, "\n// Observer Registration Function\n");
+	print_to_builder(*builder, "register_observers :: (world: *ZWorld) {\n");
+		for observer: observers {
+				print_to_builder(*builder, "\tregister_%(world);\n", observer.name);
+		}
+	print_to_builder(*builder, "}\n");
     return builder_to_string(*builder);
 }
 
