@@ -5,7 +5,6 @@ Entity_Component_Storage :: struct {
 	data			: [..]u8;		
 	stride			: u32;			
 }
-Archetype_Component_Storage :: struct {}
 
 DEFAULT_ENTITY_CHUNK_SIZE :: 32;
 MAX_ENTITIES_PER_ARCHETYPE :: 2048;
@@ -14,7 +13,7 @@ Archetype_Storage :: struct {
 	entity_components 			: [..]Entity_Component_Storage;
 	entity_component_mask 		: Bit_Field(MAX_ENTITY_COMPONENTS);
 	
-	archetype_components		: [..]Archetype_Component_Storage;
+	archetype_components		: [..]u8;
 	archetype_component_mask	: Bit_Field(MAX_ARCH_COMPONENTS);
 
 	tags						: ZTags;
@@ -59,12 +58,12 @@ Observer_Buffer :: struct {
 	reset :: (){};
 }
 
-get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T {return null;}
-
-
-get_archetype_component :: (world: *ZWorld, archetype: u16, $T: Type) -> *T {return null;};
-
 Observer_Entry :: struct {
 	priority	: u8;
 	proc		: (world: *ZWorld, arch: u16, entity_indices: []ZEntity);
 }
+
+get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T {return null;}
+get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage {return null;}
+initialize_archetype_storage :: (archetype: Type, allocator: *Allocator) -> Archetype_Storage {return .{};}
+//get_archetype_component :: (world: *ZWorld, archetype: Type, $T: Type) -> *T {return null;};

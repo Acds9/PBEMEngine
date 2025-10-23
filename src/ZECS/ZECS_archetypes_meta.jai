@@ -125,7 +125,7 @@ generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string 
 	print_to_builder(*builder, "};\n");
 
     print_to_builder(*builder, "get_archetype_data :: (t: Type) -> *Archetype_Data{\n");
-	print_to_builder(*builder, "\treturn *ARCHETYPE_DATABASE[get_arch_index(t)];\n");
+	print_to_builder(*builder, "\treturn *ARCHETYPE_DATABASE[get_archetype_storage_index(t)];\n");
 	print_to_builder(*builder, "};\n");
     
     return builder_to_string(*builder);
@@ -137,7 +137,7 @@ generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string 
 // Code Generation - Lookup Functions
 //
 
-// Generates: get_arch_index(Type) -> u16
+// Generates: get_archetype_storage_index(Type) -> u16
 // Maps archetype types to their storage indices
 generate_archetype_index_lookup :: (metadata: []Archetype_Build_Metadata) -> string {
     builder: String_Builder;
@@ -145,7 +145,7 @@ generate_archetype_index_lookup :: (metadata: []Archetype_Build_Metadata) -> str
     quick_sort(names, compare_strings);
     
     print_to_builder(*builder, "\n// Get storage index for archetype type\n");
-    print_to_builder(*builder, "get_arch_index :: (t: Type) -> u16 {\n");
+    print_to_builder(*builder, "get_archetype_storage_index :: (t: Type) -> u16 {\n");
     print_to_builder(*builder, "\tif t == {\n");
     
     for names {
@@ -159,7 +159,7 @@ generate_archetype_index_lookup :: (metadata: []Archetype_Build_Metadata) -> str
     return builder_to_string(*builder);
 }
 
-// Generates: get_index_arch(idx) -> Type
+// Generates: get_archetype(idx) -> Type
 // Maps indices to the archetype Type
 generate_index_archetype_lookup :: (metadata: []Archetype_Build_Metadata) -> string{
 	builder: String_Builder;
@@ -167,7 +167,7 @@ generate_index_archetype_lookup :: (metadata: []Archetype_Build_Metadata) -> str
     quick_sort(names, compare_strings);
     
     print_to_builder(*builder, "\n// Get archetype Type for storage index\n");
-    print_to_builder(*builder, "get_index_arch :: (idx: u16) -> Type {\n");
+    print_to_builder(*builder, "get_archetype :: (idx: u16) -> Type {\n");
     print_to_builder(*builder, "\tif idx == {\n");
     
     for names {
@@ -187,8 +187,7 @@ generate_string_to_arch_type :: (arch_names: []string) -> string {
 	quick_sort(arch_names, compare_strings);
 
 	print_to_builder(*builder, "\n");
-	print_to_builder(*builder, "// Get the arch Type from a string name\n");
-	print_to_builder(*builder, "get_arch_type :: (name: string) -> Type {\n");
+	print_to_builder(*builder, "get_archetype :: (name: string) -> Type {\n");
 	print_to_builder(*builder, "\tif name == {\n");
 
 	for arch_names {
@@ -205,18 +204,18 @@ generate_string_to_arch_type :: (arch_names: []string) -> string {
 // Code Generation - Component Access
 //
 
-// Generates: get_e_c_storage_ptr(world, archetype_type, component_type) -> *Entity_Component_Storage
+// Generates: get_EC_storage_ptr(world, archetype_type, component_type) -> *Entity_Component_Storage
 // Returns pointer to component storage for a specific archetype/component pair
 generate_component_storage_getter :: (metadata: []Archetype_Build_Metadata) -> string {
     builder: String_Builder;
     
     print_to_builder(*builder, "\n// Get component storage for archetype/component pair\n");
-    print_to_builder(*builder, "get_e_c_storage_ptr :: (world: *ZWorld, arch: Type, $T: Type) -> *Entity_Component_Storage {\n");
+    print_to_builder(*builder, "get_EC_storage_ptr :: (world: *ZWorld, arch: Type, $T: Type) -> *Entity_Component_Storage {\n");
     print_to_builder(*builder, "\tif arch == {\n");
     
     for arch: metadata {
         print_to_builder(*builder, "\t\tcase %;\n", arch.name);
-        print_to_builder(*builder, "\t\t\ta_s := *world.world_archetypes[get_arch_index(%)];\n", arch.name);
+        print_to_builder(*builder, "\t\t\ta_s := *world.world_archetypes[get_archetype_storage_index(%)];\n", arch.name);
         print_to_builder(*builder, "\t\t\tif T == {\n");
         
         for comp: arch.entity_components {
@@ -381,8 +380,48 @@ generate_archetype_component_index_getters :: (metadata: []Archetype_Build_Metad
 		print_to_builder(*builder, "\t}\n");
 		print_to_builder(*builder, "\treturn void;\n");
 	print_to_builder(*builder, "}\n");
+
+	print_to_builder(*builder, "get_archetype_component_storage :: (world: *ZWorld, archetype: Type) -> *[..]u8 {\n");
+	print_to_builder(*builder, "\tif archetype == {\n");
+	for archetype: metadata {
+		print_to_builder(*builder, "\t\tcase %; return *world.world_archetypes[get_archetype_storage_index(Archetype_Ship)].archetype_components;\n", archetype.name);
+		print_to_builder(*builder, "\t\tcase; return null;\n");
+		print_to_builder(*builder, "\t}\n");
+	}
+	print_to_builder(*builder, "}\n");
+
+	print_to_builder(*builder, "get_archetype_component :: (world: *ZWorld, archetype: Type, $T: Type) -> *T {\n");
+	print_to_builder(*builder, "\tif archetype == {\n");
+	for archetype: metadata {
+		print_to_builder(*builder, "\t\tcase %; if T == {\n", archetype.name);
+		offset : u32;
+		for a_c: archetype.arch_components {
+			print_to_builder(*builder, "\t\t\tcase %; {\n", a_c);
+			print_to_builder(*builder, "\t\t\t\tdata := get_archetype_component_storage(world, archetype);\n");
+			print_to_builder(*builder, "\t\t\t\treturn cast,no_check(*%)(data.data + %);\n", a_c, offset);
+			print_to_builder(*builder, "\t\t\t}\n");
+			offset += get_archetype_component_size(get_archetype_component_type(a_c));
+		}
+		print_to_builder(*builder, "\t\t}\n");
+	}
+	print_to_builder(*builder, "\t}\n");
+	print_to_builder(*builder, "\treturn null;\n");
+	print_to_builder(*builder, "}\n");
 	
 	
+	return builder_to_string(*builder);
+}
+
+generate_archetype_initialization :: (metadata: []Archetype_Build_Metadata) -> string {
+	builder: String_Builder;
+	
+	print_to_builder(*builder, "\n// Archetype Master Initialization Function\n");
+	print_to_builder(*builder, "initialize_archetypes :: (world: *ZWorld, allocator: *Allocator) {\n");
+	for archetype: metadata {
+		print_to_builder(*builder, "\tinit_archetype_%(world, allocator);\n", archetype.name);
+	}
+	print_to_builder(*builder, "}\n");
+
 	return builder_to_string(*builder);
 }
 

@@ -106,6 +106,7 @@ generate_archetype_code :: (w: Workspace, archetypes: [..]Archetype_Build_Metada
 	append(*archetypes_file_builder, generate_archetype_component_index_getters(archetypes));
 	append(*archetypes_file_builder, generate_entity_component_initializers(archetypes));
 	append(*archetypes_file_builder, generate_entity_initializer_dispatch(archetypes));
+	append(*archetypes_file_builder, generate_archetype_initialization(archetypes));
 
     
 	write_entire_file(ZECS_ARCHETYPES_GEN_PATH, builder_to_string(*archetypes_file_builder));

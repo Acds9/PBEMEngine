@@ -42,11 +42,11 @@ get_archetype_data :: (idx: u16) -> *Archetype_Data{
 	return *ARCHETYPE_DATABASE[idx];
 };
 get_archetype_data :: (t: Type) -> *Archetype_Data{
-	return *ARCHETYPE_DATABASE[get_arch_index(t)];
+	return *ARCHETYPE_DATABASE[get_archetype_storage_index(t)];
 };
 
 // Get storage index for archetype type
-get_arch_index :: (t: Type) -> u16 {
+get_archetype_storage_index :: (t: Type) -> u16 {
 	if t == {
 		case Archetype_Ship; return 0;
 		case; return 0;
@@ -54,7 +54,7 @@ get_arch_index :: (t: Type) -> u16 {
 }
 
 // Get archetype Type for storage index
-get_index_arch :: (idx: u16) -> Type {
+get_archetype :: (idx: u16) -> Type {
 	if idx == {
 		case 0; return Archetype_Ship;
 		case; return void;
@@ -62,10 +62,10 @@ get_index_arch :: (idx: u16) -> Type {
 }
 
 // Get component storage for archetype/component pair
-get_e_c_storage_ptr :: (world: *ZWorld, arch: Type, $T: Type) -> *Entity_Component_Storage {
+get_EC_storage_ptr :: (world: *ZWorld, arch: Type, $T: Type) -> *Entity_Component_Storage {
 	if arch == {
 		case Archetype_Ship;
-			a_s := *world.world_archetypes[get_arch_index(Archetype_Ship)];
+			a_s := *world.world_archetypes[get_archetype_storage_index(Archetype_Ship)];
 			if T == {
 				case Position; return *a_s.entity_components[0];
 				case Rotation; return *a_s.entity_components[1];
@@ -77,8 +77,7 @@ get_e_c_storage_ptr :: (world: *ZWorld, arch: Type, $T: Type) -> *Entity_Compone
 	}
 }
 
-// Get the arch Type from a string name
-get_arch_type :: (name: string) -> Type {
+get_archetype :: (name: string) -> Type {
 	if name == {
 		case "Archetype_Ship"; return Archetype_Ship;
 		case; return void;
@@ -155,6 +154,23 @@ get_archetype_component_type :: (archetype: Type, index: u16) -> Type {
 	}
 	return void;
 }
+get_archetype_component_storage :: (world: *ZWorld, archetype: Type) -> *[..]u8 {
+	if archetype == {
+		case Archetype_Ship; return *world.world_archetypes[get_archetype_storage_index(Archetype_Ship)].archetype_components;
+		case; return null;
+	}
+}
+get_archetype_component :: (world: *ZWorld, archetype: Type, $T: Type) -> *T {
+	if archetype == {
+		case Archetype_Ship; if T == {
+			case Mesh_Rep; {
+				data := get_archetype_component_storage(world, archetype);
+				return cast,no_check(*Mesh_Rep)(data.data + 0);
+			}
+		}
+	}
+	return null;
+}
 
 // Initialize entity components for Archetype_Ship
 init_entity_components_Archetype_Ship :: (storage: *Archetype_Storage, entity_index: u32) {
@@ -174,4 +190,9 @@ init_entity_components :: (t: Type, storage: *Archetype_Storage, entity_index: u
 		case Archetype_Ship; init_entity_components_Archetype_Ship(storage, entity_index);
 		case; // Unknown archetype
 	}
+}
+
+// Archetype Master Initialization Function
+initialize_archetypes :: (world: *ZWorld, allocator: *Allocator) {
+	init_archetype_Archetype_Ship(world, allocator);
 }

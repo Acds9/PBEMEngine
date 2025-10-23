@@ -13,8 +13,14 @@ Archetype_Ship :: struct{
 	ENTITY_COMPONENTS    	:: Type.[Position, Rotation, Scale, Mesh_Instance_Address];
     ARCHETYPE_COMPONENTS 	:: Type.[Mesh_Rep];
 	TAGS					:: ZTags.SHIP;
-	// TODO: Why not just define an initializer function instead that sets the data when an archetype is instantiated?
-	DEFAULT_Mesh_Rep		:: Mesh_Rep.{mesh_name = "ion_frigate"};  // Could put some sort of insert macro that adds DEFAULT_ automatically to tagged vars? 
-
+	
 	CHUNK_SIZE				: u32 : 32;
 }; 
+
+init_archetype_Archetype_Ship :: (world: *ZWorld, allocator: *Allocator) {
+	storage := get_archetype_storage(world, Archetype_Ship);
+	<<storage = initialize_archetype_storage(Archetype_Ship, allocator);
+	mesh_rep_component := get_archetype_component(world, Archetype_Ship, Mesh_Rep);
+	mesh_rep_component.mesh_name = "ion_frigate";
+	storage.initialized = true;
+}

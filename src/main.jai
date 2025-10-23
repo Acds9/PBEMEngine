@@ -31,8 +31,7 @@ CAMERA_MOVESPEED		: float = 0.1;
 
 game_init :: (using state: *Game_State) -> bool {
 	init_zworld(*world);
-    init_archetype(*world, Archetype_Ship);
-    register_observers(*world);
+	
 
     // Renderer setup
     init_success, init_error := init_zrenderer(*ZRENDERER);

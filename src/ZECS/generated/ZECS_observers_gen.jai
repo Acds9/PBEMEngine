@@ -7,7 +7,7 @@ execute_Observer_Ship_Spawn :: (world: *ZWorld, arch_idx: u16, entities: []ZEnti
 		rotation := *get_entity_component(world, entity, Rotation);
 		scale := *get_entity_component(world, entity, Scale);
 		mesh_instance_address := *get_entity_component(world, entity, Mesh_Instance_Address);
-		mesh_rep := *get_archetype_component(world, arch_idx, Mesh_Rep);
+		mesh_rep := *get_archetype_component(world, get_archetype(arch_idx), Mesh_Rep);
 		Observer_Ship_Spawn.PROC(entity, arch_idx, world);
 	}
 }

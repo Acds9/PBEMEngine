@@ -31,7 +31,7 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 					print_to_builder(*builder, "\t\t% := *get_entity_component(world, entity, %);\n", to_lower_copy(e_c), e_c);
 				}
 				for a_c: observer.archetype_components {
-					print_to_builder(*builder, "\t\t% := *get_archetype_component(world, arch_idx, %);\n", to_lower_copy(a_c), a_c);
+					print_to_builder(*builder, "\t\t% := *get_archetype_component(world, get_archetype(arch_idx), %);\n", to_lower_copy(a_c), a_c);
 				}
 
 				print_to_builder(*builder, "\t\t%.PROC(entity, arch_idx, world);\n", observer.name);

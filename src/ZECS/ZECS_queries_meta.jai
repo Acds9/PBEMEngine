@@ -43,7 +43,7 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 				print_to_builder(*builder, "\n");
 				for e_c: query.entity_components {
 					comp_type := get_entity_component_type(e_c);
-					print_to_builder(*builder, "\t\t\t`%_array = array_view(%, *storage.entity_components[%], storage.num_entities);\n", to_lower_copy(e_c), comp_type, get_entity_component_index(get_index_arch(arch_index),comp_type)); 
+					print_to_builder(*builder, "\t\t\t`%_array = array_view(%, *storage.entity_components[%], storage.num_entities);\n", to_lower_copy(e_c), comp_type, get_entity_component_index(get_archetype(arch_index),comp_type)); 
 				}
 				print_to_builder(*builder, "\n");
 				for a_c: query.archetype_components {
