@@ -1,4 +1,0 @@
-Need to:
-1. Fix geo surface generation, in fact fix most of the gltf loading into structures due to changes - DONE (?)
-2. go through the draw functions and update pretty much everything 
-3. get camera movement going once meshes are loaded in and rendering
