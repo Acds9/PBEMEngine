@@ -20,3 +20,6 @@ content/*
 
 # IDE
 *.10x
+
+# Generated files
+#*_gen.*
