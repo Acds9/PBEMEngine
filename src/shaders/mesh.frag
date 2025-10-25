@@ -17,8 +17,8 @@ layout (location = 3) in vec3 in_world_pos;
 layout (location = 0) out vec4 out_frag_color;
 
 vec3 sunlight_direction = vec3(0.5f, 0.5f, 0.f);
-vec3 ambient_color = vec3(1.f, 1.f, 1.f);
-vec4 sunlight_color = vec4(1.f, 1.f, 1.f, 1.f);
+vec3 ambient_color = vec3(.1f, .1f, .1f);
+vec4 sunlight_color = vec4(1.f, 1.f, 1.f, 0.f);
 
 void main() 
 {
@@ -26,14 +26,12 @@ void main()
     MaterialData mat = MaterialData(push_constants.material_address);
     Point_Light_Data point_lights = Point_Light_Data(push_constants.point_lights_address);
     
-    // Sample texture
     vec3 tex_color = texture(sampler2D(images[mat.albedo_image_index], samplers[mat.albedo_sampler_index]), in_UV).xyz;
 
-    // Start with ambient
-    vec3 ambient = tex_color * ambient_color.xyz * 0.1; // Reduced ambient so lights show up
+    vec3 ambient = tex_color * ambient_color.xyz; 
     
     // Directional sunlight (your existing code)
-    float sun_diffuse = max(dot(in_normal, normalize(sunlight_direction)), 0.0);
+    float sun_diffuse = max(dot(in_normal, normalize(sunlight_direction)), 0.0)*0; // Sunlight off for now
     vec3 lighting = sunlight_color.xyz * sun_diffuse;
     
     // Add point lights

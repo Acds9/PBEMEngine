@@ -105,7 +105,7 @@ flush_observers :: (world: *ZWorld) {
 		arch_idx := cast,no_check(u16)it_index;
 		bound_observers := world.observer_registry.on_created[arch_idx];
 		for bound_observers {
-			it.proc(world, arch_idx, <<entities);
+			it.proc(*GAME_STATE, <<entities);
 		}
 	}
 	for *world.observer_buffer.destroyed {
@@ -115,7 +115,7 @@ flush_observers :: (world: *ZWorld) {
 		arch_idx := cast,no_check(u16)it_index;
 		bound_observers := world.observer_registry.on_destroyed[arch_idx];
 		for bound_observers {
-			it.proc(world, arch_idx, <<entities);
+			it.proc(*GAME_STATE, <<entities);
 		}
 	}
 	world.observer_buffer.reset(*world.observer_buffer);

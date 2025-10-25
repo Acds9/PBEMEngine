@@ -32,8 +32,15 @@ Entity_Representation_Flags :: struct {
 
 Mesh_Instance_Address :: struct {
 	using #as entity_component: Entity_Component;
-
 	mesh_address	: u64;
+}
+
+Point_Light_Component :: struct {
+	using #as entity_component: Entity_Component;
+
+	color			: Vector4;
+	light_address	: u64;
+	radius			: float;
 }
 
 Archetype_Component :: struct{}

@@ -20,7 +20,7 @@ Query_Position_Randomizer :: struct {
 Query_Update_Render_Proxy :: struct {
 	using #as query: Query;
 	
-	ENTITY_COMPONENTS 		:: Type.[Position, Rotation, Scale];
+	ENTITY_COMPONENTS 		:: Type.[Position, Rotation, Scale, Mesh_Instance_Address];
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.SHIP;
 

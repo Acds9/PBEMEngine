@@ -385,9 +385,9 @@ generate_archetype_component_index_getters :: (metadata: []Archetype_Build_Metad
 	print_to_builder(*builder, "\tif archetype == {\n");
 	for archetype: metadata {
 		print_to_builder(*builder, "\t\tcase %; return *world.world_archetypes[get_archetype_storage_index(Archetype_Ship)].archetype_components;\n", archetype.name);
+	}
 		print_to_builder(*builder, "\t\tcase; return null;\n");
 		print_to_builder(*builder, "\t}\n");
-	}
 	print_to_builder(*builder, "}\n");
 
 	print_to_builder(*builder, "get_archetype_component :: (world: *ZWorld, archetype: Type, $T: Type) -> *T {\n");

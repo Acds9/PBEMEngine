@@ -18,6 +18,8 @@ Game_State :: struct {
     fps: u32;
 }
 
+
+
 WINDOW_WIDTH 	:= 1920;
 WINDOW_HEIGHT 	:= 1080;
 
@@ -32,7 +34,6 @@ CAMERA_MOVESPEED		: float = 0.1;
 game_init :: (using state: *Game_State) -> bool {
 	init_zworld(*world);
 	
-
     // Renderer setup
     init_success, init_error := init_zrenderer(*ZRENDERER);
     if !init_success {
@@ -45,21 +46,14 @@ game_init :: (using state: *Game_State) -> bool {
     scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device, 
                           SCENE_MESHBUFFER_SIZE, SCENE_TRANSFORMBUFFER_SIZE);
     
-    mesh_name := "ion_frigate";
-    mesh, found := table_find(*ZRENDERER.mesh_map, mesh_name);
-    if !found {
-        print("WARNING: Could not find % mesh\n", mesh_name);
-    }
-    add_scene_mesh(*scene, mesh, Matrix4.{_11=-1, _22=-1, _33=1, _44=1});
-    
     light : Point_Light;
-    light.position = .{10,1,10};
-    light.radius = 24;
-    light.color = .{1,0,0,1};
+    light.position = .{1,1,20};
+    light.radius = 32;
+    light.color = .{.3,.3,1,1};
     add_scene_point_light(*scene, light);
     add_scene_debug_sphere(*scene, Matrix4.{_11=-1, _22=-1, _33=1, _44=1});
 
-	create_entity(*world, Archetype_Ship); // TODO: observer isn't triggering
+	create_entity(*world, Archetype_Ship); 
     // Input setup
     SDL_SetRelativeMouseMode(SDL_TRUE);
     SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1");
@@ -115,12 +109,36 @@ game_update_camera :: (using state: *Game_State) {
         ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.right * -CAMERA_MOVESPEED);
     }
 }
-
+current_position : Vector3;
 game_tick :: (using state: *Game_State) {
-	execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
-		
-	});
-
+	{
+		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
+			for *pos: position_array {
+				if pos.pos == current_position {
+					current_position += .{1000,0,0};
+				}
+				dir := pos.pos - current_position;
+				norm := normalize(dir);
+				pos.pos -= norm*10*GAME_STATE.delta_time;
+			}
+		});
+	}
+	{
+		execute_Query_Update_Render_Proxy(*GAME_STATE.world, #code {
+			for *pos: position_array {
+				rot := rotation_array[it_index];
+				scale := scale_array[it_index];
+				transform := Transform.{pos.pos, rot.rot, scale.scale};
+				matrix := transform_to_matrix4(transform);
+				address := mesh_instance_address_array[it_index].mesh_address;
+				if address {
+					mesh_instance := render_get_mesh_instance(*GAME_STATE.scene, address);
+					render_set_transform(*GAME_STATE.scene, mesh_instance, *matrix);
+				}
+				
+			}
+		});
+	}
 	tick_world(*world, delta_time);
 }
 

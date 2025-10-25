@@ -60,10 +60,35 @@ Observer_Buffer :: struct {
 
 Observer_Entry :: struct {
 	priority	: u8;
-	proc		: (world: *ZWorld, arch: u16, entity_indices: []ZEntity);
+	proc		: (game_state: *Game_State, entity_indices: []ZEntity);
 }
 
 get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T {return null;}
 get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage {return null;}
 initialize_archetype_storage :: (archetype: Type, allocator: *Allocator) -> Archetype_Storage {return .{};}
 //get_archetype_component :: (world: *ZWorld, archetype: Type, $T: Type) -> *T {return null;};
+
+Game_State :: struct {
+    world: ZWorld;
+    scene: ZScene;
+    quit: bool;
+    
+    // Timing
+    frequency: u64;
+    last_counter: u64;
+    delta_time: float64;
+    fps: u32;
+}
+GAME_STATE : Game_State;
+
+ZScene :: struct {
+	scene_mesh_instances	: *void;
+	scene_transforms		: *void; 
+
+	scene_point_lights		: *void;
+
+	scene_debug_mesh_instances 	: *void;
+	scene_debug_transforms		: *void;
+}
+
+Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_state: *Game_State) {};

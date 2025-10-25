@@ -13,15 +13,15 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 			arch_entity_comp_strings := get_entity_component_strings(arch.entity_components);
 			arch_arch_comp_strings := get_archetype_component_strings(arch.archetype_components);
 			for query.entity_components {
-				if !(array_find(arch_entity_comp_strings, it)) break arch;
+				if !(array_find(arch_entity_comp_strings, it)) continue arch;
 			}
 			for query.archetype_components {
-				if !(array_find(arch_arch_comp_strings, it)) break arch;
+				if !(array_find(arch_arch_comp_strings, it)) continue arch;
 			}
-			if (query.tags &cast,no_check(u64)arch.tags) != query.tags break arch; // is query tags NOT a subset of arch tags
+			if (query.tags &cast,no_check(u64)arch.tags) != query.tags continue arch; // is query tags NOT a subset of arch tags
 			array_add(*matching_archetypes, arch.index);
 		}
-		if !matching_archetypes break query;
+		if !matching_archetypes continue query;
 
 		print_to_builder(*builder, "\n// Query Executor for %\n", query.name);
 		print_to_builder(*builder, "execute_% :: (world: *ZWorld, $body: Code) #expand {\n", query.name); 

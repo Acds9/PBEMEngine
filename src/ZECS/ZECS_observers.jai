@@ -1,3 +1,4 @@
+#import "Basic";
 Observer_Flags :: enum_flags u8 {
 	NONE;
 }
@@ -14,9 +15,4 @@ Observer_Ship_Spawn :: struct {
 
 	FLAGS					:: Observer_Flags.NONE;
 	PRIORITY				:: 0;
-
-	// THIS CODE IS CALLED PER-ENTITY!
-	PROC :: (entity_idx: ZEntity, archetype_idx: u16, world: *ZWorld) {
-		print("Ship % created!\n", get_entity_component(world, entity_idx, Scale).scale);
-	}
 }
