@@ -92,3 +92,4 @@ ZScene :: struct {
 }
 
 Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_state: *Game_State) {};
+Observer_Point_Light_Spawn_Event :: (entity_idx: ZEntity, game_state: *Game_State) {};

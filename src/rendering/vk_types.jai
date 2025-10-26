@@ -264,6 +264,12 @@ GPU_Draw_Push_Constants :: struct {
 	point_lights_count	: u32;
 }
 
+Debug_Draw_Push_Constants :: struct {
+	vertex_address		: VkDeviceAddress;
+	transform_address	: VkDeviceAddress;
+	camera_data_address : VkDeviceAddress;
+}
+
 Render_Transform :: struct {
 	local_transform	: Matrix4;
 	parent_address	: VkDeviceAddress;

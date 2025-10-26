@@ -3,6 +3,7 @@ SCENE_TRANSFORMBUFFER_SIZE 	:: 8*1024*1024;
 SCENE_LIGHTBUFFER_SIZE 		:: 8*1024*1024;
 SCENE_LIGHTINDEXBUFFER_SIZE :: 1*1024*1024;
 // TODO: these buffer sizes are all overkill
+SCENE_DEBUG_BUFFER_SIZE :: 1*1024*1024;
 
 ZScene :: struct {
 	scene_mesh_instances	: Uniform_Storage_Buffer;
@@ -10,7 +11,8 @@ ZScene :: struct {
 
 	scene_point_lights		: Uniform_Storage_Buffer;
 
-	scene_debug_mesh_instances 	: Uniform_Storage_Buffer;
+	scene_debug_point_instances : Uniform_Storage_Buffer;			
+	scene_debug_mesh_instances 	: Uniform_Storage_Buffer;	
 	scene_debug_transforms		: Uniform_Storage_Buffer;
 }
 
@@ -28,13 +30,19 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice, mesh_buffer_size: u
 																															.VMA_MEMORY_USAGE_CPU_TO_GPU, device, "scene_point_lights buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.scene_point_lights.buffer, scene.scene_point_lights.allocation);
 
-	scene.scene_debug_mesh_instances = make_uniform_storage_buffer(VMA_ALLOCATOR, mesh_buffer_size, size_of(Mesh_Instance), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+	//////////////////// DEBUG //////////////////////////////////
+
+	scene.scene_debug_point_instances = make_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Debug_Point), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
+																															.VMA_MEMORY_USAGE_CPU_TO_GPU, device, "scene_debug_point_instances buffer");
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.scene_debug_point_instances.buffer, scene.scene_debug_point_instances.allocation);
+
+	scene.scene_debug_mesh_instances = make_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
 																														, .VMA_MEMORY_USAGE_CPU_TO_GPU, device, "scene_debug_mesh_instances buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.scene_debug_mesh_instances.buffer, scene.scene_debug_mesh_instances.allocation);
-	scene.scene_debug_transforms = make_uniform_storage_buffer(VMA_ALLOCATOR, transform_buffer_size, size_of(Render_Transform), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
+	scene.scene_debug_transforms = make_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
 																															.VMA_MEMORY_USAGE_CPU_TO_GPU, device, "scene_debug_transforms buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.scene_debug_transforms.buffer, scene.scene_debug_transforms.allocation);
-
+	/////////////////////////////////////////////////////////////
 	return scene;
 }
 
@@ -140,9 +148,8 @@ add_scene_debug_sphere :: (scene: *ZScene, local_transform: Matrix4) -> VkDevice
 	return scene.scene_debug_mesh_instances.allocate(*scene.scene_debug_mesh_instances, mesh_render);
 }
 
-add_scene_point_light :: (scene: *ZScene, light: Point_Light) -> u32 {
-	scene.scene_point_lights.allocate(*scene.scene_point_lights, light);
-	return scene.scene_point_lights.count-1;
+add_scene_point_light :: (scene: *ZScene, light: Point_Light) -> VkDeviceAddress {
+	return scene.scene_point_lights.allocate(*scene.scene_point_lights, light);
 }
 
 render_get_mesh_instance :: (scene: *ZScene, instance_address: VkDeviceAddress) -> *Mesh_Instance {
@@ -179,4 +186,10 @@ render_get_world_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance) ->
 
 render_get_local_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance) -> Matrix4 {
 	return render_get_transform(scene, mesh_instance.transform_address).local_transform;
+}
+
+clear_debug_buffers :: (scene: *ZScene) {
+	scene.scene_debug_point_instances.reset(*scene.scene_debug_point_instances);			
+	scene.scene_debug_mesh_instances.reset(*scene.scene_debug_mesh_instances);	
+	scene.scene_debug_transforms.reset(*scene.scene_debug_transforms);
 }

@@ -210,9 +210,13 @@ create_default_materials :: (zr: *ZRenderer) {
 	material_constants.albedo_sampler_index = zr.sampler_nearest_index;
 	zr.default_material = zr.opaque_material.create_material_instance(*zr.opaque_material, zr, .MAIN_COLOR, *material_constants);
 
-	wireframe_constants : Material_Constants_Wireframe;
+	point_constants : Material_Constants_Debug_Point;
+	point_constants.color_factors = .{1,1,1,1};
+	zr.debug_point_material_instance = zr.debug_point_material.create_material_instance(*zr.debug_point_material, zr, .MAIN_COLOR, *point_constants);
+
+	wireframe_constants : Material_Constants_Debug_Wireframe;
 	wireframe_constants.color_factors = .{1,0,0,1};
-	zr.wireframe_material_instance = zr.wireframe_material.create_material_instance(*zr.wireframe_material, zr, .MAIN_COLOR, *wireframe_constants);
+	zr.debug_wireframe_material_instance = zr.debug_wireframe_material.create_material_instance(*zr.debug_wireframe_material, zr, .MAIN_COLOR, *wireframe_constants);
 }
 
 set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, handle: u64, name: string) {

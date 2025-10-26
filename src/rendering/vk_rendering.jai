@@ -104,8 +104,10 @@ ZRenderer :: struct {
 	default_sampler_linear	: VkSampler;
 	sampler_linear_index	: u32 = 1;
 	
-	wireframe_material		: Material_Pipeline_Wireframe;
-	wireframe_material_instance : Material_Instance;
+	debug_point_material				: Material_Pipeline_Debug_Point;
+	debug_point_material_instance		: Material_Instance;					
+	debug_wireframe_material			: Material_Pipeline_Debug_Wireframe;
+	debug_wireframe_material_instance 	: Material_Instance;
 
 	default_material		: Material_Instance;
 	opaque_material			: Material_Pipeline_Opaque;
@@ -231,7 +233,8 @@ immediate_submit :: (zr: *ZRenderer, body: Code) #expand {
 }
 
 init_pipelines :: (zr: *ZRenderer) -> bool, string {
-	zr.wireframe_material.build(*zr.wireframe_material, zr);
+	zr.debug_point_material.build(*zr.debug_point_material, zr);
+	zr.debug_wireframe_material.build(*zr.debug_wireframe_material, zr);
 	zr.opaque_material.build(*zr.opaque_material, zr);
 	return true, "";
 }
@@ -311,10 +314,31 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 		vkutil_transition_image(frame_data.command_buffer, zr.depth_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_DEPTH_BIT);
 
-		draw_debug(zr, scene, frame_data.command_buffer);
-		// Draw geometry stuff
-		draw_geometry(zr, scene, frame_data.command_buffer);
-		//
+		clear_value : VkClearValue;
+		clear_value.color._float32 = DEFAULT_CLEARVALUE;
+		color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, *clear_value, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+		depth_clear : VkClearValue;
+		depth_clear.depthStencil.depth = 1.0;
+		depth_attachment : VkRenderingAttachmentInfo = vkinit_depth_attachment_info(zr.depth_image.image_view, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+		depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depth_attachment.clearValue = depth_clear;
+
+		render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
+
+		vkCmdBeginRendering(frame_data.command_buffer, *render_info);
+		{
+			// Debug
+			draw_debug_shapes(zr, scene, frame_data.command_buffer);
+			draw_debug_meshes(zr, scene, frame_data.command_buffer);
+			//
+
+			// Draw geometry 
+			draw_geometry(zr, scene, frame_data.command_buffer);
+			//
+			
+		}
+		vkCmdEndRendering(frame_data.command_buffer);
 
 		// Transition the draw image to be copied FROM
 		vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
@@ -396,179 +420,201 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	}
 }
 
-draw_debug :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
+
+draw_debug_shapes :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
 	frame_data := zr.get_current_frame_data(zr);
-	// Begin a render pass connected to our draw image
-	clear_value : VkClearValue;
-	clear_value.color._float32 = DEFAULT_CLEARVALUE;
-	color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, *clear_value, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	
+	// Set dynamic viewport and scissor
+	viewport : VkViewport;
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = cast,no_check(float)zr.draw_extent.width;
+	viewport.height = cast,no_check(float)zr.draw_extent.height;
+	viewport.minDepth = 0;
+	viewport.maxDepth = 1;
 
-	depth_clear : VkClearValue;
-	depth_clear.depthStencil.depth = 1.0;
-	depth_attachment : VkRenderingAttachmentInfo = vkinit_depth_attachment_info(zr.depth_image.image_view, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-	depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depth_attachment.clearValue = depth_clear;
+	vkCmdSetViewport(command_buffer, 0, 1, *viewport);
 
-	render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
-	vkCmdBeginRendering(command_buffer, *render_info);
-	{
-		// Set dynamic viewport and scissor
-		viewport : VkViewport;
-		viewport.x = 0;
-		viewport.y = 0;
-		viewport.width = cast,no_check(float)zr.draw_extent.width;
-		viewport.height = cast,no_check(float)zr.draw_extent.height;
-		viewport.minDepth = 0;
-		viewport.maxDepth = 1;
+	scissor : VkRect2D;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = zr.draw_extent.width;
+	scissor.extent.height = zr.draw_extent.height;
 
-		vkCmdSetViewport(command_buffer, 0, 1, *viewport);
+	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
 
-		scissor : VkRect2D;
-		scissor.offset.x = 0;
-		scissor.offset.y = 0;
-		scissor.extent.width = zr.draw_extent.width;
-		scissor.extent.height = zr.draw_extent.height;
-
-		vkCmdSetScissor(command_buffer, 0, 1, *scissor);
-
-		// Fetch this once per frame
-		camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
-		<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
-		material := zr.wireframe_material_instance;
+	// Fetch this once per frame
+	camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
+	<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
 		
-		pipeline := material.pipeline;
-		layout := material.layout;
+	material := zr.debug_point_material_instance;
+	pipeline := material.pipeline;
+	layout := material.layout;
+	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+	points := *scene.scene_debug_point_instances;
+	point_count := points.count;
+	if point_count == 0 {
+		print("NO POINTS!\n");
+		return;
+	}
 
-		meshes := *scene.scene_debug_mesh_instances;
-		if meshes.count == 0 {
-			vkCmdEndRendering(command_buffer);
-			return;
+	mapped_points := *points.info.pMappedData;
+
+	push_constants : Debug_Draw_Push_Constants;
+	push_constants.vertex_address = points.base_address;
+	push_constants.transform_address = 0; // Unused for points
+	push_constants.camera_data_address = frame_data.camera_buffer.base_address;
+
+	vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Debug_Draw_Push_Constants), *push_constants);
+	vkCmdDraw(command_buffer, points.count, 1, 0, 0);
+}
+
+draw_debug_meshes :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
+	frame_data := zr.get_current_frame_data(zr);
+	
+	// Set dynamic viewport and scissor
+	viewport : VkViewport;
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = cast,no_check(float)zr.draw_extent.width;
+	viewport.height = cast,no_check(float)zr.draw_extent.height;
+	viewport.minDepth = 0;
+	viewport.maxDepth = 1;
+
+	vkCmdSetViewport(command_buffer, 0, 1, *viewport);
+
+	scissor : VkRect2D;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = zr.draw_extent.width;
+	scissor.extent.height = zr.draw_extent.height;
+
+	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
+
+	// Fetch this once per frame
+	camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
+	<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
+	material := zr.debug_wireframe_material_instance;
+		
+	pipeline := material.pipeline;
+	layout := material.layout;
+
+	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+	meshes := *scene.scene_debug_mesh_instances;
+	if meshes.count == 0 {
+		return;
+	}
+
+	mapped_meshes := *meshes.info.pMappedData;
+	transforms := *scene.scene_debug_transforms;
+
+	for 0..meshes.count-1 {
+		mesh : *Mesh_Instance = cast,no_check(*Mesh_Instance)mapped_meshes[it];
+			
+		if mesh.generation != meshes.generations[it] {
+			continue; 
 		}
 
-		mapped_meshes := *meshes.info.pMappedData;
-		transforms := *scene.scene_debug_transforms;
-
-		for 0..meshes.count-1 {
-			mesh : *Mesh_Instance = cast,no_check(*Mesh_Instance)mapped_meshes[it];
-			
-			if mesh.generation != meshes.generations[it] {
-				continue; 
-			}
-
-			mesh_asset : *Mesh_Asset = mesh.mesh_asset;
-			for surface: mesh_asset.surfaces {
-				index_offset := surface.index_address - zr.geometry_pool.index_buffer.base_address;
-				vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
+		mesh_asset : *Mesh_Asset = mesh.mesh_asset;
+		for surface: mesh_asset.surfaces {
+			index_offset := surface.index_address - zr.geometry_pool.index_buffer.base_address;
+			vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
 				
-				push_constants : GPU_Draw_Push_Constants;
-				push_constants.vertex_address = surface.vertex_address;
-				push_constants.transform_address = mesh.transform_address;
-				push_constants.material_address = material.constants_address; 
-				push_constants.camera_data_address = frame_data.camera_buffer.base_address;
-				push_constants.point_lights_address = scene.scene_point_lights.base_address; 
-				push_constants.point_lights_count = scene.scene_point_lights.count;
+			push_constants : GPU_Draw_Push_Constants;
+			push_constants.vertex_address = surface.vertex_address;
+			push_constants.transform_address = mesh.transform_address;
+			push_constants.material_address = material.constants_address; 
+			push_constants.camera_data_address = frame_data.camera_buffer.base_address;
+			push_constants.point_lights_address = scene.scene_point_lights.base_address; 
+			push_constants.point_lights_count = scene.scene_point_lights.count;
 
-				vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
-				vkCmdDrawIndexed(command_buffer, surface.index_count, 1, 0, 0, 0);
+			vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
+			vkCmdDrawIndexed(command_buffer, surface.index_count, 1, 0, 0, 0);
 
-			}
 		}
 	}
-	vkCmdEndRendering(command_buffer);
 }
 
 draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
 	frame_data := zr.get_current_frame_data(zr);
-	// Begin a render pass connected to our draw image
-	// TODO: we clear in debug and load in here, maybe these functions should just be outside of the draw_ functions?
-	color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, null, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    color_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_LOAD;  // load existing, do not clear
-    
-    depth_attachment : VkRenderingAttachmentInfo = vkinit_depth_attachment_info(zr.depth_image.image_view, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-    depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_LOAD;  
+	
+	// Set dynamic viewport and scissor
+	viewport : VkViewport;
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = cast,no_check(float)zr.draw_extent.width;
+	viewport.height = cast,no_check(float)zr.draw_extent.height;
+	viewport.minDepth = 0;
+	viewport.maxDepth = 1;
 
-	render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
-	vkCmdBeginRendering(command_buffer, *render_info);
-	{
-		// Set dynamic viewport and scissor
-		viewport : VkViewport;
-		viewport.x = 0;
-		viewport.y = 0;
-		viewport.width = cast,no_check(float)zr.draw_extent.width;
-		viewport.height = cast,no_check(float)zr.draw_extent.height;
-		viewport.minDepth = 0;
-		viewport.maxDepth = 1;
+	vkCmdSetViewport(command_buffer, 0, 1, *viewport);
 
-		vkCmdSetViewport(command_buffer, 0, 1, *viewport);
+	scissor : VkRect2D;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = zr.draw_extent.width;
+	scissor.extent.height = zr.draw_extent.height;
 
-		scissor : VkRect2D;
-		scissor.offset.x = 0;
-		scissor.offset.y = 0;
-		scissor.extent.width = zr.draw_extent.width;
-		scissor.extent.height = zr.draw_extent.height;
+	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
 
-		vkCmdSetScissor(command_buffer, 0, 1, *scissor);
+	// Fetch this once per frame
+	camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
+	<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
 
-		// Fetch this once per frame
-		camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
-		<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
+	// Bind descriptor buffers before all draws
+	bindings := VkDescriptorBufferBindingInfoEXT.[
+		.{
+			sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT,
+			address = zr.image_descriptor_buffer.base_address,
+			usage = .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT,
+		},
+		.{
+			sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT,
+			address = zr.sampler_descriptor_buffer.base_address,
+			usage = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT,
+		},
+	];
+	vkCmdBindDescriptorBuffersEXT(command_buffer, 2, bindings.data);
 
-		// Bind descriptor buffers before all draws
-		bindings := VkDescriptorBufferBindingInfoEXT.[
-			.{
-				sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT,
-				address = zr.image_descriptor_buffer.base_address,
-				usage = .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT,
-			},
-			.{
-				sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT,
-				address = zr.sampler_descriptor_buffer.base_address,
-				usage = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT,
-			},
-		];
-		vkCmdBindDescriptorBuffersEXT(command_buffer, 2, bindings.data);
-
-		// Set descriptor buffer offsets (more weird Vulkan ways of doing things)
-		buffer_indices : [2]u32 = .[0, 1];
-		offsets : [2]VkDeviceSize = .[0, 0];
-		vkCmdSetDescriptorBufferOffsetsEXT(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS,
-			zr.opaque_material.layout,  // Any material's layout works they all use same descriptor layout
-			0, 2, buffer_indices.data, offsets.data);
+	// Set descriptor buffer offsets (more weird Vulkan ways of doing things)
+	buffer_indices : [2]u32 = .[0, 1];
+	offsets : [2]VkDeviceSize = .[0, 0];
+	vkCmdSetDescriptorBufferOffsetsEXT(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS,
+		zr.opaque_material.layout,  // Any material's layout works they all use same descriptor layout
+		0, 2, buffer_indices.data, offsets.data);
 		
-		// Generate the surface buckets (per material)
-		frame_generate_surface_buckets(zr, scene);
+	// Generate the surface buckets (per material)
+	frame_generate_surface_buckets(zr, scene);
 
-		for bucket: zr.frame_surfaces.buckets {
-			pipeline := bucket.material_pipeline;
-			layout := bucket.material_pipeline_layout;
-			if pipeline == VK_NULL_HANDLE {
-				pipeline = zr.default_material.pipeline;
-				print("Warning: No material found for mesh, defaulting to zr.default_material (this is slow)\n");
-			}
+	for bucket: zr.frame_surfaces.buckets {
+		pipeline := bucket.material_pipeline;
+		layout := bucket.material_pipeline_layout;
+		if pipeline == VK_NULL_HANDLE {
+			pipeline = zr.default_material.pipeline;
+			print("Warning: No material found for mesh, defaulting to zr.default_material (this is slow)\n");
+		}
 		
-			// Bind the pipeline for this material bucket
-			vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+		// Bind the pipeline for this material bucket
+		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-			for t_surface: bucket.surfaces {
-				index_offset := t_surface.surface.index_address - zr.geometry_pool.index_buffer.base_address;
-				vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
+		for t_surface: bucket.surfaces {
+			index_offset := t_surface.surface.index_address - zr.geometry_pool.index_buffer.base_address;
+			vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
 				
-				push_constants : GPU_Draw_Push_Constants;
-				push_constants.vertex_address = t_surface.surface.vertex_address;
-				push_constants.transform_address = t_surface.transform_address;
-				push_constants.material_address = t_surface.constants_address; 
-				push_constants.camera_data_address = frame_data.camera_buffer.base_address;
-				push_constants.point_lights_address = scene.scene_point_lights.base_address; // TODO: this stuff needs to be moved later anyway, we can do this per draw right now
-				push_constants.point_lights_count = scene.scene_point_lights.count;
+			push_constants : GPU_Draw_Push_Constants;
+			push_constants.vertex_address = t_surface.surface.vertex_address;
+			push_constants.transform_address = t_surface.transform_address;
+			push_constants.material_address = t_surface.constants_address; 
+			push_constants.camera_data_address = frame_data.camera_buffer.base_address;
+			push_constants.point_lights_address = scene.scene_point_lights.base_address; // TODO: this stuff needs to be moved later anyway, we can do this per draw right now
+			push_constants.point_lights_count = scene.scene_point_lights.count;
 
-				vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
-				vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);
-			}
+			vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
+			vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);
 		}
 	}
-	vkCmdEndRendering(command_buffer);
 }
 
 

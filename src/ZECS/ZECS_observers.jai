@@ -16,3 +16,14 @@ Observer_Ship_Spawn :: struct {
 	FLAGS					:: Observer_Flags.NONE;
 	PRIORITY				:: 0;
 }
+
+Observer_Point_Light_Spawn :: struct {
+	using #as observer: Observer;
+
+	ENTITY_COMPONENTS 		:: Type.[Position, Point_Light_Component];
+	ARCHETYPE_COMPONENTS 	:: Type.[];
+	TAGS					:: ZTags.LIGHT;
+
+	FLAGS					:: Observer_Flags.NONE;
+	PRIORITY				:: 0;
+}

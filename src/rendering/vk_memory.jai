@@ -60,7 +60,7 @@ Uniform_Storage_Buffer :: struct {
 		}
 
 		if count >= capacity {
-			panic(sprint("Attempted to allocate more transforms than capacity allows. Capacity: %", capacity));
+			panic(sprint("Attempted to allocate more elements than capacity allows. Capacity: %", capacity));
 		}
 
 		cast_data := cast,no_check(*T)info.pMappedData;
@@ -73,6 +73,11 @@ Uniform_Storage_Buffer :: struct {
 		index := cast,no_check(u32)(offset / element_size);
     
 		array_add(*free_list, index);
+	}
+	reset :: (using self: *Uniform_Storage_Buffer) {
+		array_reset(*free_list);
+		array_reset(*generations);
+		count = 0;
 	}
 }
 

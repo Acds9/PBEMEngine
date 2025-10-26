@@ -8,3 +8,16 @@ Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_state: *Game_State) {
 	mesh_instance_address := get_entity_component(world, entity_idx, Mesh_Instance_Address);
 	mesh_instance_address.mesh_address = add_scene_mesh(*game_state.scene, mesh, Matrix4.{_11=-1, _22=-1, _33=1, _44=1});
 }
+
+Observer_Point_Light_Spawn_Event :: (entity_idx: ZEntity, game_state: *Game_State) {
+	world := *game_state.world;
+	scene := *game_state.scene;
+
+	position := get_entity_component(world, entity_idx, Position);
+	point_light := get_entity_component(world, entity_idx, Point_Light_Component);
+	light : Point_Light;
+    light.position = position.pos;
+    light.radius = point_light.radius;
+    light.color = vec4_to_color(*point_light.color);
+    point_light.light_address = add_scene_point_light(scene, light);
+}

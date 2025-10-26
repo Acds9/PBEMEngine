@@ -26,3 +26,13 @@ Query_Update_Render_Proxy :: struct {
 
 	QUERY_FLAGS				:: Query_Flags.CHUNK_PREFETCH;
 }
+
+Query_Debug_Draw_Point_Light :: struct {
+	using #as query: Query;
+	
+	ENTITY_COMPONENTS 		:: Type.[Position, Point_Light_Component];
+	ARCHETYPE_COMPONENTS 	:: Type.[];
+	TAGS					:: ZTags.LIGHT;
+
+	QUERY_FLAGS				:: Query_Flags.CHUNK_PREFETCH;
+}

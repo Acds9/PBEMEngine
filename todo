@@ -1,4 +1,0 @@
-Need to:
-the image writing is weird: we write textures and save them to CPU in ZRenderer as Allocated_Image, then we also write them into the buffer for GPU
-but whenever we make a new material instance, we don't write the index of an existing texture, but rather write a NEW texture into the buffer
-We should load all images at startup, then store the indices for GPU side use

@@ -45,15 +45,16 @@ game_init :: (using state: *Game_State) -> bool {
     // Scene setup
     scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device, 
                           SCENE_MESHBUFFER_SIZE, SCENE_TRANSFORMBUFFER_SIZE);
-    
-    light : Point_Light;
-    light.position = .{1,1,20};
-    light.radius = 32;
-    light.color = .{.3,.3,1,1};
-    add_scene_point_light(*scene, light);
-    add_scene_debug_sphere(*scene, Matrix4.{_11=-1, _22=-1, _33=1, _44=1});
 
 	create_entity(*world, Archetype_Ship); 
+	
+	light_entity := create_entity(*world, Archetype_Point_Light); 
+	position := get_entity_component(*world, light_entity, Position);
+	position.pos = .{1,1,20};
+	light_component := get_entity_component(*world, light_entity, Point_Light_Component);
+    light_component.radius = 16;
+    light_component.color = .{.3,.3,1,1};
+
     // Input setup
     SDL_SetRelativeMouseMode(SDL_TRUE);
     SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1");
@@ -109,8 +110,11 @@ game_update_camera :: (using state: *Game_State) {
         ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.right * -CAMERA_MOVESPEED);
     }
 }
+
 current_position : Vector3;
 game_tick :: (using state: *Game_State) {
+	clear_debug_buffers(*GAME_STATE.scene);
+
 	{
 		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
 			for *pos: position_array {
@@ -139,6 +143,17 @@ game_tick :: (using state: *Game_State) {
 			}
 		});
 	}
+	{
+		execute_Query_Debug_Draw_Point_Light(*GAME_STATE.world, #code {
+			for *pos: position_array {
+				point_light := *point_light_component_array[it_index];
+				
+				debug_draw_point(*GAME_STATE.scene, pos.pos, 25, .{1,0,0,1}); 
+				debug_draw_sphere(*GAME_STATE.scene, pos.pos, point_light.radius, .{1,0,0,1} );
+			}
+		});
+	}
+	
 	tick_world(*world, delta_time);
 }
 
