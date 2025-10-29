@@ -30,7 +30,7 @@ Entity_Representation_Flags :: struct {
 	flags : Representation_Flags;
 }
 
-Mesh_Instance_Address :: struct {
+Mesh_Render_Proxy_EC :: struct {
 	using #as entity_component: Entity_Component;
 	mesh_address	: u64;
 }

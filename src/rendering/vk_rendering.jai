@@ -301,6 +301,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	vkResetFences(zr.device, 1, *frame_data.render_fence);
 	vkResetCommandBuffer(frame_data.command_buffer, 0);
 
+	
 	// Set the draw image extents to match the swapchain
 	zr.draw_extent.height = cast,no_check(u32)(min(zr.swapchain_extent.height, zr.draw_image.image_extent.height) * zr.render_scale);
 	zr.draw_extent.width = cast,no_check(u32)(min(zr.swapchain_extent.width, zr.draw_image.image_extent.width) * zr.render_scale);
@@ -309,7 +310,9 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 
 	// Begin the command buffer to record commands, everything after this is command recording
     vkBeginCommandBuffer(frame_data.command_buffer, *begin_info);
-	{
+	// Copy the staging buffers right at the start
+	copy_staging_to_device_buffers(scene, frame_data.command_buffer);
+	{	
 		// Transition main draw image (and depth image) into general layout so we can draw into it
 		vkutil_transition_image(frame_data.command_buffer, zr.draw_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 		vkutil_transition_image(frame_data.command_buffer, zr.depth_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_DEPTH_BIT);
@@ -336,7 +339,6 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 			// Draw geometry 
 			draw_geometry(zr, scene, frame_data.command_buffer);
 			//
-			
 		}
 		vkCmdEndRendering(frame_data.command_buffer);
 
@@ -452,22 +454,18 @@ draw_debug_shapes :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandB
 	layout := material.layout;
 	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-	points := *scene.scene_debug_point_instances;
-	point_count := points.count;
+	point_count := scene.debug_point_instances.count;
 	if point_count == 0 {
-		print("NO POINTS!\n");
 		return;
 	}
 
-	mapped_points := *points.info.pMappedData;
-
 	push_constants : Debug_Draw_Push_Constants;
-	push_constants.vertex_address = points.base_address;
+	push_constants.vertex_address = scene.debug_point_instances.device_buffer.base_address;
 	push_constants.transform_address = 0; // Unused for points
 	push_constants.camera_data_address = frame_data.camera_buffer.base_address;
 
 	vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Debug_Draw_Push_Constants), *push_constants);
-	vkCmdDraw(command_buffer, points.count, 1, 0, 0);
+	vkCmdDraw(command_buffer, point_count, 1, 0, 0);
 }
 
 draw_debug_meshes :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
@@ -496,19 +494,18 @@ draw_debug_meshes :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandB
 	camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
 	<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
 	material := zr.debug_wireframe_material_instance;
-		
+	
 	pipeline := material.pipeline;
 	layout := material.layout;
 
 	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-	meshes := *scene.scene_debug_mesh_instances;
+	meshes := *scene.debug_mesh_instances;
 	if meshes.count == 0 {
 		return;
 	}
 
-	mapped_meshes := *meshes.info.pMappedData;
-	transforms := *scene.scene_debug_transforms;
+	mapped_meshes := *meshes.staging_buffer.info.pMappedData;
 
 	for 0..meshes.count-1 {
 		mesh : *Mesh_Instance = cast,no_check(*Mesh_Instance)mapped_meshes[it];
@@ -527,8 +524,8 @@ draw_debug_meshes :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandB
 			push_constants.transform_address = mesh.transform_address;
 			push_constants.material_address = material.constants_address; 
 			push_constants.camera_data_address = frame_data.camera_buffer.base_address;
-			push_constants.point_lights_address = scene.scene_point_lights.base_address; 
-			push_constants.point_lights_count = scene.scene_point_lights.count;
+			push_constants.point_lights_address = scene.point_lights.device_buffer.base_address; 
+			push_constants.point_lights_count = scene.point_lights.count;
 
 			vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
 			vkCmdDrawIndexed(command_buffer, surface.index_count, 1, 0, 0, 0);
@@ -608,8 +605,8 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 			push_constants.transform_address = t_surface.transform_address;
 			push_constants.material_address = t_surface.constants_address; 
 			push_constants.camera_data_address = frame_data.camera_buffer.base_address;
-			push_constants.point_lights_address = scene.scene_point_lights.base_address; // TODO: this stuff needs to be moved later anyway, we can do this per draw right now
-			push_constants.point_lights_count = scene.scene_point_lights.count;
+			push_constants.point_lights_address = scene.point_lights.device_buffer.base_address; // TODO: this stuff needs to be moved later anyway, we can do this per draw right now
+			push_constants.point_lights_count = scene.point_lights.count;
 
 			vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
 			vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);

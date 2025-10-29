@@ -82,13 +82,13 @@ Game_State :: struct {
 GAME_STATE : Game_State;
 
 ZScene :: struct {
-	scene_mesh_instances	: *void;
-	scene_transforms		: *void; 
+	device_mesh_instances	: *void;
+	device_transforms		: *void; 
 
-	scene_point_lights		: *void;
+	device_point_lights		: *void;
 
-	scene_debug_mesh_instances 	: *void;
-	scene_debug_transforms		: *void;
+	device_debug_mesh_instances 	: *void;
+	device_debug_transforms		: *void;
 }
 
 Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_state: *Game_State) {};

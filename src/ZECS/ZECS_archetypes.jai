@@ -11,7 +11,7 @@ Archetype :: struct{
 Archetype_Ship :: struct{
 	using #as archetype: Archetype;
 
-	ENTITY_COMPONENTS    	:: Type.[Position, Rotation, Scale, Mesh_Instance_Address];
+	ENTITY_COMPONENTS    	:: Type.[Position, Rotation, Scale, Mesh_Render_Proxy_EC];
     ARCHETYPE_COMPONENTS 	:: Type.[Mesh_Rep];
 	TAGS					:: ZTags.SHIP;
 	

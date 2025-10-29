@@ -9,7 +9,7 @@ Observer :: struct {}
 Observer_Ship_Spawn :: struct {
 	using #as observer: Observer;
 
-	ENTITY_COMPONENTS 		:: Type.[Position, Rotation, Scale, Mesh_Instance_Address];
+	ENTITY_COMPONENTS 		:: Type.[Position, Rotation, Scale, Mesh_Render_Proxy_EC];
 	ARCHETYPE_COMPONENTS 	:: Type.[Mesh_Rep];
 	TAGS					:: ZTags.SHIP;
 

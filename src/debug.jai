@@ -63,7 +63,7 @@ Debug_Shape_Component :: struct {
 }
 
 debug_draw_point :: (scene: *ZScene, position: Vector3, size: float, color: Vector4) {
-	shape_buffer := *scene.scene_debug_point_instances;
+	shape_buffer := *scene.debug_point_instances;
 	point := Debug_Point.{position, size, color};
 	shape_buffer.allocate(shape_buffer, point);
 }
@@ -82,9 +82,7 @@ debug_draw_sphere :: (scene: *ZScene, position: Vector3, size: float, color: Vec
 	render_transform.local_transform = transform_to_matrix4(transform);
 	render_transform.parent_address = 0;
 
-	transform_buffer := *scene.scene_debug_transforms;
-	
-	mesh_render.transform_address = transform_buffer.allocate(transform_buffer, render_transform, *mesh_render.generation);
+	mesh_render.transform_address = scene.debug_mesh_transforms.allocate(*scene.debug_mesh_transforms, render_transform, *mesh_render.generation);
 
-	scene.scene_debug_mesh_instances.allocate(*scene.scene_debug_mesh_instances, mesh_render);
+	scene.debug_mesh_instances.allocate(*scene.debug_mesh_instances, mesh_render);
 }

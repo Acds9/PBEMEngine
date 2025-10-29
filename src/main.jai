@@ -43,8 +43,7 @@ game_init :: (using state: *Game_State) -> bool {
     load_assets(*ZRENDERER);
     
     // Scene setup
-    scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device, 
-                          SCENE_MESHBUFFER_SIZE, SCENE_TRANSFORMBUFFER_SIZE);
+    scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device);
 
 	create_entity(*world, Archetype_Ship); 
 	
@@ -114,7 +113,6 @@ game_update_camera :: (using state: *Game_State) {
 current_position : Vector3;
 game_tick :: (using state: *Game_State) {
 	clear_debug_buffers(*GAME_STATE.scene);
-
 	{
 		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
 			for *pos: position_array {
@@ -134,7 +132,7 @@ game_tick :: (using state: *Game_State) {
 				scale := scale_array[it_index];
 				transform := Transform.{pos.pos, rot.rot, scale.scale};
 				matrix := transform_to_matrix4(transform);
-				address := mesh_instance_address_array[it_index].mesh_address;
+				address := mesh_render_proxy_ec_array[it_index].mesh_address;
 				if address {
 					mesh_instance := render_get_mesh_instance(*GAME_STATE.scene, address);
 					render_set_transform(*GAME_STATE.scene, mesh_instance, *matrix);

@@ -8,7 +8,7 @@ execute_Observer_Ship_Spawn :: (game_state: *Game_State, entities: []ZEntity) {
 		position := *get_entity_component(world, entity, Position);
 		rotation := *get_entity_component(world, entity, Rotation);
 		scale := *get_entity_component(world, entity, Scale);
-		mesh_instance_address := *get_entity_component(world, entity, Mesh_Instance_Address);
+		mesh_render_proxy_ec := *get_entity_component(world, entity, Mesh_Render_Proxy_EC);
 		mesh_rep := *get_archetype_component(world, get_archetype(archetype), Mesh_Rep);
 		Observer_Ship_Spawn_Event(entity, game_state);
 	}

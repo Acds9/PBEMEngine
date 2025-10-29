@@ -35,7 +35,7 @@ execute_Query_Update_Render_Proxy :: (world: *ZWorld, $body: Code) #expand {
 	`position_array :[]Position;
 	`rotation_array :[]Rotation;
 	`scale_array :[]Scale;
-	`mesh_instance_address_array :[]Mesh_Instance_Address;
+	`mesh_render_proxy_ec_array :[]Mesh_Render_Proxy_EC;
 	storage = *world.world_archetypes[1];
 	{
 		if storage.initialized && storage.num_entities != 0 {
@@ -43,7 +43,7 @@ execute_Query_Update_Render_Proxy :: (world: *ZWorld, $body: Code) #expand {
 			`position_array = array_view(Position, *storage.entity_components[0], storage.num_entities);
 			`rotation_array = array_view(Rotation, *storage.entity_components[1], storage.num_entities);
 			`scale_array = array_view(Scale, *storage.entity_components[2], storage.num_entities);
-			`mesh_instance_address_array = array_view(Mesh_Instance_Address, *storage.entity_components[3], storage.num_entities);
+			`mesh_render_proxy_ec_array = array_view(Mesh_Render_Proxy_EC, *storage.entity_components[3], storage.num_entities);
 
 
 			`generations = array_view_dynamic(storage.generations, storage.generations.count);

@@ -81,6 +81,64 @@ Uniform_Storage_Buffer :: struct {
 	}
 }
 
+Staged_Uniform_Storage_Buffer :: struct {
+	staging_buffer 	: Allocated_Buffer; // CPU memory
+	device_buffer	: Allocated_Buffer; // GPU memory
+	// The following are the same for both so they are shared
+	element_size: u32;
+	capacity	: u64;
+	count		: u32;
+	free_list	: [..]u32;
+	generations	: [..]u8;
+
+	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T, gen: *u8 = null) -> VkDeviceAddress {
+		write_index : u32;
+		if free_list.count > 0 {
+			write_index = pop(*free_list);;
+			generations[write_index] += 1;
+			if gen != null then <<gen = generations[write_index];
+		}
+		else {
+			write_index = count;
+			count += 1;
+			array_resize(*generations, count);
+			if gen != null then <<gen = generations[write_index];
+		}
+
+		if count >= capacity {
+			panic(sprint("Attempted to allocate more elements than capacity allows. Capacity: %", capacity));
+		}
+
+		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
+		cast_data[write_index] = value;
+		address := staging_buffer.base_address + write_index * element_size;
+		return address;
+	}
+
+	transfer :: (using self: *Staged_Uniform_Storage_Buffer, cmd: VkCommandBuffer) {
+		copy : VkBufferCopy;
+		copy.size = staging_buffer.info.size;
+		vkCmdCopyBuffer(cmd, staging_buffer.buffer, device_buffer.buffer, 1, *copy);
+	}
+
+	get_device_address :: (using self: *Staged_Uniform_Storage_Buffer, address: VkDeviceAddress) -> VkDeviceAddress {
+		return device_buffer.base_address + (address - staging_buffer.base_address);
+	}
+
+	// Also takes an offset instead of address
+	buffer_remove :: (using self: *Staged_Uniform_Storage_Buffer, address: VkDeviceAddress) {
+		offset := address - staging_buffer.base_address;
+		index := cast,no_check(u32)(offset / element_size);
+		array_add(*free_list, index);
+	}
+	
+	reset :: (using self: *Staged_Uniform_Storage_Buffer) {
+		array_reset(*free_list);
+		array_reset(*generations);
+		count = 0;
+	}
+}
+
 Linear_Buffer :: struct {
     using parent: Storage_Buffer;
     element_size: u64;
@@ -140,38 +198,35 @@ create_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsage
 }
 
 make_storage_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Storage_Buffer {
-	new_buffer : Storage_Buffer;
-	allocated_buffer := create_buffer(allocator, alloc_size, usage, memory_usage, device, debug_name);
-	new_buffer.buffer = allocated_buffer.buffer;
-	new_buffer.allocation = allocated_buffer.allocation;
-	new_buffer.info = allocated_buffer.info;
-	new_buffer.base_address = allocated_buffer.base_address;
-	new_buffer.offset = 0;
-	return new_buffer;
+	return .{
+		base = create_buffer(allocator, alloc_size, usage, memory_usage, device, debug_name)
+	};
 }
 
 make_uniform_storage_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_size: u32, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Uniform_Storage_Buffer {
-	new_buffer : Uniform_Storage_Buffer;
-	allocated_buffer := create_buffer(allocator, alloc_size, usage, memory_usage, device, debug_name);
-	new_buffer.buffer = allocated_buffer.buffer;
-	new_buffer.allocation = allocated_buffer.allocation;
-	new_buffer.info = allocated_buffer.info;
-	new_buffer.base_address = allocated_buffer.base_address;
-	new_buffer.element_size = element_size;
-	new_buffer.capacity = alloc_size/element_size;
-	return new_buffer;
+	return .{
+		base = create_buffer(allocator, alloc_size, usage, memory_usage, device, debug_name),
+		element_size = element_size,
+		capacity = alloc_size/element_size
+	};
+}
+
+make_staged_uniform_storage_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_size: u32, usage: VkBufferUsageFlags, device: VkDevice = null, debug_name: string = "") -> Staged_Uniform_Storage_Buffer {
+	staging_name := sprint("%_%", debug_name, "staging");
+	device_name := sprint("%_%", debug_name, "device");
+	return .{
+		staging_buffer = create_buffer(allocator, alloc_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | usage, .CPU_ONLY, device, staging_name),
+		device_buffer = create_buffer(allocator, alloc_size, .VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, .GPU_ONLY, device, device_name),
+		element_size = element_size,
+		capacity = alloc_size/element_size
+	};
 }
 
 make_linear_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_size: u32, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Linear_Buffer {
-	new_buffer : Linear_Buffer;
-	storage_buffer := make_storage_buffer(allocator, alloc_size, usage, memory_usage, device, debug_name);
-	new_buffer.buffer 		= storage_buffer.buffer;
-	new_buffer.allocation 	= storage_buffer.allocation;
-	new_buffer.info 		= storage_buffer.info;
-	new_buffer.base_address = storage_buffer.base_address;
-	new_buffer.offset 		= 0;
-	new_buffer.element_size = element_size;
-	return new_buffer;
+	return .{
+		base = create_buffer(allocator, alloc_size, usage, memory_usage, device, debug_name),
+		element_size = element_size
+	};
 }
 
 destroy_buffer :: (allocator: VmaAllocator, buffer: *Allocated_Buffer) {

@@ -43,7 +43,7 @@ ARCHETYPE_DATABASE :: Archetype_Data.[
 		entity_component_mask		= .{.[58]},
 		archetype_component_mask	= .{.[1]},
 
-		entity_components			= .[Position, Rotation, Scale, Mesh_Instance_Address],
+		entity_components			= .[Position, Rotation, Scale, Mesh_Render_Proxy_EC],
 		entity_components_sizes		= .[12, 16, 12, 8],
 		entity_components_strides	= .[12, 16, 12, 8],
 
@@ -97,7 +97,7 @@ get_EC_storage_ptr :: (world: *ZWorld, arch: Type, $T: Type) -> *Entity_Componen
 				case Position; return *a_s.entity_components[0];
 				case Rotation; return *a_s.entity_components[1];
 				case Scale; return *a_s.entity_components[2];
-				case Mesh_Instance_Address; return *a_s.entity_components[3];
+				case Mesh_Render_Proxy_EC; return *a_s.entity_components[3];
 				case; return null;
 			}
 		case; return null;
@@ -142,7 +142,7 @@ get_Archetype_Ship_entity_component_index :: (t: Type) -> u16  {
 		case Position; return 0;
 		case Rotation; return 1;
 		case Scale; return 2;
-		case Mesh_Instance_Address; return 3;
+		case Mesh_Render_Proxy_EC; return 3;
 		case; return 0;
 	}
 }
@@ -157,7 +157,7 @@ get_Archetype_Ship_entity_component_type :: (idx: u16) -> Type  {
 		case 0; return Position;
 		case 1; return Rotation;
 		case 2; return Scale;
-		case 3; return Mesh_Instance_Address;
+		case 3; return Mesh_Render_Proxy_EC;
 		case; return void;
 	}
 }
@@ -177,7 +177,7 @@ get_entity_component_index :: (archetype: Type, entity_component: Type) -> u16 {
 			case Position; return 0;
 			case Rotation; return 1;
 			case Scale; return 2;
-			case Mesh_Instance_Address; return 3;
+			case Mesh_Render_Proxy_EC; return 3;
 		}
 	}
 		return 0;
@@ -203,7 +203,7 @@ get_entity_component_type :: (archetype: Type, index: u16) -> Type {
 			case 0; return Position;
 			case 1; return Rotation;
 			case 2; return Scale;
-			case 3; return Mesh_Instance_Address;
+			case 3; return Mesh_Render_Proxy_EC;
 			case; return Position;
 		}
 	}
@@ -256,8 +256,8 @@ init_entity_components_Archetype_Ship :: (storage: *Archetype_Storage, entity_in
 	<<Rotation_ptr = Rotation.{};
 	Scale_ptr := cast(*Scale) (storage.entity_components[2].data.data + entity_index * storage.entity_components[2].stride);
 	<<Scale_ptr = Scale.{};
-	Mesh_Instance_Address_ptr := cast(*Mesh_Instance_Address) (storage.entity_components[3].data.data + entity_index * storage.entity_components[3].stride);
-	<<Mesh_Instance_Address_ptr = Mesh_Instance_Address.{};
+	Mesh_Render_Proxy_EC_ptr := cast(*Mesh_Render_Proxy_EC) (storage.entity_components[3].data.data + entity_index * storage.entity_components[3].stride);
+	<<Mesh_Render_Proxy_EC_ptr = Mesh_Render_Proxy_EC.{};
 }
 
 // Initialize entity components for archetype
