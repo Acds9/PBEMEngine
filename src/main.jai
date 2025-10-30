@@ -5,7 +5,6 @@
 #import "SDL";
 #import "Input";
 
-
 Game_State :: struct {
     world: ZWorld;
     scene: ZScene;
@@ -45,8 +44,8 @@ game_init :: (using state: *Game_State) -> bool {
     // Scene setup
     scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device);
 
-	create_entity(*world, Archetype_Ship); 
-	
+	create_entity_batch(*world, Archetype_Ship, 3); 
+
 	light_entity := create_entity(*world, Archetype_Point_Light); 
 	position := get_entity_component(*world, light_entity, Position);
 	position.pos = .{1,1,20};
@@ -147,7 +146,11 @@ game_tick :: (using state: *Game_State) {
 				point_light := *point_light_component_array[it_index];
 				
 				debug_draw_point(*GAME_STATE.scene, pos.pos, 25, .{1,0,0,1}); 
+				debug_draw_point(*GAME_STATE.scene, pos.pos+.{5,5,5}, 25, .{0,0,1,1}); 
+				debug_draw_point(*GAME_STATE.scene, pos.pos+.{10,10,10}, 25, .{0,1,0,1}); 
 				debug_draw_sphere(*GAME_STATE.scene, pos.pos, point_light.radius, .{1,0,0,1} );
+				debug_draw_sphere(*GAME_STATE.scene, pos.pos+.{5,5,5}, point_light.radius, .{0,0,1,1} );
+				debug_draw_sphere(*GAME_STATE.scene, pos.pos+.{10,10,10}, point_light.radius, .{1,0,0,1} );
 			}
 		});
 	}

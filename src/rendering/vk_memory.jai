@@ -44,19 +44,16 @@ Uniform_Storage_Buffer :: struct {
 	free_list	: [..]u32;
 	generations	: [..]u8;
 
-	allocate :: (using self: *Uniform_Storage_Buffer, value: $T, gen: *u8 = null) -> VkDeviceAddress {
+	allocate :: (using self: *Uniform_Storage_Buffer, value: $T) -> VkDeviceAddress {
 		write_index : u32;
 		if free_list.count > 0 {
 			write_index = pop(*free_list);;
 			generations[write_index] += 1;
-			if gen != null then <<gen = generations[write_index];
-			//gen = *generations[write_index]; TEST!!!
 		}
 		else {
 			write_index = count;
 			count += 1;
 			array_resize(*generations, count);
-			if gen != null then <<gen = generations[write_index];
 		}
 
 		if count >= capacity {
@@ -91,18 +88,16 @@ Staged_Uniform_Storage_Buffer :: struct {
 	free_list	: [..]u32;
 	generations	: [..]u8;
 
-	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T, gen: *u8 = null) -> VkDeviceAddress {
+	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T) -> VkDeviceAddress {
 		write_index : u32;
 		if free_list.count > 0 {
 			write_index = pop(*free_list);;
 			generations[write_index] += 1;
-			if gen != null then <<gen = generations[write_index];
 		}
 		else {
 			write_index = count;
 			count += 1;
 			array_resize(*generations, count);
-			if gen != null then <<gen = generations[write_index];
 		}
 
 		if count >= capacity {
@@ -125,7 +120,6 @@ Staged_Uniform_Storage_Buffer :: struct {
 		return device_buffer.base_address + (address - staging_buffer.base_address);
 	}
 
-	// Also takes an offset instead of address
 	buffer_remove :: (using self: *Staged_Uniform_Storage_Buffer, address: VkDeviceAddress) {
 		offset := address - staging_buffer.base_address;
 		index := cast,no_check(u32)(offset / element_size);

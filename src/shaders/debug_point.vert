@@ -27,7 +27,11 @@ layout(buffer_reference, scalar) readonly buffer CameraData {
 layout(location = 0) out vec3 outColor;
 
 void main() {
-    PointData p = PointData(push_constants.point_address);
+    // Calculate offset for this vertex
+    const uint stride = 32; // sizeof(Debug_Point)
+    uint64_t point_offset = push_constants.point_address + (gl_VertexIndex * stride);
+    
+    PointData p = PointData(point_offset);
     CameraData camera = CameraData(push_constants.camera_data_address);
     
     gl_Position = camera.view_proj * vec4(p.position, 1.0);

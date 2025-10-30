@@ -114,7 +114,7 @@ add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, 
 	render_transform.local_transform = local_transform;
 	render_transform.parent_address = parent_transform;
 
-	mesh_render.transform_address = scene.mesh_transforms.allocate(*scene.mesh_transforms, render_transform, *mesh_render.generation);
+	mesh_render.transform_address = scene.mesh_transforms.allocate(*scene.mesh_transforms, render_transform);
 
 	return scene.mesh_instances.allocate(*scene.mesh_instances, mesh_render);
 }
