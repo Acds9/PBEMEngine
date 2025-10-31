@@ -80,8 +80,6 @@ debug_draw_sphere :: (scene: *ZScene, position: Vector3, size: float, color: Vec
 	render_transform : Render_Transform;
 	transform := Transform.{position, ROTOR_IDENTITY, VECTOR_ONE * size};
 	render_transform.local_transform = transform_to_matrix4(transform);
-
 	mesh_render.transform_address = scene.debug_mesh_transforms.allocate(*scene.debug_mesh_transforms, render_transform);
-	
 	scene.debug_mesh_instances.allocate(*scene.debug_mesh_instances, mesh_render);
 }

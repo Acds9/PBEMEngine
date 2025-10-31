@@ -183,4 +183,12 @@ copy_staging_to_device_buffers :: (using scene: *ZScene, cmd: VkCommandBuffer) {
 	debug_point_instances.transfer(*debug_point_instances, cmd);
 	debug_mesh_instances.transfer(*debug_mesh_instances, cmd);
 	debug_mesh_transforms.transfer(*debug_mesh_transforms, cmd);
+
+	// Barrier to ensure copies complete before rendering
+    barrier : VkMemoryBarrier;
+    barrier.sType = .VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    barrier.srcAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
+    
+    vkCmdPipelineBarrier(cmd, .VK_PIPELINE_STAGE_TRANSFER_BIT, .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 1, *barrier, 0, null, 0, null);
 }

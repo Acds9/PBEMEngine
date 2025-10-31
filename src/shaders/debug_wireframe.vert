@@ -2,9 +2,9 @@
 
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_buffer_reference : require
+#extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require  
 #extension GL_EXT_scalar_block_layout : require
-
 #include "input_structures.glsl"
 
 struct Vertex {
@@ -20,8 +20,7 @@ layout(buffer_reference, scalar) readonly buffer VertexBuffer {
 };
 
 layout(buffer_reference, scalar) readonly buffer TransformBuffer {
-    mat4 transform;
-    uint64_t parent_address;
+    Transform transforms[];
 };
 
 void main() {
@@ -30,5 +29,5 @@ void main() {
     VertexBuffer vertex_buffer = VertexBuffer(push_constants.vertex_address);
     
     Vertex v = vertex_buffer.vertices[gl_VertexIndex];
-    gl_Position = camera.view_proj * transform_ref.transform * vec4(v.position, 1.0);
+    gl_Position = camera.view_proj * transform_ref.transforms[0].transform * vec4(v.position, 1.0);
 }

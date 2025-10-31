@@ -20,6 +20,11 @@ layout(buffer_reference, scalar) readonly buffer Point_Light_Data {
     PointLight lights[];
 };
 
+struct Transform {
+    mat4 transform;
+    uint64_t parent_address;
+};
+
 layout(push_constant) uniform PushConstants {
     uint64_t vertex_address;
     uint64_t transform_address;

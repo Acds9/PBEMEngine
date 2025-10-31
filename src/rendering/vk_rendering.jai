@@ -505,17 +505,17 @@ draw_debug_meshes :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandB
 		return;
 	}
 
-	mapped_meshes := cast(*Mesh_Instance)meshes.staging_buffer.info.pMappedData;
-	
-	for 0..meshes.count-1 {
-		mesh : *Mesh_Instance = *mapped_meshes[it]; // The second mesh's pointer is null
+	mapped_meshes := cast,no_check(*Mesh_Instance)meshes.staging_buffer.info.pMappedData;
+
+	for 0..meshes.count-1 { 
+		mesh : *Mesh_Instance = *mapped_meshes[it]; 
 		
 		if mesh.generation != meshes.generations[it] {
 			continue; 
 		}
-		
+
 		mesh_asset : *Mesh_Asset = mesh.mesh_asset;
-		
+
 		for surface: mesh_asset.surfaces {
 			index_offset := surface.index_address - zr.geometry_pool.index_buffer.base_address;
 			vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
@@ -525,6 +525,7 @@ draw_debug_meshes :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandB
 			push_constants.transform_address = scene.debug_mesh_transforms.get_device_address(*scene.debug_mesh_transforms, mesh.transform_address);
 			push_constants.material_address = material.constants_address; 
 			push_constants.camera_data_address = frame_data.camera_buffer.base_address;
+
 
 			vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
 			vkCmdDrawIndexed(command_buffer, surface.index_count, 1, 0, 0, 0);

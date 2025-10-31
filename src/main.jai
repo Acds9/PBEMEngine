@@ -112,6 +112,15 @@ game_update_camera :: (using state: *Game_State) {
 current_position : Vector3;
 game_tick :: (using state: *Game_State) {
 	clear_debug_buffers(*GAME_STATE.scene);
+
+	debug_draw_point(*GAME_STATE.scene, .{0,0,0}, 25, .{1,0,0,1}); 
+	debug_draw_point(*GAME_STATE.scene,.{5,5,5}, 25, .{0,0,1,1}); 
+	debug_draw_point(*GAME_STATE.scene, .{10,10,10}, 25, .{0,1,0,1}); 
+	debug_draw_sphere(*GAME_STATE.scene, .{0,0,0}, 16, .{1,0,0,1} );
+	debug_draw_sphere(*GAME_STATE.scene, .{0,0,0}+.{5,5,5}, 16, .{0,0,1,1} );
+	debug_draw_sphere(*GAME_STATE.scene, .{0,0,0}+.{10,10,10}, 16, .{1,0,0,1} );
+	debug_draw_sphere(*GAME_STATE.scene, .{0,0,0}+.{15,15,15}, 16, .{1,0,0,1} );
+	debug_draw_sphere(*GAME_STATE.scene, .{0,0,0}+.{20,20,20}, 16, .{1,0,0,1} );
 	{
 		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
 			for *pos: position_array {
@@ -145,12 +154,7 @@ game_tick :: (using state: *Game_State) {
 			for *pos: position_array {
 				point_light := *point_light_component_array[it_index];
 				
-				debug_draw_point(*GAME_STATE.scene, pos.pos, 25, .{1,0,0,1}); 
-				debug_draw_point(*GAME_STATE.scene, pos.pos+.{5,5,5}, 25, .{0,0,1,1}); 
-				debug_draw_point(*GAME_STATE.scene, pos.pos+.{10,10,10}, 25, .{0,1,0,1}); 
-				debug_draw_sphere(*GAME_STATE.scene, pos.pos, point_light.radius, .{1,0,0,1} );
-				debug_draw_sphere(*GAME_STATE.scene, pos.pos+.{5,5,5}, point_light.radius, .{0,0,1,1} );
-				debug_draw_sphere(*GAME_STATE.scene, pos.pos+.{10,10,10}, point_light.radius, .{1,0,0,1} );
+				
 			}
 		});
 	}

@@ -106,13 +106,15 @@ Staged_Uniform_Storage_Buffer :: struct {
 
 		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
 		cast_data[write_index] = value;
+		
 		address := staging_buffer.base_address + write_index * element_size;
 		return address;
 	}
 
 	transfer :: (using self: *Staged_Uniform_Storage_Buffer, cmd: VkCommandBuffer) {
 		copy : VkBufferCopy;
-		copy.size = staging_buffer.info.size;
+		//copy.size = staging_buffer.info.size;
+		copy.size = count * element_size;
 		vkCmdCopyBuffer(cmd, staging_buffer.buffer, device_buffer.buffer, 1, *copy);
 	}
 

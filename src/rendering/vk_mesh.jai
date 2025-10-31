@@ -207,11 +207,11 @@ upload_mesh :: (zr: *ZRenderer, pool: *GPU_Geometry_Pool, indices: []u32, vertic
 
 	data : *void = staging.info.pMappedData;
 
-	// Save these for later, we need them to init the addresses 
+	// Save these to init the addresses 
 	vertex_offset := pool.vertex_buffer.offset;
 	index_offset := pool.index_buffer.offset;
 
-	 // Calculate vertex offset in terms of vertex count (not bytes)
+	// Calculate vertex offset in terms of vertex count (not bytes)
     vertex_count_offset := pool.vertex_buffer.offset / size_of(Vertex);
 
 	memcpy(data, vertices.data, vertex_size); // Vertices into data

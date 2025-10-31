@@ -26,15 +26,14 @@ layout(buffer_reference, scalar) readonly buffer VertexBuffer {
 };
 
 layout(buffer_reference, scalar) readonly buffer TransformBuffer {
-    mat4 transform;
-    uint64_t parent_address;
+    Transform transforms[];
 };
 
 void main() {
     CameraData camera = CameraData(push_constants.camera_data_address);
     MaterialData mat = MaterialData(push_constants.material_address);
     TransformBuffer transform_ref = TransformBuffer(push_constants.transform_address);
-    mat4 world_matrix = transform_ref.transform;
+    mat4 world_matrix = transform_ref.transforms[0].transform;
     
     // Get vertex data
     VertexBuffer vertex_buffer = VertexBuffer(push_constants.vertex_address);
