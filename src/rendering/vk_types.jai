@@ -273,6 +273,7 @@ Debug_Draw_Push_Constants :: struct {
 Render_Transform :: struct {
 	local_transform	: Matrix4;
 	parent_address	: VkDeviceAddress;
+	padding			: [8]u8;
 }
 
 

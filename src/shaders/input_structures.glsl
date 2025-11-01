@@ -1,3 +1,5 @@
+#extension GL_EXT_shader_explicit_arithmetic_types : require
+
 layout(buffer_reference, scalar) readonly buffer CameraData {
 	mat4 view;
 	mat4 proj;
@@ -23,6 +25,7 @@ layout(buffer_reference, scalar) readonly buffer Point_Light_Data {
 struct Transform {
     mat4 transform;
     uint64_t parent_address;
+    uint8_t padding[8];
 };
 
 layout(push_constant) uniform PushConstants {

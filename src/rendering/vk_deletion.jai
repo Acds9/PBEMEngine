@@ -97,6 +97,11 @@ queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, buffer: *Uni
     array_add(*queue.buffers, .{allocator, buffer.buffer, buffer.allocation});
 }
 
+queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, buffer: *Staged_Uniform_Storage_Buffer) {
+    array_add(*queue.buffers, .{allocator, buffer.staging_buffer.buffer, buffer.staging_buffer.allocation});
+	array_add(*queue.buffers, .{allocator, buffer.device_buffer.buffer, buffer.device_buffer.allocation});
+}
+
 queue_deletion :: (queue: *Deletion_Queue, device: VkDevice, sampler: VkSampler) {
     array_add(*queue.samplers, .{device, sampler});
 }

@@ -6,6 +6,8 @@ SCENE_DEBUG_BUFFER_SIZE :: 1*1024*1024;
 
 ZScene :: struct {
 	
+	draw_commands	: Staged_Uniform_Storage_Buffer;
+		
 	mesh_instances	: Staged_Uniform_Storage_Buffer;
 	mesh_transforms	: Staged_Uniform_Storage_Buffer;
 	point_lights	: Staged_Uniform_Storage_Buffer;
@@ -20,30 +22,24 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 	scene : ZScene;
 
 	scene.mesh_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MESH_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "mesh_instances buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.mesh_instances.staging_buffer.buffer, scene.mesh_instances.staging_buffer.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.mesh_instances.device_buffer.buffer, scene.mesh_instances.device_buffer.allocation);
-	
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.mesh_instances);
+
 	scene.mesh_transforms = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, TRANSFORM_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "mesh_transforms buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.mesh_transforms.staging_buffer.buffer, scene.mesh_transforms.staging_buffer.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.mesh_transforms.device_buffer.buffer, scene.mesh_transforms.device_buffer.allocation);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.mesh_transforms);
 	
 	scene.point_lights = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, LIGHT_BUFFER_SIZE, size_of(Point_Light), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "point_lights buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.point_lights.staging_buffer.buffer, scene.point_lights.staging_buffer.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.point_lights.device_buffer.buffer, scene.point_lights.device_buffer.allocation);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.point_lights);
 
 	//////////////////// DEBUG //////////////////////////////////
 
 	scene.debug_point_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Debug_Point), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_point_instances buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.debug_point_instances.staging_buffer.buffer, scene.debug_point_instances.staging_buffer.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.debug_point_instances.device_buffer.buffer, scene.debug_point_instances.device_buffer.allocation);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_point_instances);
 
 	scene.debug_mesh_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_mesh_instances buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.debug_mesh_instances.staging_buffer.buffer, scene.debug_mesh_instances.staging_buffer.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.debug_mesh_instances.device_buffer.buffer, scene.debug_mesh_instances.device_buffer.allocation);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_mesh_instances);
 
 	scene.debug_mesh_transforms = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_mesh_transforms buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.debug_mesh_transforms.staging_buffer.buffer, scene.debug_mesh_transforms.staging_buffer.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.debug_mesh_transforms.device_buffer.buffer, scene.debug_mesh_transforms.device_buffer.allocation);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_mesh_transforms);
 
 	/////////////////////////////////////////////////////////////
 	return scene;

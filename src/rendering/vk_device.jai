@@ -284,6 +284,7 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 	device_featuresVK12.pNext = *device_featuresVK13;
 	device_featuresVK12.bufferDeviceAddress = VK_TRUE;
 	device_featuresVK12.runtimeDescriptorArray = VK_TRUE;
+	device_featuresVK12.storageBuffer8BitAccess = VK_TRUE;
 
 	device_featuresVK11 : VkPhysicalDeviceVulkan11Features;
 	device_featuresVK11.pNext = *device_featuresVK12;
