@@ -22,4 +22,4 @@ content/*
 *.10x
 
 # Generated files
-#*_gen.*
+*_gen.*
