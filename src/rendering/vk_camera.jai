@@ -13,52 +13,30 @@ Render_Camera :: struct {
 
 	position		: Vector3;
 	fov				: float;
-	rotation		: Quaternion;
+	rotation		: Rotor;
 	aspect_ratio	: float;
 	near_plane		: float;
 	far_plane		: float;
+
+	forward			: Vector3;
+	right			: Vector3;
+	up				: Vector3;
 
 	translate :: (using self: *Render_Camera, translation: Vector3) {
 		position += translation;
 	}
 
-	pitch :: (using self: *Render_Camera, value: float) {
-		rotation = quaternion_from_axis_angle_fast(AXIS_RIGHT, value) * rotation;
-	}
-	yaw :: (using self: *Render_Camera, value: float) {
-		rotation = quaternion_from_axis_angle_fast(AXIS_UP, value) * rotation;
-	}
-	roll :: (using self: *Render_Camera, value: float) {
-		rotation = quaternion_from_axis_angle_fast(AXIS_FORWARD, value) * rotation;
+	rotate :: (using self: *Render_Camera, new_rotation: Rotor) {
+		rotation = new_rotation;
 	}
 }
 
-quaternion_from_axis_angle :: (axis: Vector3, angle: float) -> Quaternion {
-    normalized_axis := normalize(axis);
-    
-    half_angle := angle * 0.5;
-    s := sin(half_angle);
-    
-    result: Quaternion;
-    result.x = normalized_axis.x * s;
-    result.y = normalized_axis.y * s;
-    result.z = normalized_axis.z * s;
-    result.w = cos(half_angle);
-    
-    return result;
-}
-
-// Axis must already be normalized
-quaternion_from_axis_angle_fast :: (axis: Vector3, angle: float) -> Quaternion {
-    half_angle := angle * 0.5;
-    s := sin(half_angle);
-    
-    result: Quaternion;
-    result.x = axis.x * s;
-    result.y = axis.y * s;
-    result.z = axis.z * s;
-    result.w = cos(half_angle);
-    
-    return result;
+// Init camera with default values
+init_camera :: (camera: *Render_Camera) {
+	camera.position = .{-5, 0, 0};
+	camera.rotation = ROTOR_IDENTITY;
+	camera.fov = 95.0;
+	camera.near_plane = 0.1;
+	camera.far_plane = 10000.0;
 }
 

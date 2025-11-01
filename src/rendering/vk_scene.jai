@@ -1,68 +1,60 @@
-SCENE_MESHBUFFER_SIZE :: 8*1024*1024; // 8MB
-SCENE_TRANSFORMBUFFER_SIZE :: 8*1024*1024; // 8MB
+MESH_BUFFER_SIZE 		:: 8*1024*1024; // 8MB
+TRANSFORM_BUFFER_SIZE 	:: 8*1024*1024; 
+LIGHT_BUFFER_SIZE 		:: 8*1024*1024;
+// TODO: these buffer sizes are all overkill
+SCENE_DEBUG_BUFFER_SIZE :: 1*1024*1024;
 
 ZScene :: struct {
-	scene_mesh_instances	: Storage_Buffer;
-	scene_transforms		: Storage_Buffer; 
+	
+	draw_commands	: Staged_Uniform_Storage_Buffer;
+		
+	mesh_instances	: Staged_Uniform_Storage_Buffer;
+	mesh_transforms	: Staged_Uniform_Storage_Buffer;
+	point_lights	: Staged_Uniform_Storage_Buffer;
+
+	//////////////////// DEBUG //////////////////////////////////
+	debug_point_instances 			: Staged_Uniform_Storage_Buffer;
+	debug_mesh_instances			: Staged_Uniform_Storage_Buffer;
+	debug_mesh_transforms			: Staged_Uniform_Storage_Buffer;
 }
 
-init_zscene :: (allocator: VmaAllocator, device: VkDevice, mesh_buffer_size_override: u64, transform_buffer_size_override: u64) -> ZScene {
+create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 	scene : ZScene;
-	scene.scene_mesh_instances = make_storage_buffer(VMA_ALLOCATOR, mesh_buffer_size_override, size_of(Mesh_Instance), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-																														, .VMA_MEMORY_USAGE_GPU_ONLY, device, "scene_mesh_instances buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.scene_mesh_instances.buffer, scene.scene_mesh_instances.allocation);
-	scene.scene_transforms = make_storage_buffer(VMA_ALLOCATOR, transform_buffer_size_override, size_of(Render_Transform), .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
-																															.VMA_MEMORY_USAGE_GPU_ONLY, device, "scene_transforms buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, scene.scene_transforms.buffer, scene.scene_transforms.allocation);
+
+	scene.mesh_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MESH_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "mesh_instances buffer");
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.mesh_instances);
+
+	scene.mesh_transforms = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, TRANSFORM_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "mesh_transforms buffer");
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.mesh_transforms);
+	
+	scene.point_lights = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, LIGHT_BUFFER_SIZE, size_of(Point_Light), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "point_lights buffer");
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.point_lights);
+
+	//////////////////// DEBUG //////////////////////////////////
+
+	scene.debug_point_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Debug_Point), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_point_instances buffer");
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_point_instances);
+
+	scene.debug_mesh_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_mesh_instances buffer");
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_mesh_instances);
+
+	scene.debug_mesh_transforms = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_mesh_transforms buffer");
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_mesh_transforms);
+
+	/////////////////////////////////////////////////////////////
 	return scene;
-}
-
-Storage_Buffer :: struct {
-	using base	: Allocated_Buffer;
-	element_size: u32;
-	capacity	: u64;
-	count		: u32;
-	free_list	: [..]u32;
-	generations	: [..]u8;
-
-	buffer_add :: (using self: *Storage_Buffer, value: $T, gen: *u8 = null) -> VkDeviceAddress {
-		write_index : u32;
-		if free_list.count > 0 {
-			write_index = pop(*free_list);;
-			generations[write_index] += 1;
-			gen = *generations[write_index];
-		}
-		else {
-			write_index = count;
-			count += 1;
-			array_resize(*generations, count);
-		}
-
-		if count >= capacity {
-			panic(sprint("Attempted to allocate more transforms than capacity allows. Capacity: %", capacity));
-		}
-
-		cast_data := cast,no_check(*T)info.pMappedData;
-		cast_data[write_index] = value;
-		data_address := base_address + write_index * element_size;
-		return data_address;
-	}
-	buffer_remove :: (using self: *Storage_Buffer, address: VkDeviceAddress) {
-		offset := address - base_address;
-		index := cast,no_check(u32)(offset / element_size);
-    
-		array_add(*free_list, index);
-	}
 }
 
 Frame_Surface_Buckets :: struct {
 	Transformed_Surface	:: struct {
-		transform_address: VkDeviceAddress;
-		surface: *Geo_Surface;
+		constants_address	: VkDeviceAddress;
+		transform_address	: VkDeviceAddress;
+		surface				: *Geo_Surface;
 	}
 	Material_Bucket :: struct {
-		material: *Material_Instance; 
-		surfaces: [..]Transformed_Surface;
+		material_pipeline			: VkPipeline; 
+		material_pipeline_layout 	: VkPipelineLayout;
+		surfaces					: [..]Transformed_Surface;
 	}
 
 	buckets		: [..]Material_Bucket;
@@ -71,36 +63,38 @@ Frame_Surface_Buckets :: struct {
 // This needs optimization and camera culling
 frame_generate_surface_buckets :: (zr: *ZRenderer, scene: *ZScene) {
 	array_reset(*zr.frame_surfaces.buckets);
-	scene_mesh_instances := *scene.scene_mesh_instances;
-	mapped_meshes := cast,no_check(*Mesh_Instance)scene_mesh_instances.info.pMappedData;
+	mesh_instances := *scene.mesh_instances;
+	mapped_meshes := cast,no_check(*Mesh_Instance)mesh_instances.staging_buffer.info.pMappedData;
 	
-	if scene.scene_mesh_instances.count == 0
+	if scene.mesh_instances.count == 0
 		return;
 
-	for 0..scene.scene_mesh_instances.count-1 {
-		
+	for 0..scene.mesh_instances.count-1 {
 		mesh := *mapped_meshes[it];
 
 		// Skip if generation doesn't match
-		if mesh.generation != scene_mesh_instances.generations[it] {
+		if mesh.generation != mesh_instances.generations[it] {
 			continue; 
 		}
 
 		for *surface: mesh.mesh_asset.surfaces {
 			surface_material := surface.material;
 			for *bucket: zr.frame_surfaces.buckets {
-				if surface_material == bucket.material {
+				if surface_material.pipeline == bucket.material_pipeline {
 					transformed_surface : Frame_Surface_Buckets.Transformed_Surface;
-					transformed_surface.transform_address = mesh.transform_address;
+					transformed_surface.constants_address = surface_material.constants_address;
+					transformed_surface.transform_address = scene.mesh_transforms.get_device_address(*scene.mesh_transforms, mesh.transform_address);
 					transformed_surface.surface = surface;
 					array_add(*bucket.surfaces, transformed_surface);
 					continue surface; // This will skip the array add below
 				}
 			}
 			new_bucket : Frame_Surface_Buckets.Material_Bucket;
-			new_bucket.material = surface_material;
+			new_bucket.material_pipeline = surface_material.pipeline;
+			new_bucket.material_pipeline_layout = surface_material.layout;
 			transformed_surface : Frame_Surface_Buckets.Transformed_Surface;
-			transformed_surface.transform_address = mesh.transform_address;
+			transformed_surface.constants_address = surface_material.constants_address;
+			transformed_surface.transform_address = scene.mesh_transforms.get_device_address(*scene.mesh_transforms, mesh.transform_address);
 			transformed_surface.surface = surface;
 			array_add(*new_bucket.surfaces, transformed_surface); 
 			array_add(*zr.frame_surfaces.buckets, new_bucket);
@@ -108,33 +102,89 @@ frame_generate_surface_buckets :: (zr: *ZRenderer, scene: *ZScene) {
 	}
 }
 
-make_storage_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_size: u32, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Storage_Buffer {
-	new_buffer : Storage_Buffer;
-	allocated_buffer := create_buffer(allocator, alloc_size, usage, memory_usage, device, debug_name);
-	new_buffer.buffer = allocated_buffer.buffer;
-	new_buffer.allocation = allocated_buffer.allocation;
-	new_buffer.info = allocated_buffer.info;
-	new_buffer.base_address = allocated_buffer.base_address;
-	new_buffer.element_size = element_size;
-	new_buffer.capacity = alloc_size/element_size;
-	return new_buffer;
-}
-
 add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, parent_transform: VkDeviceAddress = 0) -> VkDeviceAddress {
 	mesh_render : Mesh_Instance;
 	mesh_render.mesh_asset = mesh;
+
 	render_transform : Render_Transform;
 	render_transform.local_transform = local_transform;
 	render_transform.parent_address = parent_transform;
 
-	transform_buffer := *scene.scene_transforms;
-	
-	mesh_render.transform_address = transform_buffer.buffer_add(transform_buffer, render_transform, *mesh_render.generation);
+	mesh_render.transform_address = scene.mesh_transforms.allocate(*scene.mesh_transforms, render_transform);
 
-	return scene.scene_mesh_instances.buffer_add(*scene.scene_mesh_instances, mesh_render);
+	return scene.mesh_instances.allocate(*scene.mesh_instances, mesh_render);
+}
+
+add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, transform: Transform, parent_transform: VkDeviceAddress = 0) -> VkDeviceAddress {
+	transform_to_matrix4(transform);
+	return add_scene_mesh(scene, mesh, transform_to_matrix4(transform), parent_transform);
 }
 
 remove_scene_mesh :: (scene: *ZScene, address: VkDeviceAddress) {
-    scene.scene_transforms.buffer_remove(*scene.scene_transforms, address);
-    scene.scene_mesh_instances.buffer_remove(*scene.scene_mesh_instances, address);
+    scene.mesh_transforms.buffer_remove(*scene.mesh_transforms, address);
+    scene.mesh_instances.buffer_remove(*scene.mesh_instances, address);
+}
+
+add_scene_point_light :: (scene: *ZScene, light: Point_Light) -> VkDeviceAddress {
+	return scene.point_lights.allocate(*scene.point_lights, light);
+}
+
+render_get_mesh_instance :: (scene: *ZScene, instance_address: VkDeviceAddress) -> *Mesh_Instance {
+	instance_buffer := *scene.mesh_instances.staging_buffer;
+	offset := instance_address - instance_buffer.base_address;
+
+	dest_ptr := cast,no_check(*Mesh_Instance)(cast,no_check(*u8)instance_buffer.info.pMappedData + offset);
+  	return dest_ptr;
+}
+
+render_set_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance, new_transform: *Matrix4) {
+	render_set_transform(scene, mesh_instance.transform_address, new_transform);
+}
+
+render_set_transform :: (scene: *ZScene, transform_address: VkDeviceAddress, new_transform: *Matrix4) {
+	transform_buffer := *scene.mesh_transforms.staging_buffer;
+    offset := transform_address - transform_buffer.base_address;
+    
+    dest_ptr := cast,no_check(*Render_Transform)(cast,no_check(*u8)transform_buffer.info.pMappedData + offset);
+    dest_ptr.local_transform = <<new_transform;
+}
+
+render_get_transform :: (scene: *ZScene, transform_address: VkDeviceAddress) -> *Render_Transform {
+	transform_buffer := *scene.mesh_transforms.staging_buffer;
+    offset := transform_address - transform_buffer.base_address;
+    
+    dest_ptr := cast,no_check(*Render_Transform)(cast,no_check(*u8)transform_buffer.info.pMappedData + offset);
+   	return dest_ptr;
+}
+
+render_get_world_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance) -> Matrix4 {
+	return calculate_world_transform(render_get_transform(scene, mesh_instance.transform_address));
+}
+
+render_get_local_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance) -> Matrix4 {
+	return render_get_transform(scene, mesh_instance.transform_address).local_transform;
+}
+
+clear_debug_buffers :: (using scene: *ZScene) {
+	debug_point_instances.reset(*debug_point_instances);			
+	debug_mesh_instances.reset(*debug_mesh_instances);	
+	debug_mesh_transforms.reset(*debug_mesh_transforms);
+}
+
+copy_staging_to_device_buffers :: (using scene: *ZScene, cmd: VkCommandBuffer) {
+	mesh_instances.transfer(*mesh_instances, cmd);
+	mesh_transforms.transfer(*mesh_transforms, cmd);
+	point_lights.transfer(*point_lights, cmd);
+
+	debug_point_instances.transfer(*debug_point_instances, cmd);
+	debug_mesh_instances.transfer(*debug_mesh_instances, cmd);
+	debug_mesh_transforms.transfer(*debug_mesh_transforms, cmd);
+
+	// Barrier to ensure copies complete before rendering
+    barrier : VkMemoryBarrier;
+    barrier.sType = .VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    barrier.srcAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
+    
+    vkCmdPipelineBarrier(cmd, .VK_PIPELINE_STAGE_TRANSFER_BIT, .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 1, *barrier, 0, null, 0, null);
 }

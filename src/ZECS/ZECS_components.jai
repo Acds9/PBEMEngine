@@ -9,12 +9,16 @@ Position :: struct{
 
 Rotation :: struct{
 	using #as entity_component: Entity_Component;
-	rot : Quaternion = QUAT_IDENTITY;
+	rot : Rotor = .{1,0,0,0};
+
+	default :: (using self: *Rotation) {
+		rot = ROTOR_IDENTITY;
+	}
 }
 
 Scale :: struct{
 	using #as entity_component: Entity_Component;
-	scale : Vector3 = .{1,1,1};
+	scale : Vector3 = .{1,1,1}; 
 }
 
 Representation_Flags :: enum_flags u8 {
@@ -24,6 +28,19 @@ Representation_Flags :: enum_flags u8 {
 Entity_Representation_Flags :: struct {
 	using #as entity_component: Entity_Component;
 	flags : Representation_Flags;
+}
+
+Mesh_Render_Proxy_EC :: struct {
+	using #as entity_component: Entity_Component;
+	mesh_address	: u64;
+}
+
+Point_Light_Component :: struct {
+	using #as entity_component: Entity_Component;
+
+	color			: Vector4;
+	light_address	: u64;
+	radius			: float;
 }
 
 Archetype_Component :: struct{}

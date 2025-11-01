@@ -1,32 +1,3 @@
-Color :: struct  {
-	r, g, b, a : u8;
-}
-
-COLOR_BLACK		:: Color.{0, 0, 0, 255};
-COLOR_GREY 		:: Color.{127,127,127,255};
-COLOR_WHITE 	:: Color.{255, 255, 255, 255};
-COLOR_MAGENTA 	:: Color.{255, 0, 255, 255};
-
-color_to_vec4 :: (c: *Color) -> Vector4 {
-	return .{
-			cast,no_check(float)c.r, 
-			cast,no_check(float)c.g, 
-			cast,no_check(float)c.b, 
-			cast,no_check(float)c.a};
-}
-
-Color_HDR :: struct {
-	r, g, b, a : float32;
-
-	to_r10g10b10a2 :: (using self: *Color_HDR) -> u32 {
-		r1 := cast,no_check(u32)(clamp(r, 0, 1) * 1023.0);
-		g1 := cast,no_check(u32)(clamp(g, 0, 1) * 1023.0);
-		b1 := cast,no_check(u32)(clamp(b, 0, 1) * 1023.0);
-		a1 := cast,no_check(u32)(clamp(a, 0, 1) * 3.0);
-		return r1 | (g1 << 10) | (b1 << 20) | (a1 << 30);
-	}
-}
-
 Swapchain_Support_Details :: struct {
     capabilities    : VkSurfaceCapabilitiesKHR;
     formats        : [..]VkSurfaceFormatKHR;
@@ -34,11 +5,13 @@ Swapchain_Support_Details :: struct {
 }
 
 Allocated_Image :: struct {
-    image          : VkImage;
-    image_view     : VkImageView;
-    allocation     : VmaAllocation;
-    image_extent   : VkExtent3D;
-    image_format   : VkFormat;
+    image          	: VkImage;
+    image_view     	: VkImageView;
+    allocation     	: VmaAllocation;
+    image_extent   	: VkExtent3D;
+    image_format   	: VkFormat;
+	image_name		: string;
+	image_index		: u32;
 }
 
 Queue_Family_Indices :: struct {
@@ -50,19 +23,6 @@ Queue_Family_Indices :: struct {
     is_complete :: (using self: Queue_Family_Indices) -> bool {
         return graphics > -1 && present > -1;
     }
-}
-
-Frame_Data :: struct {
-	command_pool 				: VkCommandPool;
-	command_buffer				: VkCommandBuffer;
-
-	swapchain_semaphore 		: VkSemaphore;
-	render_semaphore 			: VkSemaphore;
-	render_fence				: VkFence;
-
-	frame_descriptors			: Descriptor_Allocator;
-
-	deletion_queue				: Deletion_Queue;
 }
 
 Pipeline_Builder :: struct {
@@ -119,6 +79,7 @@ Pipeline_Builder :: struct {
 		pipeline_info.pNext = *render_info;
 	
 		pipeline_info.stageCount = cast,no_check(u32)shader_stages.count;
+		pipeline_info.flags = .VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
 		pipeline_info.pStages = shader_stages.data;
 		pipeline_info.pVertexInputState = *vertex_input_info;
 		pipeline_info.pInputAssemblyState = *input_assembly;
@@ -183,6 +144,12 @@ Pipeline_Builder :: struct {
 
 		rasterizer.cullMode = mode;
 		rasterizer.frontFace = front_face;
+	}
+
+	set_line_width :: (self: *Pipeline_Builder, width: float) {
+		using self;
+
+		rasterizer.lineWidth = width;
 	}
 
 	set_multisampling_none :: (self: *Pipeline_Builder) { // Expand later
@@ -274,13 +241,6 @@ Pipeline_Builder :: struct {
 	}
 }
 
-Allocated_Buffer :: struct {
-	buffer		: VkBuffer;
-	allocation	: VmaAllocation;
-	info		: VmaAllocationInfo; 
-	base_address: VkDeviceAddress;
-}
-
 Vertex :: struct {
 	position	: Vector3;
 	uv_x		: float;
@@ -296,22 +256,24 @@ GPU_Mesh_Buffers :: struct {
 }
 
 GPU_Draw_Push_Constants :: struct {
+	vertex_address		: VkDeviceAddress;
 	transform_address	: VkDeviceAddress;
-	vertex_buffer		: VkDeviceAddress;
+	material_address	: VkDeviceAddress;
+	camera_data_address : VkDeviceAddress;
+	point_lights_address: VkDeviceAddress;
+	point_lights_count	: u32;
 }
 
-GPU_Scene_Data :: struct {
-	view			: Matrix4;
-	proj			: Matrix4;
-	view_proj		: Matrix4;
-	ambient_color	: Vector4;
-	sunlight_dir	: Vector4;
-	sunlight_color	: Vector4;
+Debug_Draw_Push_Constants :: struct {
+	vertex_address		: VkDeviceAddress;
+	transform_address	: VkDeviceAddress;
+	camera_data_address : VkDeviceAddress;
 }
 
 Render_Transform :: struct {
 	local_transform	: Matrix4;
 	parent_address	: VkDeviceAddress;
+	padding			: [8]u8;
 }
 
 

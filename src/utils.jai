@@ -1,4 +1,5 @@
 #import "File";
+#import "String";
 #import "File_Utilities";
 
 // Files
@@ -40,6 +41,11 @@ string_to_byte_array :: (str: string) -> [..]u8 {
 	return bytes;
 }
 
+warn :: (msg: string) {
+	print("WARNING: %\n", msg);
+	debug_break();
+}
+
 panic :: (msg: string) {
 	print("%\n", msg);
 	debug_break();
@@ -61,4 +67,8 @@ get_mip_levels :: (width: u32, height: u32) -> u32 {
         level += 1;
     }
     return level + 1;
+}
+
+align_up :: (value: u64, alignment: u64) -> u64 {
+    return (value + alignment - 1) & ~(alignment - 1);
 }

@@ -40,6 +40,7 @@ code_generation :: (w: Workspace) -> bool {
 
 	generated := false;
 	add_build_file("src/ZECS/ZECS_types.jai", w);
+	add_build_file("H:/PBEMJai/src/zmath.jai", w);
 	add_build_file("src/ZECS/generated/ZECS_constants_gen.jai", w);
 	add_build_file("src/ZECS/generated/ZECS_components_gen.jai", w);
 	add_build_file("src/ZECS/generated/ZECS_archetypes_gen.jai", w);
@@ -86,6 +87,7 @@ generate_query_code :: (w: Workspace, query_metadata: []Query_Build_Metadata) {
 	#load "src/ZECS/generated/ZECS_constants_gen.jai";
 	#load "src/ZECS/ZECS_components.jai";
 	#load "src/ZECS/ZECS_archetypes.jai";
+	#load "H:/PBEMJai/src/zmath.jai";
 	#load "src/ZECS/ZECS_types.jai";
 	#load "src/ZECS/stub/ZECS_queries_meta_stub.jai";
 	append(*queries_file_builder, generate_queries(query_metadata));

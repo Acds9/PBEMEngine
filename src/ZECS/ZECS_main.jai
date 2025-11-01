@@ -60,15 +60,13 @@ ZWorld :: struct {
 
 }
 
-create_zworld :: (pool_size: s64 = DEFAULT_POOL_SIZE) -> *ZWorld {
-	world := New(ZWorld);
-
+init_zworld :: (world: *ZWorld, pool_size: s64 = DEFAULT_POOL_SIZE) {
 	fp.init(*world.world_pool, pool_size);
 	allocator := Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
-
 	world.world_entities.allocator = allocator;
 
-	return world;
+	initialize_archetypes(world, *allocator);
+    register_observers(world);
 }
 
 reset_world :: (world: *ZWorld) {
@@ -85,17 +83,17 @@ init_archetype :: (world: *ZWorld, archetype: Type) {
 }
 
 get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage {
-	return *world.world_archetypes[get_arch_index(archetype)];
+	return *world.world_archetypes[get_archetype_storage_index(archetype)];
 }
 
 tick_world :: (world: *ZWorld, delta_time: float64) {
 	flush_observers(world);
 }
 
-observe_created_entities :: (world: *ZWorld, archetype: u16, entity: ZEntity) { 
+observer_add_created_entities :: (world: *ZWorld, archetype: u16, entity: ZEntity) { 
 	array_add(*world.observer_buffer.created[archetype], entity);
 }
-observe_created_entities :: (world: *ZWorld, archetype: u16, entities: [..]ZEntity) { 
+observer_add_created_entities :: (world: *ZWorld, archetype: u16, entities: [..]ZEntity) { 
 	array_append(*world.observer_buffer.created[archetype], entities);
 }
 
@@ -107,7 +105,7 @@ flush_observers :: (world: *ZWorld) {
 		arch_idx := cast,no_check(u16)it_index;
 		bound_observers := world.observer_registry.on_created[arch_idx];
 		for bound_observers {
-			it.proc(world, arch_idx, <<entities);
+			it.proc(*GAME_STATE, <<entities);
 		}
 	}
 	for *world.observer_buffer.destroyed {
@@ -117,7 +115,7 @@ flush_observers :: (world: *ZWorld) {
 		arch_idx := cast,no_check(u16)it_index;
 		bound_observers := world.observer_registry.on_destroyed[arch_idx];
 		for bound_observers {
-			it.proc(world, arch_idx, <<entities);
+			it.proc(*GAME_STATE, <<entities);
 		}
 	}
 	world.observer_buffer.reset(*world.observer_buffer);
@@ -168,18 +166,18 @@ create_entity :: (world: *ZWorld, arch: Type, idx : u32 = 0, gen : u16 = 0) -> Z
 	entity := ZEntity.{
 		index = entity_idx,
 		gen = entity_gen,
-		archetype = get_arch_index(arch)
+		archetype = get_archetype_storage_index(arch)
 	};
 
 	array_add(*world.world_entities, entity);
-	observe_created_entities(world, get_arch_index(arch), entity);
+	observer_add_created_entities(world, get_archetype_storage_index(arch), entity);
 	return entity;
 }
 
 create_entity_batch :: (world: *ZWorld, $arch_type: Type, count: u32) -> []ZEntity {
     if count == 0 return .[];
 
-    arch_idx := get_arch_index(arch_type);
+    arch_idx := get_archetype_storage_index(arch_type);
     arch_storage := *world.world_archetypes[arch_idx];
     
     // Initialize archetype if needed
@@ -249,7 +247,7 @@ create_entity_batch :: (world: *ZWorld, $arch_type: Type, count: u32) -> []ZEnti
         array_add(*world.world_entities, it);
     }
     
-	observe_created_entities(world, get_arch_index(arch_type), entities);
+	observer_add_created_entities(world, get_archetype_storage_index(arch_type), entities);
     return entities;
 }
 
@@ -266,35 +264,38 @@ destroy_entity :: (world: *ZWorld, entity: ZEntity) {
 }
 
 
-initialize_archetype_storage :: (archetype: u16, alloc: Allocator) -> Archetype_Storage {
+initialize_archetype_storage :: (archetype: u16, allocator: Allocator) -> Archetype_Storage {
 	storage: Archetype_Storage;
 	data := get_archetype_data(archetype);
-
-	storage.entity_components.allocator = alloc;
-	storage.archetype_components.allocator = alloc;
-	storage.free_indices.allocator = alloc;
-	storage.generations.allocator = alloc;
+	
+	storage.entity_components.allocator = allocator;
+	storage.archetype_components.allocator = allocator;
+	storage.free_indices.allocator = allocator;
+	storage.generations.allocator = allocator;
 
 	storage.entity_component_mask = data.entity_component_mask;
 	storage.archetype_component_mask = data.archetype_component_mask;
 
 	array_resize(*storage.entity_components, data.entity_components.count);
-	array_resize(*storage.archetype_components, data.entity_components.count);
 
 	for data.entity_components {
 		storage.entity_components[it_index].type = it;
 		storage.entity_components[it_index].stride = get_entity_component_size(it);
 	}
 
-	storage.archetype_components[0].type = Mesh_Rep;
-	storage.archetype_components[0].data = Any.{type = type_info(Mesh_Rep), value_pointer = cast(*void)(*Archetype_Ship.DEFAULT_Mesh_Rep)}; // TODO: Fix this, need to pass the proper initializer func I think
+	archetype_components_total_size : u32;
+	for data.archetype_components {
+		archetype_components_total_size += get_archetype_component_size(it);
+	}
+	array_resize(*storage.archetype_components, archetype_components_total_size);
+
 	storage.tags = data.tags;
 	storage.chunk_size = data.chunk_size;
 	return storage;
 }
 
-initialize_archetype_storage :: (archetype: Type, alloc: Allocator) -> Archetype_Storage {
-	return initialize_archetype_storage(get_arch_index(archetype), alloc);
+initialize_archetype_storage :: (archetype: Type, allocator: Allocator) -> Archetype_Storage {
+	return initialize_archetype_storage(get_archetype_storage_index(archetype), allocator);
 }
 
 // Components
@@ -323,11 +324,6 @@ array_view_dynamic :: (arr: [..]$T, count: int) -> []T {
     return result;
 }
 
-Archetype_Component_Storage :: struct {
-	type			: Type;
-	data			: Any;	// Stores 1 component, no more
-}
-
 // Archetypes
 Arch_Storage_Initializer :: #type (alloc: Allocator) -> Archetype_Storage;
 Archetype_Storage :: struct {
@@ -335,7 +331,7 @@ Archetype_Storage :: struct {
 	entity_components 			: [..]Entity_Component_Storage;
 	entity_component_mask 		: Bit_Field(MAX_ENTITY_COMPONENTS);
 	
-	archetype_components		: [..]Archetype_Component_Storage;
+	archetype_components		: [..]u8;
 	archetype_component_mask	: Bit_Field(MAX_ARCH_COMPONENTS);
 
 	tags						: ZTags;
@@ -351,12 +347,12 @@ Archetype_Storage :: struct {
 }
 
 get_entity_component_storage :: (world: *ZWorld, archetype_idx: u16, $T: Type) -> *Entity_Component_Storage {
-	return get_e_c_storage_ptr(world, archetype_idx, T);
+	return get_EC_storage_ptr(world, archetype_idx, T);
 }
 
 // TODO: add some bool returns to these
 get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T {
-	storage := get_e_c_storage_ptr(world, get_index_arch(entity.archetype), T);
+	storage := get_EC_storage_ptr(world, get_archetype(entity.archetype), T);
 	offset := entity.index * storage.stride;
 	return cast(*T) *storage.data[offset];
 }
@@ -365,11 +361,6 @@ get_entity_component :: (storage: *Entity_Component_Storage, idx: u32,  $T: Type
 	offset := idx * storage.stride;
 	return cast(*T) *storage.data[offset];
 } 
-
-get_archetype_component :: (world: *ZWorld, archetype: u16, $T: Type) -> *T {
-	storage := *world.world_archetypes[archetype];
-	return cast(*T) *storage.entity_components[get_archetype_component_index(get_index_arch(archetype), T)].data;
-}
 
 ensure_component_capacity :: (world: *ZWorld, storage: *Archetype_Storage, needed_count: u32) {
 	

@@ -17,3 +17,9 @@ examples/*
 modules/*
 content/*
 .vscode/*
+
+# IDE
+*.10x
+
+# Generated files
+#*_gen.*

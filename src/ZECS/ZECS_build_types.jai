@@ -49,7 +49,6 @@ Observer_Build_Metadata :: struct {
 }
 
 gather_component_types :: (typechecked: *Message_Typechecked, entity_comps: *[..]string, arch_comps: *[..]string, tags: *[..]string) -> bool {
-	
 	x := typechecked.declarations;
     for typechecked.structs{
 		info := it.expression.defined_type;
@@ -66,7 +65,6 @@ gather_component_types :: (typechecked: *Message_Typechecked, entity_comps: *[..
 }
 
 gather_archetypes :: (typechecked: *Message_Typechecked, metadata: *[..]Archetype_Build_Metadata) {
-	
 	for typechecked.structs {
         info := it.expression.defined_type;
         

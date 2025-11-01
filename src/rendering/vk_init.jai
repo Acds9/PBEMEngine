@@ -49,10 +49,10 @@ vkinit_swapchain_create_info :: (surface: VkSurfaceKHR, min_image_count: u32, fo
 vkinit_subresource_range :: (aspect_mask: VkImageAspectFlags, base_mip_level: u32 = 0, level_count: u32 = 1, base_array_layer : u32 = 0, layer_count : u32 = 1) -> VkImageSubresourceRange {
 	subresource : VkImageSubresourceRange;	
 	subresource.aspectMask = aspect_mask;
-	subresource.baseMipLevel = 0;
-	subresource.levelCount = 1;
-	subresource.baseArrayLayer = 0;
-	subresource.layerCount  = 1;
+	subresource.baseMipLevel = base_mip_level;
+	subresource.levelCount = level_count;
+	subresource.baseArrayLayer = base_array_layer;
+	subresource.layerCount  = layer_count;
 	return subresource;
 }
 
@@ -524,7 +524,7 @@ vkutil_transition_image :: (command_buffer: VkCommandBuffer, image: VkImage, cur
 
     image_barrier.oldLayout = current_layout;
     image_barrier.newLayout = new_layout;
-
+	
     image_barrier.subresourceRange = vkinit_subresource_range(aspect_mask, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS);
     image_barrier.image = image;
 

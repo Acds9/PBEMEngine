@@ -72,30 +72,10 @@ create_framebuffers :: (zr: *ZRenderer) -> bool, string {
 }
 
 init_commands :: (zr: *ZRenderer) -> bool, string {
-	queue_family_indices := zr.queue_indices;
-
 	pool_info : VkCommandPoolCreateInfo ;
 	pool_info.sType = .VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	pool_info.flags = .VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	pool_info.queueFamilyIndex = xx queue_family_indices.graphics;
-
-	for zr.frame_data {
-		// Create cpmmand pool first
-		result := vkCreateCommandPool(zr.device, *pool_info, null, *it.command_pool);
-		if result != .VK_SUCCESS 
-			return false, sprint("%\n", result);
-
-		// Now allocate the buffer
-		alloc_info : VkCommandBufferAllocateInfo;
-		alloc_info.sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		alloc_info.commandPool = it.command_pool;
-		alloc_info.level = .VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		alloc_info.commandBufferCount = 1; // Just one tied to this pool, but we have multiple pools
-		
-		result = vkAllocateCommandBuffers(zr.device, *alloc_info, *it.command_buffer);
-		if result != .VK_SUCCESS 
-			return false, sprint("%\n", result);
-	}
+	pool_info.queueFamilyIndex = xx zr.queue_indices.graphics;
 
 	immediate_result := vkCreateCommandPool(zr.device, *pool_info, null, *zr.immediate_command_pool);
 	if immediate_result != .VK_SUCCESS 
@@ -115,19 +95,6 @@ init_commands :: (zr: *ZRenderer) -> bool, string {
 
 	return true, "";
 }
- 
-// This should NOT be here
-/*
-draw_gradient_background :: (zr: *ZRenderer, command_buffer: VkCommandBuffer) {
-	// Bind the gradient drawing compute pipeline
-	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_COMPUTE, zr.gradient_pipeline);
-
-	// bind the descriptor set containing the draw image for the compute pipeline
-	vkCmdBindDescriptorSets(command_buffer, .VK_PIPELINE_BIND_POINT_COMPUTE, zr.gradient_pipeline_layout, 0, 1, *zr.draw_image_descriptors, 0, null);
-
-	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
-	vkCmdDispatch(command_buffer, cast,no_check(u32) ceil(zr.draw_extent.width / 16.0), cast,no_check(u32) ceil(zr.draw_extent.height / 16.0), 1);
-}*/
 
 create_sync_objects :: (zr: *ZRenderer) -> bool, string {
 	semaphore_create_info : VkSemaphoreCreateInfo;
@@ -137,7 +104,7 @@ create_sync_objects :: (zr: *ZRenderer) -> bool, string {
 	fence_create_info.sType = .VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fence_create_info.flags = .VK_FENCE_CREATE_SIGNALED_BIT;
 
-	for zr.frame_data {
+	for zr.frames {
 		result := vkCreateSemaphore(zr.device, *semaphore_create_info, null, *it.swapchain_semaphore);
 		if result != .VK_SUCCESS 
 			return false, sprint("%\n", result);
@@ -158,73 +125,32 @@ create_sync_objects :: (zr: *ZRenderer) -> bool, string {
 	return true, "";
 }
 
-create_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Allocated_Buffer {
-	buffer_info : VkBufferCreateInfo;
-	buffer_info.sType = .VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	buffer_info.size = alloc_size;
+generate_default_images :: (zr: *ZRenderer) {
+	white_image := create_image(zr, *color_to_bytes(COLOR_WHITE), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, 0, "Image_White");
+	white_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, white_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	white_image.image_name = "white_image";
+	table_add(*zr.image_table, white_image.image_name, white_image);
 
-	buffer_info.usage = usage;
+	grey_image := create_image(zr, *color_to_bytes(COLOR_GREY), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, 0, "Image_Grey");
+	grey_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, grey_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	grey_image.image_name = "grey_image";
+	table_add(*zr.image_table, grey_image.image_name, grey_image);
 
-	vma_alloc_info : VmaAllocationCreateInfo;
-	vma_alloc_info.usage = memory_usage;
-	vma_alloc_info.flags = .VMA_ALLOCATION_CREATE_MAPPED_BIT;
-	
-	new_buffer : Allocated_Buffer;
-	result := vmaCreateBuffer(allocator, *buffer_info, *vma_alloc_info, *new_buffer.buffer, *new_buffer.allocation, *new_buffer.info);
-	if result != .VK_SUCCESS {
-		print("ERROR: could not create memory buffer\n");
-		debug_break();
-	}
+	black_image := create_image(zr, *color_to_bytes(COLOR_BLACK), .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, 0, "Image_Black");
+	black_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, black_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	black_image.image_name = "black_image";
+	table_add(*zr.image_table, black_image.image_name, black_image);
 
-	// Only get device address if the buffer supports it
-    if (usage & .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
-        address_info := VkBufferDeviceAddressInfo.{
-            sType = .VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-            buffer = new_buffer.buffer,
-        };
-        new_buffer.base_address = vkGetBufferDeviceAddress(device, *address_info);
-    } else {
-        new_buffer.base_address = 0;  
-    }
-
-	if ENABLE_VALIDATION_LAYERS {
-		if device == null || debug_name == "" {
-			panic("ERROR: VkDevice or vk_debug_name not set for buffer in debug\n");
-		}
-		set_vk_object_name(device, .BUFFER, cast(u64)new_buffer.buffer, debug_name);
-	}
-	return new_buffer;
-}
-
-destroy_buffer :: (allocator: VmaAllocator, buffer: *Allocated_Buffer) {
-	vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
-}
-
-init_default_data :: (zr: *ZRenderer) {
-	zr.white_image = create_image(zr, *COLOR_WHITE, .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_White");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.white_image.image, zr.white_image.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.white_image.image_view);
-
-	zr.grey_image = create_image(zr, *COLOR_GREY, .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Grey");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.grey_image.image, zr.grey_image.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.grey_image.image_view);
-
-	zr.black_image = create_image(zr, *COLOR_BLACK, .{1,1,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Black");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.black_image.image, zr.black_image.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.black_image.image_view);
-
-	pixels : [16*16]Color;
+	pixels : [16*16][4]u8;
 	x, y : u32;
 	for *pixels {  
 		x_block := x / 2;
 		y_block := y / 2;
-    
 		if (x_block + y_block) % 2 == 0 {
-			<<it = COLOR_BLACK;
+			<<it = color_to_bytes(COLOR_BLACK);
 		} else {
-			<<it = COLOR_MAGENTA;
+			<<it = color_to_bytes(COLOR_MAGENTA);
 		}
-    
 		x += 1;
 		if x == 16 {
 			y += 1;
@@ -232,10 +158,13 @@ init_default_data :: (zr: *ZRenderer) {
 		}
 	}
 	
-	zr.error_checkerboard = create_image(zr, pixels.data, .{16,16,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, "Image_Error");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.error_checkerboard.image, zr.error_checkerboard.allocation);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.error_checkerboard.image_view);
+	error_checkerboard := create_image(zr, pixels.data, .{16,16,1}, .VK_FORMAT_R8G8B8A8_UNORM, .VK_IMAGE_USAGE_SAMPLED_BIT, false, 0, "Image_Error");
+	error_checkerboard.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, error_checkerboard.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	error_checkerboard.image_name = "error_image";
+	table_add(*zr.image_table, error_checkerboard.image_name, error_checkerboard);
+}
 
+create_default_samplers :: (zr: *ZRenderer) {
 	sampler_info : VkSamplerCreateInfo;
 	sampler_info.sType = .VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 
@@ -261,30 +190,33 @@ init_default_data :: (zr: *ZRenderer) {
 	sampler_info.minFilter = .VK_FILTER_LINEAR;
 	vkCreateSampler(zr.device, *sampler_info, null, *zr.default_sampler_linear);
 
+	// Nearest
+    zr.sampler_nearest_index = xx zr.descriptor_writer.write_sampler(*zr.descriptor_writer, *zr.sampler_descriptor_buffer,  zr.default_sampler_nearest);
+	// Linear
+    zr.sampler_linear_index = xx zr.descriptor_writer.write_sampler(*zr.descriptor_writer, *zr.sampler_descriptor_buffer, zr.default_sampler_linear);
+	
 	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_nearest);
 	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_linear);
+}
 
-	material_resources : Material_Opaque.Material_Resources;
-	material_resources.color_image = zr.white_image;
-	material_resources.color_sampler = zr.default_sampler_nearest;
-	material_resources.blackbody_image = zr.black_image;
-	material_resources.blackbody_sampler = zr.default_sampler_nearest;
+create_default_materials :: (zr: *ZRenderer) {
+	material_constants : Material_Constants_Opaque;
+	material_constants.color_factors = .{1,1,1,1};
+	image, success := table_find(*zr.image_table, "error_image");
+	if !success {
+		panic("Could not find error_image");
+	}
+	material_constants.albedo_image_index = image.image_index;
+	material_constants.albedo_sampler_index = zr.sampler_nearest_index;
+	zr.default_material = zr.opaque_material.create_material_instance(*zr.opaque_material, zr, .MAIN_COLOR, *material_constants);
 
-	material_constants : Allocated_Buffer = create_buffer(VMA_ALLOCATOR, size_of(Material_Opaque.Material_Constants), .VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device, "Material Constants Buffer");
+	point_constants : Material_Constants_Debug_Point;
+	point_constants.color_factors = .{1,1,1,1};
+	zr.debug_point_material_instance = zr.debug_point_material.create_material_instance(*zr.debug_point_material, zr, .MAIN_COLOR, *point_constants);
 
-	scene_uniform_data : *Material_Opaque.Material_Constants;
-	void_ptr : *void;
-	vmaMapMemory(VMA_ALLOCATOR, material_constants.allocation, *void_ptr);
-	scene_uniform_data = cast,no_check(*Material_Opaque.Material_Constants)void_ptr;
-	scene_uniform_data.color_factors = .{1,1,1,1};
-	scene_uniform_data.blackbody_factors = .{0,0,0,1};
-
-	destroy_buffer(VMA_ALLOCATOR, *material_constants);
-	material_resources.data_buffer = material_constants.buffer;
-	material_resources.data_buffer_offset = 0;
-
-	zr.opaque_material.build(*zr.opaque_material, zr);
-	zr.default_material = zr.opaque_material.write_material(*zr.opaque_material, zr.device, .MAIN_COLOR, *material_resources, *zr.global_desc_allocator);
+	wireframe_constants : Material_Constants_Debug_Wireframe;
+	wireframe_constants.color_factors = .{1,0,0,1};
+	zr.debug_wireframe_material_instance = zr.debug_wireframe_material.create_material_instance(*zr.debug_wireframe_material, zr, .MAIN_COLOR, *wireframe_constants);
 }
 
 set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, handle: u64, name: string) {
@@ -302,7 +234,7 @@ set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, hand
     vkSetDebugUtilsObjectNameEXT(logical_device, *name_info);
 }
 
-create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped: bool = false, name: string = "") -> Allocated_Image {
+create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped: bool = false, mip_levels : u32 = 0, name: string = "") -> Allocated_Image {
 	if(ENABLE_VALIDATION_LAYERS && name == "") {
 		panic_no_name("image");
 	}
@@ -313,7 +245,12 @@ create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkIm
 
 	image_info := vkinit_image_create_info(format, usage, size);
 	if mip_mapped {
-		image_info.mipLevels = get_mip_levels(size.width, size.height);
+		if mip_levels == 0 {
+			image_info.mipLevels = get_mip_levels(size.width, size.height);
+		}
+		else {
+			image_info.mipLevels = mip_levels;
+		}
 	}
 
 	// Allocate on GPU memory always-ish
@@ -352,13 +289,13 @@ create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkIm
 	return new_image;
 }
 
-create_image :: (zr: *ZRenderer, data: *void, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped : bool= false, name: string = "") -> Allocated_Image {
-	data_size := size.width * size.height * size.depth * 4;
+create_image :: (zr: *ZRenderer, data: *void, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped : bool = false, mip_levels : u32 = 0, name: string = "") -> Allocated_Image {
+	data_size := size.width * size.height * size.depth * 16;
 	upload_buffer : Allocated_Buffer = create_buffer(VMA_ALLOCATOR, data_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device, "Temp Buffer");
 
 	memcpy(upload_buffer.info.pMappedData, data, data_size);
 
-	new_image : Allocated_Image = create_image(zr, size, format, usage | .VK_IMAGE_USAGE_TRANSFER_DST_BIT | .VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mip_mapped, name);
+	new_image : Allocated_Image = create_image(zr, size, format, usage | .VK_IMAGE_USAGE_TRANSFER_DST_BIT | .VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mip_mapped, mip_levels, name);
 
 	immediate_submit(zr, #code {
 		vkutil_transition_image(cmd, new_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);

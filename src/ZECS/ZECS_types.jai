@@ -1,9 +1,6 @@
 #import "Basic";
 #import "Math";
 
-VECTOR_ONE : Vector3 : Vector3.{1,1,1};
-QUAT_IDENTITY : Quaternion : Quaternion.{0,0,0,1};
-
 Bit_Field :: struct (N: u32) {
 	data: [(N + 63) / 64] u64;
 }

@@ -18,14 +18,12 @@ Entity_Component_Storage :: struct {
 }
 ZEntity :: struct {}
 
-Archetype_Component_Storage :: struct {}
-
 Archetype_Storage :: struct {
 	initialized					: bool;
 	entity_components 			: [..]Entity_Component_Storage;
 	entity_component_mask 		: Bit_Field(MAX_ENTITY_COMPONENTS);
 	
-	archetype_components		: [..]Archetype_Component_Storage;
+	archetype_components		: [..]u8;
 	archetype_component_mask	: Bit_Field(MAX_ARCH_COMPONENTS);
 
 	tags						: ZTags;
@@ -38,3 +36,7 @@ Archetype_Storage :: struct {
 	
 	chunk_size				: u32 = DEFAULT_ENTITY_CHUNK_SIZE;
 }
+
+get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage {return null;}
+initialize_archetype_storage :: (archetype: Type, allocator: *Allocator) -> Archetype_Storage {return .{};}
+get_archetype_component :: (world: *ZWorld, archetype: Type, $T: Type) -> *T {return null;};
