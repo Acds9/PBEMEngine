@@ -63,6 +63,7 @@ load_assets :: (zr: *ZRenderer) {
 
 		image := load_image(*ZRENDERER, "H:/PBEMJai/content/textures/ion_frigate_hull_albedo.ktx2");
 		material_instance : Material_Instance;
+		material_instance.color_factors = Vector4.{1,1,1,1};
 		material_instance.albedo_image_index = image.image_index;
 		material_instance.albedo_sampler_index = zr.sampler_nearest_index;
 		ion_frigate_hull_material := zr.m_opaque.create_material_instance(*zr.m_opaque, zr, *material_instance);

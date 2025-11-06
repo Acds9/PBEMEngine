@@ -214,12 +214,12 @@ create_default_materials :: (zr: *ZRenderer) {
 	mi_debug_point : Material_Instance;
 	mi_debug_point.pass = .OPAQUE;
 	mi_debug_point.color_factors = .{1,1,1,1};
-	zr.mi_debug_point = zr.m_debug_point.create_material_instance(*zr.m_debug_point, zr, *mi_debug_point);
+//	zr.mi_debug_point = zr.m_debug_point.create_material_instance(*zr.m_debug_point, zr, *mi_debug_point);
 
 	mi_debug_wireframe : Material_Instance;
 	mi_debug_point.pass = .OPAQUE;
 	mi_debug_wireframe.color_factors = .{1,0,0,1};
-	zr.mi_debug_wireframe = zr.m_debug_wireframe.create_material_instance(*zr.m_debug_wireframe, zr, *mi_debug_wireframe);
+//	zr.mi_debug_wireframe = zr.m_debug_wireframe.create_material_instance(*zr.m_debug_wireframe, zr, *mi_debug_wireframe);
 }
 
 set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, handle: u64, name: string) {

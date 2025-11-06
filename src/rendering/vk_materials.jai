@@ -22,7 +22,6 @@ Material_Pipeline_Debug_Point :: struct {
 	layout		: VkPipelineLayout;
 
 	build :: (using self: *Material_Pipeline_Debug_Point, zr: *ZRenderer) {
-		return;
 		success : bool;
 		point_vert_shader : VkShaderModule;
 		success, point_vert_shader = create_shader_module(zr, "src/shaders/debug_point.vert.spv");
@@ -95,7 +94,6 @@ Material_Pipeline_Debug_Wireframe :: struct {
 	layout		: VkPipelineLayout;
 
 	build :: (using self: *Material_Pipeline_Debug_Wireframe, zr: *ZRenderer) {
-		return;
 		success : bool;
 		wireframe_frag_shader : VkShaderModule;
 		success, wireframe_frag_shader = create_shader_module(zr, "src/shaders/debug_wireframe.frag.spv");
@@ -241,7 +239,7 @@ Material_Pipeline_Opaque :: struct {
 
 	create_material_instance :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer, data: *Material_Instance) -> u32 {
 		data.pass = .OPAQUE;
-		allocation := zr.material_instances.allocate(*zr.material_instances, data);
+		allocation := zr.material_instances.allocate(*zr.material_instances, <<data);
 		return xx,no_check((allocation - zr.material_instances.staging_buffer.base_address) / size_of(Material_Instance));
 	}
 

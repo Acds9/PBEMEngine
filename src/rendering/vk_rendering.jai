@@ -349,8 +349,8 @@ init_pipelines :: (zr: *ZRenderer) -> bool, string {
 	zr.material_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MATERIAL_INSTANCE_BUFFER_SIZE, size_of(Material_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, zr.device, "material_instance buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *zr.material_instances);
 	
-	zr.m_debug_point.build(*zr.m_debug_point, zr);
-	zr.m_debug_wireframe.build(*zr.m_debug_wireframe, zr);
+//	zr.m_debug_point.build(*zr.m_debug_point, zr);
+//	zr.m_debug_wireframe.build(*zr.m_debug_wireframe, zr);
 	zr.m_opaque.build(*zr.m_opaque, zr);
 	return true, "";
 }
@@ -431,10 +431,10 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	
 	// Begin the command buffer to record commands, everything after this is command recording
     vkBeginCommandBuffer(frame_data.command_buffer, *begin_info);
-
+	// Also transfer the material instance buffer
+	zr.material_instances.transfer(*zr.material_instances, frame_data.command_buffer);
 	// This registers copybuffer commands so it must be AFTER vkBeginCommandBuffer but BEFORE vkCmdBeginRendering
 	draw_counts := generate_draw_commands(zr, scene, frame_data, frame_data.command_buffer);
-
 	// Copy the staging buffers right at the start
 	copy_staging_to_device_buffers(scene, frame_data.command_buffer);
 	{	
