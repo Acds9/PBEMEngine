@@ -285,13 +285,16 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 	device_featuresVK12.bufferDeviceAddress = VK_TRUE;
 	device_featuresVK12.runtimeDescriptorArray = VK_TRUE;
 	device_featuresVK12.storageBuffer8BitAccess = VK_TRUE;
+	device_featuresVK12.shaderInt8 = VK_TRUE;
 
 	device_featuresVK11 : VkPhysicalDeviceVulkan11Features;
+	device_featuresVK11.shaderDrawParameters = VK_TRUE;
 	device_featuresVK11.pNext = *device_featuresVK12;
-
+	
 	device_featuresVk : VkPhysicalDeviceFeatures2;
 	device_featuresVk.features.shaderInt64 = VK_TRUE;
 	device_featuresVk.features.fillModeNonSolid = VK_TRUE; 
+	device_featuresVk.features.multiDrawIndirect = VK_TRUE;
 	device_featuresVk.pNext = *device_featuresVK11;
 
 	device_create_info : VkDeviceCreateInfo;

@@ -52,7 +52,7 @@ game_init :: (using state: *Game_State) -> bool {
 	light_component := get_entity_component(*world, light_entity, Point_Light_Component);
     light_component.radius = 16;
     light_component.color = .{.3,.3,1,1};
-
+	
     // Input setup
     SDL_SetRelativeMouseMode(SDL_TRUE);
     SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1");
@@ -112,6 +112,8 @@ game_update_camera :: (using state: *Game_State) {
 current_position : Vector3;
 game_tick :: (using state: *Game_State) {
 	clear_debug_buffers(*GAME_STATE.scene);
+
+	print("FPS: %\n", GAME_STATE.fps);
 
 	debug_draw_point(*GAME_STATE.scene, .{0,0,0}, 25, .{1,0,0,1}); 
 	debug_draw_point(*GAME_STATE.scene,.{5,5,5}, 25, .{0,0,1,1}); 
@@ -187,7 +189,6 @@ main :: () {
     if !game_init(*GAME_STATE) {
         return;
     }
-    
     event: SDL_Event;
     while !GAME_STATE.quit {
         // Update timing

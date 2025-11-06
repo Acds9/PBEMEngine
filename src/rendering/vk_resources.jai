@@ -200,23 +200,26 @@ create_default_samplers :: (zr: *ZRenderer) {
 }
 
 create_default_materials :: (zr: *ZRenderer) {
-	material_constants : Material_Constants_Opaque;
-	material_constants.color_factors = .{1,1,1,1};
+	mi_default : Material_Instance;
+	mi_default.color_factors = .{1,1,1,1};
 	image, success := table_find(*zr.image_table, "error_image");
 	if !success {
 		panic("Could not find error_image");
 	}
-	material_constants.albedo_image_index = image.image_index;
-	material_constants.albedo_sampler_index = zr.sampler_nearest_index;
-	zr.default_material = zr.opaque_material.create_material_instance(*zr.opaque_material, zr, .MAIN_COLOR, *material_constants);
+	mi_default.albedo_image_index = image.image_index;
+	mi_default.albedo_sampler_index = zr.sampler_nearest_index;
+	mi_default.pass = .OPAQUE;
+	zr.mi_default = zr.m_opaque.create_material_instance(*zr.m_opaque, zr, *mi_default);
 
-	point_constants : Material_Constants_Debug_Point;
-	point_constants.color_factors = .{1,1,1,1};
-	zr.debug_point_material_instance = zr.debug_point_material.create_material_instance(*zr.debug_point_material, zr, .MAIN_COLOR, *point_constants);
+	mi_debug_point : Material_Instance;
+	mi_debug_point.pass = .OPAQUE;
+	mi_debug_point.color_factors = .{1,1,1,1};
+	zr.mi_debug_point = zr.m_debug_point.create_material_instance(*zr.m_debug_point, zr, *mi_debug_point);
 
-	wireframe_constants : Material_Constants_Debug_Wireframe;
-	wireframe_constants.color_factors = .{1,0,0,1};
-	zr.debug_wireframe_material_instance = zr.debug_wireframe_material.create_material_instance(*zr.debug_wireframe_material, zr, .MAIN_COLOR, *wireframe_constants);
+	mi_debug_wireframe : Material_Instance;
+	mi_debug_point.pass = .OPAQUE;
+	mi_debug_wireframe.color_factors = .{1,0,0,1};
+	zr.mi_debug_wireframe = zr.m_debug_wireframe.create_material_instance(*zr.m_debug_wireframe, zr, *mi_debug_wireframe);
 }
 
 set_vk_object_name :: (logical_device: VkDevice, object_type: VkObjectType, handle: u64, name: string) {

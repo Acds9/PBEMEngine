@@ -1,57 +1,20 @@
 MATERIAL_CONSTANTS_BUFFER_SIZE 			:: 8*1024*1024; // 8MB, probably overkill
 
-Material_Type :: enum {
-    OPAQUE;
-    TRANSPARENT;
-    EMISSIVE;
-	ADDITIVE;
-}
-
 MATERIAL_PASS :: enum u8 {
-	MAIN_COLOR 		:: 0;
-}
-
-Material_Pool :: struct {
-	constants_buffer	: Storage_Buffer;
-
-	init :: (using self: *Material_Pool, device: VkDevice, allocator: VmaAllocator, constants_buffer_size: u64) {
-		constants_buffer = make_storage_buffer(VMA_ALLOCATOR, constants_buffer_size, .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, device, "constants_buffer buffer");
-		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, constants_buffer.buffer, constants_buffer.allocation);
-	}
-
-	allocate_material_constants :: (using self: *Material_Pool, data: *void, size: u32) -> VkDeviceAddress {
-		return constants_buffer.allocate(*constants_buffer, data, size);
-	}
+	OPAQUE			:: 0;
+    TRANSPARENT		:: 1;
+    EMISSIVE		:: 2;
+	ADDITIVE		:: 3;
+	DEBUG_POINT		:: 4;
+	DEBUG_WIREFRAME	:: 5;
 }
 
 Material_Instance :: struct {
-	pipeline 			: VkPipeline;
-	layout				: VkPipelineLayout;
-	pass_type			: MATERIAL_PASS;
-
-	constants_address 	: VkDeviceAddress;
-}
-
-Material_Constants_Debug_Point :: struct {
-	color_factors			: Vector4;
-}
-
-Material_Constants_Debug_Wireframe :: struct {
-	color_factors			: Vector4;
-}
-
-Material_Constants_Opaque :: struct {
 	color_factors			: Vector4;
 	albedo_image_index		: u32;
 	albedo_sampler_index 	: u32;
-}
-
-Material_Constants :: struct {
-	union {
-		point		: Material_Constants_Debug_Point;
-		wireframe	: Material_Constants_Debug_Wireframe;
-		opaque 		: Material_Constants_Opaque;
-	}
+	pass					: MATERIAL_PASS;
+	padding					: [4]u8;
 }
 
 Material_Pipeline_Debug_Point :: struct {
@@ -59,6 +22,7 @@ Material_Pipeline_Debug_Point :: struct {
 	layout		: VkPipelineLayout;
 
 	build :: (using self: *Material_Pipeline_Debug_Point, zr: *ZRenderer) {
+		return;
 		success : bool;
 		point_vert_shader : VkShaderModule;
 		success, point_vert_shader = create_shader_module(zr, "src/shaders/debug_point.vert.spv");
@@ -119,13 +83,10 @@ Material_Pipeline_Debug_Point :: struct {
 		
 	}
 
-	create_material_instance :: (using self: *Material_Pipeline_Debug_Point, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Constants_Debug_Point) -> Material_Instance {
-		mat_data : Material_Instance;
-		mat_data.pass_type = pass;
-		mat_data.pipeline = pipeline;	
-		mat_data.layout = layout;
-		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, constants, size_of(Material_Constants_Debug_Point));
-		return mat_data;
+	create_material_instance :: (using self: *Material_Pipeline_Debug_Point, zr: *ZRenderer, data: *Material_Instance) -> u32 {
+		data.pass = .DEBUG_POINT;
+		allocation := zr.material_instances.allocate(*zr.material_instances, data);
+		return xx,no_check ((allocation - zr.material_instances.staging_buffer.base_address) / size_of(Material_Instance));
 	}
 }
 
@@ -134,6 +95,7 @@ Material_Pipeline_Debug_Wireframe :: struct {
 	layout		: VkPipelineLayout;
 
 	build :: (using self: *Material_Pipeline_Debug_Wireframe, zr: *ZRenderer) {
+		return;
 		success : bool;
 		wireframe_frag_shader : VkShaderModule;
 		success, wireframe_frag_shader = create_shader_module(zr, "src/shaders/debug_wireframe.frag.spv");
@@ -148,7 +110,7 @@ Material_Pipeline_Debug_Wireframe :: struct {
 
 		matrix_range : VkPushConstantRange;
 		matrix_range.offset = 0;
-		matrix_range.size = size_of(GPU_Draw_Push_Constants);
+		matrix_range.size = size_of(Draw_Push_Constants);
 		matrix_range.stageFlags = .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT;
 
 		layouts := VkDescriptorSetLayout.[
@@ -199,13 +161,10 @@ Material_Pipeline_Debug_Wireframe :: struct {
 		
 	}
 
-	create_material_instance :: (using self: *Material_Pipeline_Debug_Wireframe, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Constants_Debug_Wireframe) -> Material_Instance {
-		mat_data : Material_Instance;
-		mat_data.pass_type = pass;
-		mat_data.pipeline = pipeline;	
-		mat_data.layout = layout;
-		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, constants, size_of(Material_Constants_Debug_Wireframe));
-		return mat_data;
+	create_material_instance :: (using self: *Material_Pipeline_Debug_Wireframe, zr: *ZRenderer, data: *Material_Instance) -> u32 {
+		data.pass = .DEBUG_WIREFRAME;
+		allocation := zr.material_instances.allocate(*zr.material_instances, data);
+		return xx,no_check ((allocation - zr.material_instances.staging_buffer.base_address) / size_of(Material_Instance));
 	}
 }
 
@@ -216,13 +175,13 @@ Material_Pipeline_Opaque :: struct {
 	build :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer) {
 		success : bool;
 		mesh_frag_shader : VkShaderModule;
-		success, mesh_frag_shader = create_shader_module(zr, "src/shaders/mesh.frag.spv");
+		success, mesh_frag_shader = create_shader_module(zr, "src/shaders/master.frag.spv");
 		if !success {
 			print("Error: Failed to create mesh fragment shader\n");
 			debug_break();
 		}
 		mesh_vert_shader : VkShaderModule;
-		success, mesh_vert_shader = create_shader_module(zr, "src/shaders/mesh.vert.spv");
+		success, mesh_vert_shader = create_shader_module(zr, "src/shaders/master.vert.spv");
 		if !success {
 			print("Error: Failed to create mesh vertex shader\n");
 			debug_break();
@@ -230,7 +189,7 @@ Material_Pipeline_Opaque :: struct {
 
 		matrix_range : VkPushConstantRange;
 		matrix_range.offset = 0;
-		matrix_range.size = size_of(GPU_Draw_Push_Constants);
+		matrix_range.size = size_of(Draw_Push_Constants);
 		matrix_range.stageFlags = .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT;
 
 		layouts := VkDescriptorSetLayout.[
@@ -280,13 +239,10 @@ Material_Pipeline_Opaque :: struct {
 		
 	}
 
-	create_material_instance :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer, pass: MATERIAL_PASS, constants: *Material_Constants_Opaque) -> Material_Instance {
-		mat_data : Material_Instance;
-		mat_data.pass_type = pass;
-		mat_data.pipeline = pipeline;	
-		mat_data.layout = layout;
-		mat_data.constants_address = zr.material_pool.allocate_material_constants(*zr.material_pool, constants, size_of(Material_Constants_Opaque));
-		return mat_data;
+	create_material_instance :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer, data: *Material_Instance) -> u32 {
+		data.pass = .OPAQUE;
+		allocation := zr.material_instances.allocate(*zr.material_instances, data);
+		return xx,no_check((allocation - zr.material_instances.staging_buffer.base_address) / size_of(Material_Instance));
 	}
 
 }

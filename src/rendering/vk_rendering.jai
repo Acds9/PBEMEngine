@@ -15,6 +15,9 @@ vkCmdSetDescriptorBufferOffsetsEXT : PFN_vkCmdSetDescriptorBufferOffsetsEXT;
 MAX_FRAMES_IN_FLIGHT :: 2;
 DEFAULT_CLEARVALUE :: #run color_to_array(*COLOR_DARK_GREY);
 
+MATERIAL_INSTANCE_BUFFER_SIZE 	:: 16*1024*1024;
+DRAW_COMMAND_BUFFER_SIZE		:: 4*1024*1024;
+
 ZRenderer :: struct {
     // Core state
     initialized             : bool;
@@ -86,15 +89,13 @@ ZRenderer :: struct {
     immediate_command_pool  : VkCommandPool;
     immediate_command_buffer: VkCommandBuffer;
     immediate_fence         : VkFence;
-    
+
     // Mesh data
     mesh_pool            	: Flat_Pool;
     meshes               	: [..]Mesh_Asset;
     mesh_map             	: Table(string, *Mesh_Asset);
 
 	geometry_pool			: GPU_Geometry_Pool; // Maybe split this up later
-
-	material_pool			: Material_Pool;
 
 	// Textures
 	image_table				: Table(string, Allocated_Image);
@@ -103,20 +104,20 @@ ZRenderer :: struct {
 	sampler_nearest_index	: u32 = 0;
 	default_sampler_linear	: VkSampler;
 	sampler_linear_index	: u32 = 1;
+
+	material_instance_table	: Table(string, u32);
 	
-	debug_point_material				: Material_Pipeline_Debug_Point;
-	debug_point_material_instance		: Material_Instance;					
-	debug_wireframe_material			: Material_Pipeline_Debug_Wireframe;
-	debug_wireframe_material_instance 	: Material_Instance;
+	m_debug_point				: Material_Pipeline_Debug_Point;
+	mi_debug_point				: u32;					
+	m_debug_wireframe			: Material_Pipeline_Debug_Wireframe;
+	mi_debug_wireframe 			: u32;
 
-	default_material		: Material_Instance;
-	opaque_material			: Material_Pipeline_Opaque;
+	mi_default				: u32;
+	m_opaque				: Material_Pipeline_Opaque;
 
-	material_instance_table	: Table(string, Material_Instance);
+	material_instances		: Staged_Uniform_Storage_Buffer;
 
 	default_clearvalue		: VkClearValue;
-
-	frame_surfaces			: Frame_Surface_Buckets;
     
 	Frame_Data :: struct {
 		command_pool 				: VkCommandPool;
@@ -128,6 +129,12 @@ ZRenderer :: struct {
 
 		camera_buffer				: Allocated_Buffer;
 
+		draw_commands_opaque			: Staged_Array_Buffer;
+		draw_commands_transparent		: Staged_Array_Buffer;
+		draw_commands_emissive			: Staged_Array_Buffer;
+		draw_commands_debug_point		: Staged_Array_Buffer;
+		draw_commands_debug_wireframe	: Staged_Array_Buffer;
+
 		deletion_queue				: Deletion_Queue;
 	}
 
@@ -135,6 +142,114 @@ ZRenderer :: struct {
     get_current_frame_data :: (using self: *ZRenderer) -> *Frame_Data {
         return *frames[current_frame];
     }
+}
+
+MATERIAL_PASS_COUNT	:: #run enum_names(MATERIAL_PASS).count;
+
+Draw_Command_Point :: struct {
+	draw 			: VkDrawIndirectCommand;
+	data_address	: VkDeviceAddress;
+	padding			: [4]u8;
+}
+
+Draw_Command :: struct {
+	draw : VkDrawIndexedIndirectCommand;
+	vertex_address      : VkDeviceAddress;
+    transform_address   : VkDeviceAddress;
+    material_instance   : u32;
+    padding             : [4]u8;
+}
+
+generate_draw_commands :: (zr: *ZRenderer, scene: *ZScene, frame: *ZRenderer.Frame_Data, cmd: VkCommandBuffer) -> [MATERIAL_PASS_COUNT]u32 {
+	buffer_opaque : *Staged_Array_Buffer = *frame.draw_commands_opaque;
+	opaque_draws := cast(*Draw_Command)buffer_opaque.staging_buffer.info.pMappedData;
+	buffer_opaque.reset(buffer_opaque);
+
+	buffer_wireframe : *Staged_Array_Buffer = *frame.draw_commands_debug_wireframe;
+	wireframe_draws := cast(*Draw_Command)buffer_wireframe.staging_buffer.info.pMappedData;
+	buffer_wireframe.reset(buffer_wireframe);
+
+	mesh_instances := *scene.mesh_instances;
+	mapped_meshes := cast,no_check(*Mesh_Instance)mesh_instances.staging_buffer.info.pMappedData;
+	
+	draw_counts : [MATERIAL_PASS_COUNT]u32;
+
+	if scene.mesh_instances.count == 0
+		return draw_counts;
+
+	
+
+	material_data := cast,no_check(*Material_Instance)zr.material_instances.staging_buffer.info.pMappedData;
+	for 0..scene.mesh_instances.count-1 {
+		mesh := *mapped_meshes[it];
+			
+		// Skip if generation doesn't match
+		if mesh.generation != mesh_instances.generations[it] {
+			continue; 
+		}
+
+		for *surface: mesh.mesh_asset.surfaces {
+			material_instance_index : u32 = surface.material_instance;
+			material_instance_data	: *Material_Instance = *material_data[material_instance_index];
+
+			index_offset_bytes := surface.index_address - zr.geometry_pool.index_buffer.base_address;
+            first_index := index_offset_bytes / size_of(u32); 
+
+			command : VkDrawIndexedIndirectCommand;
+			command.indexCount = surface.index_count;
+			command.instanceCount = 1;
+			command.firstIndex = xx,no_check first_index;
+			command.vertexOffset = 0;
+			command.firstInstance = 0;
+
+			draw_command : Draw_Command; 
+			draw_command.draw = command;
+			draw_command.vertex_address = surface.vertex_address;
+			draw_command.transform_address = mesh.transform_address;
+			draw_command.material_instance = material_instance_index;
+
+			if material_instance_data.pass == {
+				case .OPAQUE; {
+					buffer_opaque.allocate(buffer_opaque, draw_command);
+					draw_counts[MATERIAL_PASS.OPAQUE] += 1;
+				}
+				case .DEBUG_WIREFRAME; {
+					//wireframe_draws[draw_counts[MATERIAL_PASS.DEBUG_WIREFRAME]] = draw_command;
+					//draw_counts[MATERIAL_PASS.DEBUG_WIREFRAME] += 1;
+				}
+			} 
+		}
+	}
+	/*
+	buffer_point : *Staged_Uniform_Storage_Buffer = *frame.draw_commands_debug_point;
+	point_data := cast,no_check(*Debug_Point)buffer_point.staging_buffer.info.pMappedData;
+	if(scene.debug_point_instances.count > 0) {
+		command : VkDrawIndirectCommand;
+		command.vertexCount = scene.debug_point_instances.count;
+		command.instanceCount = 1;
+		command.firstVertex = 0;
+		command.firstInstance = 0;
+		
+		draw_command : Draw_Command_Point; 
+		draw_command.draw = command;
+		draw_command.data_address = scene.debug_point_instances.device_buffer.base_address;
+		
+		buffer_point : *Staged_Uniform_Storage_Buffer = *frame.draw_commands_debug_point;
+		buffer_point.reset(buffer_point);
+		point_draws := cast(*Draw_Command_Point)buffer_point.staging_buffer.info.pMappedData;
+
+		point_draws[0] = draw_command;
+		draw_counts[MATERIAL_PASS.DEBUG_POINT] = 1; 
+	}*/
+
+	buffer_opaque.transfer(buffer_opaque, cmd);
+	//buffer_wireframe.transfer(buffer_wireframe, cmd);
+
+	if scene.debug_point_instances.count > 0 {
+        //buffer_point.transfer(buffer_point, cmd);
+    }
+	
+	return draw_counts;
 }
 
 flush_images :: (zr: *ZRenderer) {
@@ -195,8 +310,6 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	zr.meshes.allocator = allocator;
 
 	zr.geometry_pool.init(*zr.geometry_pool, zr.device, VMA_ALLOCATOR, GEOPOOL_VERTEX_ALLOC_SIZE, GEOPOOL_INDEX_ALLOC_SIZE);
-	zr.material_pool.init(*zr.material_pool, zr.device, VMA_ALLOCATOR, MATERIAL_CONSTANTS_BUFFER_SIZE);
-	
 	// TODO: need to load all meshes
 	
 	
@@ -233,9 +346,12 @@ immediate_submit :: (zr: *ZRenderer, body: Code) #expand {
 }
 
 init_pipelines :: (zr: *ZRenderer) -> bool, string {
-	zr.debug_point_material.build(*zr.debug_point_material, zr);
-	zr.debug_wireframe_material.build(*zr.debug_wireframe_material, zr);
-	zr.opaque_material.build(*zr.opaque_material, zr);
+	zr.material_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MATERIAL_INSTANCE_BUFFER_SIZE, size_of(Material_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, zr.device, "material_instance buffer");
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *zr.material_instances);
+	
+	zr.m_debug_point.build(*zr.m_debug_point, zr);
+	zr.m_debug_wireframe.build(*zr.m_debug_wireframe, zr);
+	zr.m_opaque.build(*zr.m_opaque, zr);
 	return true, "";
 }
 
@@ -269,6 +385,10 @@ init_frames :: (zr: *ZRenderer) {
 										.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 										.VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device,sprint("Frame % Camera Buffer", it_index));
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *frame.camera_buffer);
+
+		frame.draw_commands_opaque = make_staged_array_buffer(VMA_ALLOCATOR, DRAW_COMMAND_BUFFER_SIZE, size_of(Draw_Command), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, 
+																	zr.device, sprint("frame % draw commands opaque buffer", it_index));
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *frame.draw_commands_opaque);
 	}
 }
 
@@ -301,15 +421,20 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	vkResetFences(zr.device, 1, *frame_data.render_fence);
 	vkResetCommandBuffer(frame_data.command_buffer, 0);
 
-	
 	// Set the draw image extents to match the swapchain
 	zr.draw_extent.height = cast,no_check(u32)(min(zr.swapchain_extent.height, zr.draw_image.image_extent.height) * zr.render_scale);
 	zr.draw_extent.width = cast,no_check(u32)(min(zr.swapchain_extent.width, zr.draw_image.image_extent.width) * zr.render_scale);
 
 	begin_info := vkinit_command_buffer_begin_info();
 
+	
+	
 	// Begin the command buffer to record commands, everything after this is command recording
     vkBeginCommandBuffer(frame_data.command_buffer, *begin_info);
+
+	// This registers copybuffer commands so it must be AFTER vkBeginCommandBuffer but BEFORE vkCmdBeginRendering
+	draw_counts := generate_draw_commands(zr, scene, frame_data, frame_data.command_buffer);
+
 	// Copy the staging buffers right at the start
 	copy_staging_to_device_buffers(scene, frame_data.command_buffer);
 	{	
@@ -331,14 +456,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 
 		vkCmdBeginRendering(frame_data.command_buffer, *render_info);
 		{
-			// Debug
-			draw_debug_shapes(zr, scene, frame_data.command_buffer);
-			draw_debug_meshes(zr, scene, frame_data.command_buffer);
-			//
-
-			// Draw geometry 
-			draw_geometry(zr, scene, frame_data.command_buffer);
-			//
+			execute_draw(zr, scene, frame_data.command_buffer, draw_counts);
 		}
 		vkCmdEndRendering(frame_data.command_buffer);
 
@@ -423,118 +541,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 }
 
 
-draw_debug_shapes :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
-	frame_data := zr.get_current_frame_data(zr);
-	
-	// Set dynamic viewport and scissor
-	viewport : VkViewport;
-	viewport.x = 0;
-	viewport.y = 0;
-	viewport.width = cast,no_check(float)zr.draw_extent.width;
-	viewport.height = cast,no_check(float)zr.draw_extent.height;
-	viewport.minDepth = 0;
-	viewport.maxDepth = 1;
-
-	vkCmdSetViewport(command_buffer, 0, 1, *viewport);
-
-	scissor : VkRect2D;
-	scissor.offset.x = 0;
-	scissor.offset.y = 0;
-	scissor.extent.width = zr.draw_extent.width;
-	scissor.extent.height = zr.draw_extent.height;
-
-	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
-
-	// Fetch this once per frame
-	camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
-	<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
-		
-	material := zr.debug_point_material_instance;
-	pipeline := material.pipeline;
-	layout := material.layout;
-	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
-	point_count := scene.debug_point_instances.count;
-	if point_count == 0 {
-		return;
-	}
-
-	push_constants : Debug_Draw_Push_Constants;
-	push_constants.vertex_address = scene.debug_point_instances.device_buffer.base_address;
-	push_constants.transform_address = 0; // Unused for points
-	push_constants.camera_data_address = frame_data.camera_buffer.base_address;
-
-	vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Debug_Draw_Push_Constants), *push_constants);
-	vkCmdDraw(command_buffer, point_count, 1, 0, 0);
-}
-
-draw_debug_meshes :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
-	frame_data := zr.get_current_frame_data(zr);
-	
-	// Set dynamic viewport and scissor
-	viewport : VkViewport;
-	viewport.x = 0;
-	viewport.y = 0;
-	viewport.width = cast,no_check(float)zr.draw_extent.width;
-	viewport.height = cast,no_check(float)zr.draw_extent.height;
-	viewport.minDepth = 0;
-	viewport.maxDepth = 1;
-
-	vkCmdSetViewport(command_buffer, 0, 1, *viewport);
-
-	scissor : VkRect2D;
-	scissor.offset.x = 0;
-	scissor.offset.y = 0;
-	scissor.extent.width = zr.draw_extent.width;
-	scissor.extent.height = zr.draw_extent.height;
-
-	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
-
-	// Fetch this once per frame
-	camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
-	<<camera_data = zr.camera.gpu_data;  // Just overwrite it each frame
-	material := zr.debug_wireframe_material_instance;
-	
-	pipeline := material.pipeline;
-	layout := material.layout;
-
-	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
-	meshes := *scene.debug_mesh_instances;
-	if meshes.count == 0 {
-		return;
-	}
-
-	mapped_meshes := cast,no_check(*Mesh_Instance)meshes.staging_buffer.info.pMappedData;
-
-	for 0..meshes.count-1 { 
-		mesh : *Mesh_Instance = *mapped_meshes[it]; 
-		
-		if mesh.generation != meshes.generations[it] {
-			continue; 
-		}
-
-		mesh_asset : *Mesh_Asset = mesh.mesh_asset;
-
-		for surface: mesh_asset.surfaces {
-			index_offset := surface.index_address - zr.geometry_pool.index_buffer.base_address;
-			vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
-			
-			push_constants : GPU_Draw_Push_Constants;
-			push_constants.vertex_address = surface.vertex_address;
-			push_constants.transform_address = scene.debug_mesh_transforms.get_device_address(*scene.debug_mesh_transforms, mesh.transform_address);
-			push_constants.material_address = material.constants_address; 
-			push_constants.camera_data_address = frame_data.camera_buffer.base_address;
-
-
-			vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
-			vkCmdDrawIndexed(command_buffer, surface.index_count, 1, 0, 0, 0);
-
-		}
-	}
-}
-
-draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
+execute_draw :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer, draw_counts: []u32) {
 	frame_data := zr.get_current_frame_data(zr);
 	
 	// Set dynamic viewport and scissor
@@ -579,41 +586,36 @@ draw_geometry :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffe
 	buffer_indices : [2]u32 = .[0, 1];
 	offsets : [2]VkDeviceSize = .[0, 0];
 	vkCmdSetDescriptorBufferOffsetsEXT(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS,
-		zr.opaque_material.layout,  // Any material's layout works they all use same descriptor layout
+		zr.m_opaque.layout,  // Any material's layout works they all use same descriptor layout
 		0, 2, buffer_indices.data, offsets.data);
-		
-	// Generate the surface buckets (per material)
-	frame_generate_surface_buckets(zr, scene);
 
-	for bucket: zr.frame_surfaces.buckets {
-		pipeline := bucket.material_pipeline;
-		layout := bucket.material_pipeline_layout;
-		if pipeline == VK_NULL_HANDLE {
-			pipeline = zr.default_material.pipeline;
-			print("Warning: No material found for mesh, defaulting to zr.default_material (this is slow)\n");
-		}
-		
-		// Bind the pipeline for this material bucket
-		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-		for t_surface: bucket.surfaces {
-			index_offset := t_surface.surface.index_address - zr.geometry_pool.index_buffer.base_address;
-			vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, index_offset, .VK_INDEX_TYPE_UINT32);
-				
-			push_constants : GPU_Draw_Push_Constants;
-			push_constants.vertex_address = t_surface.surface.vertex_address;
-			push_constants.transform_address = t_surface.transform_address;
-			push_constants.material_address = t_surface.constants_address; 
-			push_constants.camera_data_address = frame_data.camera_buffer.base_address;
-			push_constants.point_lights_address = scene.point_lights.device_buffer.base_address; // TODO: this stuff needs to be moved later anyway, we can do this per draw right now
-			push_constants.point_lights_count = scene.point_lights.count;
+	vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, 0, .VK_INDEX_TYPE_UINT32);
 
-			vkCmdPushConstants(command_buffer, layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(GPU_Draw_Push_Constants), *push_constants);
-			vkCmdDrawIndexed(command_buffer, t_surface.surface.index_count, 1, 0, 0, 0);
-		}
+	if draw_counts[MATERIAL_PASS.OPAQUE] > 0 {
+		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.m_opaque.pipeline);
+
+		push_constants : Draw_Push_Constants;
+        push_constants.draw_address = frame_data.draw_commands_opaque.device_buffer.base_address;
+        push_constants.camera_data_address = frame_data.camera_buffer.base_address;
+        push_constants.material_address = zr.material_instances.device_buffer.base_address;
+        
+        vkCmdPushConstants(command_buffer, zr.m_opaque.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Draw_Push_Constants), *push_constants);
+
+		vkCmdDrawIndexedIndirect(command_buffer, frame_data.draw_commands_opaque.device_buffer.buffer, 0, draw_counts[MATERIAL_PASS.OPAQUE], size_of(Draw_Command));
 	}
+	/*
+    if draw_counts[MATERIAL_PASS.DEBUG_WIREFRAME] > 0 {
+        vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.m_debug_wireframe.pipeline);
+        vkCmdDrawIndexedIndirect(command_buffer, frame_data.draw_commands_debug_wireframe.device_buffer.buffer, 0, draw_counts[MATERIAL_PASS.DEBUG_WIREFRAME], size_of(Draw_Command));
+    }
+	
+    // Debug points (can stay direct - simple and fast)
+    if draw_counts[MATERIAL_PASS.DEBUG_POINT] > 0 {
+        vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.m_debug_point.pipeline);
+		vkCmdDrawIndirect(command_buffer, frame_data.draw_commands_debug_point.device_buffer.buffer, 0, draw_counts[MATERIAL_PASS.DEBUG_POINT], size_of(Draw_Command_Point));
+    }*/
 }
-
 
 update_scene :: (zr: *ZRenderer) {
     // Build camera basis in  coordinate system

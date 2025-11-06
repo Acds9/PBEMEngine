@@ -5,11 +5,12 @@ LIGHT_BUFFER_SIZE 		:: 8*1024*1024;
 SCENE_DEBUG_BUFFER_SIZE :: 1*1024*1024;
 
 ZScene :: struct {
-	
-	draw_commands	: Staged_Uniform_Storage_Buffer;
 		
+	////////////////// GEOMETRY /////////////////////////////////
 	mesh_instances	: Staged_Uniform_Storage_Buffer;
 	mesh_transforms	: Staged_Uniform_Storage_Buffer;
+
+	////////////////// LIGHT ////////////////////////////////////
 	point_lights	: Staged_Uniform_Storage_Buffer;
 
 	//////////////////// DEBUG //////////////////////////////////
@@ -30,8 +31,6 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 	scene.point_lights = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, LIGHT_BUFFER_SIZE, size_of(Point_Light), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "point_lights buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.point_lights);
 
-	//////////////////// DEBUG //////////////////////////////////
-
 	scene.debug_point_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Debug_Point), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_point_instances buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_point_instances);
 
@@ -41,65 +40,7 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 	scene.debug_mesh_transforms = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_mesh_transforms buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_mesh_transforms);
 
-	/////////////////////////////////////////////////////////////
 	return scene;
-}
-
-Frame_Surface_Buckets :: struct {
-	Transformed_Surface	:: struct {
-		constants_address	: VkDeviceAddress;
-		transform_address	: VkDeviceAddress;
-		surface				: *Geo_Surface;
-	}
-	Material_Bucket :: struct {
-		material_pipeline			: VkPipeline; 
-		material_pipeline_layout 	: VkPipelineLayout;
-		surfaces					: [..]Transformed_Surface;
-	}
-
-	buckets		: [..]Material_Bucket;
-}
-
-// This needs optimization and camera culling
-frame_generate_surface_buckets :: (zr: *ZRenderer, scene: *ZScene) {
-	array_reset(*zr.frame_surfaces.buckets);
-	mesh_instances := *scene.mesh_instances;
-	mapped_meshes := cast,no_check(*Mesh_Instance)mesh_instances.staging_buffer.info.pMappedData;
-	
-	if scene.mesh_instances.count == 0
-		return;
-
-	for 0..scene.mesh_instances.count-1 {
-		mesh := *mapped_meshes[it];
-
-		// Skip if generation doesn't match
-		if mesh.generation != mesh_instances.generations[it] {
-			continue; 
-		}
-
-		for *surface: mesh.mesh_asset.surfaces {
-			surface_material := surface.material;
-			for *bucket: zr.frame_surfaces.buckets {
-				if surface_material.pipeline == bucket.material_pipeline {
-					transformed_surface : Frame_Surface_Buckets.Transformed_Surface;
-					transformed_surface.constants_address = surface_material.constants_address;
-					transformed_surface.transform_address = scene.mesh_transforms.get_device_address(*scene.mesh_transforms, mesh.transform_address);
-					transformed_surface.surface = surface;
-					array_add(*bucket.surfaces, transformed_surface);
-					continue surface; // This will skip the array add below
-				}
-			}
-			new_bucket : Frame_Surface_Buckets.Material_Bucket;
-			new_bucket.material_pipeline = surface_material.pipeline;
-			new_bucket.material_pipeline_layout = surface_material.layout;
-			transformed_surface : Frame_Surface_Buckets.Transformed_Surface;
-			transformed_surface.constants_address = surface_material.constants_address;
-			transformed_surface.transform_address = scene.mesh_transforms.get_device_address(*scene.mesh_transforms, mesh.transform_address);
-			transformed_surface.surface = surface;
-			array_add(*new_bucket.surfaces, transformed_surface); 
-			array_add(*zr.frame_surfaces.buckets, new_bucket);
-		}
-	}
 }
 
 add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, parent_transform: VkDeviceAddress = 0) -> VkDeviceAddress {

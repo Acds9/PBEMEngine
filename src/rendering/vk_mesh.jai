@@ -37,7 +37,7 @@ Geo_Surface :: struct {
 
 	pool			: *GPU_Geometry_Pool;
 
-	material	: *Material_Instance;
+	material_instance : u32;
 }
 
 Mesh_Asset :: struct {
@@ -175,7 +175,7 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 		}
 
 		new_surface := upload_mesh(zr, *zr.geometry_pool, indices, vertices);
-		new_surface.material = *zr.default_material;
+		new_surface.material_instance = zr.mi_default;
 		// TODO: need to load the actual material
 		array_add(*new_mesh.surfaces, new_surface);
 

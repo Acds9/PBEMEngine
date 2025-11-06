@@ -255,11 +255,10 @@ GPU_Mesh_Buffers :: struct {
 	vertex_buffer_address 	: VkDeviceAddress;
 }
 
-GPU_Draw_Push_Constants :: struct {
-	vertex_address		: VkDeviceAddress;
-	transform_address	: VkDeviceAddress;
-	material_address	: VkDeviceAddress;
+Draw_Push_Constants :: struct {
+	draw_address		: VkDeviceAddress;
 	camera_data_address : VkDeviceAddress;
+	material_address	: VkDeviceAddress;
 	point_lights_address: VkDeviceAddress;
 	point_lights_count	: u32;
 }

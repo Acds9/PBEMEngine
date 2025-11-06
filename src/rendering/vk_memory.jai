@@ -113,8 +113,10 @@ Staged_Uniform_Storage_Buffer :: struct {
 
 	transfer :: (using self: *Staged_Uniform_Storage_Buffer, cmd: VkCommandBuffer) {
 		copy : VkBufferCopy;
-		//copy.size = staging_buffer.info.size;
 		copy.size = count * element_size;
+		if copy.size == 0 {
+			return;
+		}
 		vkCmdCopyBuffer(cmd, staging_buffer.buffer, device_buffer.buffer, 1, *copy);
 	}
 
@@ -153,6 +155,47 @@ Linear_Buffer :: struct {
 	reset :: (using self: *Linear_Buffer) {
 		offset = 0;
 	}
+}
+
+// Meant for writing straight into, e.g. draw command buffers
+Staged_Array_Buffer :: struct {
+    staging_buffer  : Allocated_Buffer;
+    device_buffer   : Allocated_Buffer;
+    element_size    : u32;
+    capacity        : u32;
+    count           : u32;
+    
+    get_staging_ptr :: (using self: *Staged_Array_Buffer, $T: Type) -> *T {
+        assert(size_of(T) == element_size);
+        return cast(*T) staging_buffer.info.pMappedData;
+    }
+
+	allocate :: (using self: *Staged_Array_Buffer, value: $T) -> VkDeviceAddress {
+		write_index := count;
+		if count >= capacity {
+			panic(sprint("Attempted to allocate more elements than capacity allows. Capacity: %", capacity));
+		}
+		count += 1;
+
+		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
+		cast_data[write_index] = value;
+		
+		address := staging_buffer.base_address + write_index * element_size;
+		
+		return address;
+	}
+    
+    transfer :: (using self: *Staged_Array_Buffer, cmd: VkCommandBuffer) {
+        if count == 0 return;
+        
+        copy : VkBufferCopy;
+        copy.size = count * element_size;
+        vkCmdCopyBuffer(cmd, staging_buffer.buffer, device_buffer.buffer, 1, *copy);
+    }
+
+	reset :: (using self: *Staged_Array_Buffer) {
+        count = 0;
+    }
 }
 
 create_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Allocated_Buffer {
@@ -225,6 +268,17 @@ make_linear_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_size: u
 	};
 }
 
+make_staged_array_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_size: u32, usage: VkBufferUsageFlags, device: VkDevice = null, debug_name: string = "") -> Staged_Array_Buffer {
+	staging_name := sprint("%_%", debug_name, "staging");
+	device_name := sprint("%_%", debug_name, "device");
+	return .{
+		staging_buffer = create_buffer(allocator, alloc_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | usage, .CPU_ONLY, device, staging_name),
+		device_buffer = create_buffer(allocator, alloc_size, .VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, .GPU_ONLY, device, device_name),
+		element_size = element_size,
+		capacity = xx alloc_size/element_size
+	};
+}
+
 destroy_buffer :: (allocator: VmaAllocator, buffer: *Allocated_Buffer) {
 	vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
 }
@@ -234,3 +288,4 @@ destroy_buffer :: (allocator: VmaAllocator, buffer: *Storage_Buffer) {
 destroy_buffer :: (allocator: VmaAllocator, buffer: *Uniform_Storage_Buffer) {
 	vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
 }
+
