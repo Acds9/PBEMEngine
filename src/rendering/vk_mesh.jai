@@ -47,6 +47,45 @@ Mesh_Asset :: struct {
 	surfaces		: [..]Geo_Surface;
 }
 
+DEFAULT_MATERIAL_OVERRIDES :: #run -> [MAX_GEO_SURFACES]u32 {
+    result: [MAX_GEO_SURFACES]u32;
+    for i: 0..MAX_GEO_SURFACES-1 {
+        result[i] = U32_MAX;
+    }
+    return result;
+};
+
+Mesh_Instance :: struct {
+	material_overrides	: [MAX_GEO_SURFACES]u32 = DEFAULT_MATERIAL_OVERRIDES;
+	mesh_asset			: *Mesh_Asset; 
+	transform_address	: VkDeviceAddress;
+	generation			: u8;
+
+	get_render_transform :: (using self: *Mesh_Instance) -> *Render_Transform {
+		return cast,no_check(*Render_Transform)transform_address;
+	}
+}
+
+calculate_transform_depth :: (transform: *Render_Transform) -> u8 {
+	depth : u8 = 0;
+	current_transform := transform;
+	while current_transform.parent_address != 0 {
+		depth += 1;
+		current_transform = cast,no_check(*Render_Transform) current_transform.parent_address;
+	}
+	return depth;
+}
+
+calculate_world_transform :: (base_transform: *Render_Transform) -> Matrix4 {
+	current_transform := base_transform;
+	world_transform := current_transform.local_transform;
+	while current_transform.parent_address != 0 {
+		current_transform = cast,no_check(*Render_Transform) current_transform.parent_address;
+		world_transform = current_transform.local_transform * world_transform;
+	}
+	return world_transform;
+}
+
 load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 	filetype_found, left, filetype := split_from_right(file_path, ".");
 	if filetype_found && filetype != "glb" {

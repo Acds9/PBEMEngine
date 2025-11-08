@@ -113,14 +113,15 @@ current_position : Vector3;
 game_tick :: (using state: *Game_State) {
 	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
 
-	debug_draw_point(*ZRENDERER, .{0,0,0}, 25, .{1,0,0,1}); 
-	debug_draw_point(*ZRENDERER,.{5,5,5}, 25, .{0,0,1,1}); 
-	debug_draw_point(*ZRENDERER, .{10,10,10}, 25, .{0,1,0,1}); 
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}, 16, .{1,0,0,1} );
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{5,5,5}, 16, .{0,0,1,1} );
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{10,10,10}, 16, .{1,0,0,1} );
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{15,15,15}, 16, .{1,0,0,1} );
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{20,20,20}, 16, .{1,0,0,1} );
+	debug_draw_point(*ZRENDERER, 	.{0,0,0}, 		25, 	.{1,0,0,1}); 
+	debug_draw_point(*ZRENDERER,	.{5,5,5}, 		25, 	.{0,0,1,1}); 
+	debug_draw_point(*ZRENDERER, 	.{10,10,10}, 	25, 	.{0,1,0,1}); 
+
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}, 			16, 	.{1,0,0,1} );
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{5,5,5}, 	16, 	.{1,1,0,1} );
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{10,10,10}, 16, 	.{0,0,1,1} );
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{15,15,15}, 16, 	.{1,1,0,1} );
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{20,20,20}, 16, 	.{0,1,1,1} );
 	{
 		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
 			for *pos: position_array {

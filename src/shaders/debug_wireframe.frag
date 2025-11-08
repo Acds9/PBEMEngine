@@ -14,7 +14,7 @@ layout (location = 0) out vec4 out_frag_color;
 
 void main() {
     Debug_Material_Buffer material_buffer = Debug_Material_Buffer(push_constants.material_buffer_address);
-     Debug_Material_Instance mat = material_buffer.materials[in_material_index];
+    Debug_Material_Instance mat = material_buffer.debug_materials[in_material_index];
 
     out_frag_color = mat.color_factors;
 }

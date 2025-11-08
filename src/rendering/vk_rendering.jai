@@ -172,7 +172,13 @@ generate_debug_draw_commands :: (zr: *ZRenderer, frame: *ZRenderer.Frame_Data, c
 		debug_mesh := *mapped_debug_meshes[it];
 
 		for *surface: debug_mesh.mesh_asset.surfaces {
-			material_instance_index : u32 = surface.default_material_instance;
+			material_instance_index : u32;
+			if debug_mesh.material_overrides[it_index] < U32_MAX {
+				material_instance_index = debug_mesh.material_overrides[it_index];
+			}
+			else {
+				material_instance_index = surface.default_material_instance;
+			}
 			
 			index_offset_bytes := surface.index_address - zr.geometry_pool.index_buffer.base_address;
             first_index := index_offset_bytes / size_of(u32); 
@@ -249,7 +255,13 @@ generate_draw_commands :: (zr: *ZRenderer, scene: *ZScene, frame: *ZRenderer.Fra
 		}
 
 		for *surface: mesh.mesh_asset.surfaces {
-			material_instance_index : u32 = surface.default_material_instance;
+			material_instance_index : u32;
+			if mesh.material_overrides[it_index] < U32_MAX {
+				material_instance_index = mesh.material_overrides[it_index];
+			}
+			else {
+				material_instance_index = surface.default_material_instance;
+			}
 			material_instance_data	: *Material_Instance = *material_data[material_instance_index];
 
 			index_offset_bytes := surface.index_address - zr.geometry_pool.index_buffer.base_address;
@@ -486,6 +498,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	debug_draw_counts := generate_debug_draw_commands(zr, frame_data, frame_data.command_buffer);
 	draw_counts := generate_draw_commands(zr, scene, frame_data, frame_data.command_buffer);
 	// Copy the staging buffers right at the start
+	zr.debug_system.transfer(*zr.debug_system, frame_data.command_buffer);
 	copy_staging_to_device_buffers(scene, frame_data.command_buffer);
 	{	
 		// Transition main draw image (and depth image) into general layout so we can draw into it

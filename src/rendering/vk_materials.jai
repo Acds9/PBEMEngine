@@ -83,8 +83,8 @@ Material_Pipeline_Debug_Point :: struct {
 	}
 
 	create_material_instance :: (using self: *Material_Pipeline_Debug_Point, zr: *ZRenderer, data: *Debug_Material_Instance) -> u32 {
-		buffer := zr.debug_system.point_material_instances;
-		allocation := buffer.allocate(*buffer, data);
+		buffer := *zr.debug_system.point_material_instances;
+		allocation := buffer.allocate(buffer, <<data);
 		return xx,no_check ((allocation - buffer.staging_buffer.base_address) / size_of(Debug_Material_Instance));
 	}
 }
@@ -160,8 +160,9 @@ Material_Pipeline_Debug_Wireframe :: struct {
 	}
 
 	create_material_instance :: (using self: *Material_Pipeline_Debug_Wireframe, zr: *ZRenderer, data: *Debug_Material_Instance) -> u32 {
-		buffer := zr.debug_system.mesh_material_instances;
-		allocation := buffer.allocate(*buffer, data);
+		buffer := *zr.debug_system.mesh_material_instances;
+		allocation := buffer.allocate(buffer, <<data);
+		
 		return xx,no_check ((allocation - buffer.staging_buffer.base_address) / size_of(Debug_Material_Instance));
 	}
 }

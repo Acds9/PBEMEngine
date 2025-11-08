@@ -176,12 +176,12 @@ Staged_Array_Buffer :: struct {
 			panic(sprint("Attempted to allocate more elements than capacity allows. Capacity: %", capacity));
 		}
 		count += 1;
-
+		
 		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
 		cast_data[write_index] = value;
 		
 		address := staging_buffer.base_address + write_index * element_size;
-		
+
 		return address;
 	}
     

@@ -28,9 +28,12 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 	return scene;
 }
 
-add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, parent_transform: VkDeviceAddress = 0) -> VkDeviceAddress {
+add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, parent_transform: VkDeviceAddress = 0, material_overrides: *[8]u32 = null) -> VkDeviceAddress {
 	mesh_render : Mesh_Instance;
 	mesh_render.mesh_asset = mesh;
+	if material_overrides {
+		mesh_render.material_overrides = <<material_overrides;
+	}
 
 	render_transform : Render_Transform;
 	render_transform.local_transform = local_transform;
@@ -41,7 +44,7 @@ add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, 
 	return scene.mesh_instances.allocate(*scene.mesh_instances, mesh_render);
 }
 
-add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, transform: Transform, parent_transform: VkDeviceAddress = 0) -> VkDeviceAddress {
+add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, transform: Transform, parent_transform: VkDeviceAddress = 0, material_overrides: []u32 = .[]) -> VkDeviceAddress {
 	transform_to_matrix4(transform);
 	return add_scene_mesh(scene, mesh, transform_to_matrix4(transform), parent_transform);
 }

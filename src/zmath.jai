@@ -6,7 +6,6 @@ ROTOR_IDENTITY :: Rotor.{1, 0, 0, 0};
 
 TRANSFORM_IDENTITY :: Transform.{VECTOR_ZERO, ROTOR_IDENTITY, VECTOR_ONE};
 
-
 pack_unorm_4x8 :: (v: Vector4) -> u32 {
 	r := cast,no_check(u32)(clamp(v.x, 0, 1) * 255 + 0.5); // +0.5 for rounding
 	g := cast,no_check(u32)(clamp(v.y, 0, 1) * 255 + 0.5);

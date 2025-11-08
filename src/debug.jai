@@ -135,9 +135,14 @@ debug_draw_sphere :: (zr: *ZRenderer, position: Vector3, size: float, color: Vec
 
 	debug_system := *zr.debug_system;
 
+	material_data : Debug_Material_Instance;
+	material_data.color_factors = color;
+	material_index := debug_system.m_debug_wireframe.create_material_instance(*debug_system.m_debug_wireframe, zr, *material_data);
+
 	mesh_render : Mesh_Instance; 
 	mesh_render.mesh_asset = mesh;
-
+	mesh_render.material_overrides = .[material_index,0,0,0,0,0,0,0];
+	
 	render_transform : Render_Transform;
 	transform := Transform.{position, ROTOR_IDENTITY, VECTOR_ONE * size};
 	render_transform.local_transform = transform_to_matrix4(transform);

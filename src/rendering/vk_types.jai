@@ -275,33 +275,3 @@ Render_Transform :: struct {
 	padding			: [8]u8;
 }
 
-
-Mesh_Instance :: struct {
-	mesh_asset			: *Mesh_Asset; 
-	transform_address	: VkDeviceAddress;
-	generation			: u8;
-
-	get_render_transform :: (using self: *Mesh_Instance) -> *Render_Transform {
-		return cast,no_check(*Render_Transform)transform_address;
-	}
-}
-
-calculate_transform_depth :: (transform: *Render_Transform) -> u8 {
-	depth : u8 = 0;
-	current_transform := transform;
-	while current_transform.parent_address != 0 {
-		depth += 1;
-		current_transform = cast,no_check(*Render_Transform) current_transform.parent_address;
-	}
-	return depth;
-}
-
-calculate_world_transform :: (base_transform: *Render_Transform) -> Matrix4 {
-	current_transform := base_transform;
-	world_transform := current_transform.local_transform;
-	while current_transform.parent_address != 0 {
-		current_transform = cast,no_check(*Render_Transform) current_transform.parent_address;
-		world_transform = current_transform.local_transform * world_transform;
-	}
-	return world_transform;
-}
