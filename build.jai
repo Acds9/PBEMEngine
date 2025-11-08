@@ -15,7 +15,7 @@ build :: () {
         print("Final Workspace creation failed.\n");
         return;
     }
-
+	
 	//  Build options
    	final_options := get_build_options(w_final);  
     final_options.backend = .X64;
@@ -40,7 +40,7 @@ build :: () {
     compiler_begin_intercept(w_final);  
     add_source_files(w_final);
 	compiler_end_intercept(w_final);
-
+	
 }
 
 add_source_files :: (w: Workspace) {

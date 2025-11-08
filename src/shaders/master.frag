@@ -9,16 +9,6 @@
 
 #include "input_structures.glsl"
 
-struct Material_Instance {
-    vec4 color_factors;
-    uint albedo_image_index;
-    uint albedo_sampler_index;
-    uint8_t pass;
-    uint8_t padding[4];
-};
-layout(buffer_reference, scalar) readonly buffer Material_Buffer {
-    Material_Instance materials[];
-};
 
 layout(set = 0, binding = 0) uniform texture2D textures[];
 layout(set = 1, binding = 0) uniform sampler samplers[];
@@ -40,11 +30,19 @@ void main()
     Material_Buffer material_buffer = Material_Buffer(push_constants.material_buffer_address);
     Material_Instance mat = material_buffer.materials[in_material_index];
     
-    // Sample textures using indices from material
-    vec3 albedo = texture(sampler2D(textures[mat.albedo_image_index], samplers[0]), in_UV).rgb;
-    albedo *= mat.color_factors.rgb;  // Apply tint
+    switch(uint(mat.type))
+    {
+        case 0: //Opaque
+        {  
+            // Sample textures using indices from material
+            vec3 albedo = texture(sampler2D(textures[mat.albedo_image_index], samplers[0]), in_UV).rgb;
+            albedo *= mat.color_factors.rgb;  // Apply tint
+            
+            vec3 final_color = albedo;
+            
+            out_color = vec4(final_color, 1.0);
+            break;
+        }
+    }
     
-    vec3 final_color = albedo;
-    
-    out_color = vec4(final_color, 1.0);
 }

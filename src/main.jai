@@ -111,18 +111,16 @@ game_update_camera :: (using state: *Game_State) {
 
 current_position : Vector3;
 game_tick :: (using state: *Game_State) {
-	clear_debug_buffers(*GAME_STATE.scene);
+	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
 
-	print("FPS: %\n", GAME_STATE.fps);
-
-	debug_draw_point(*GAME_STATE.scene, .{0,0,0}, 25, .{1,0,0,1}); 
-	debug_draw_point(*GAME_STATE.scene,.{5,5,5}, 25, .{0,0,1,1}); 
-	debug_draw_point(*GAME_STATE.scene, .{10,10,10}, 25, .{0,1,0,1}); 
-	debug_draw_sphere(*GAME_STATE.scene, .{0,0,0}, 16, .{1,0,0,1} );
-	debug_draw_sphere(*GAME_STATE.scene, .{0,0,0}+.{5,5,5}, 16, .{0,0,1,1} );
-	debug_draw_sphere(*GAME_STATE.scene, .{0,0,0}+.{10,10,10}, 16, .{1,0,0,1} );
-	debug_draw_sphere(*GAME_STATE.scene, .{0,0,0}+.{15,15,15}, 16, .{1,0,0,1} );
-	debug_draw_sphere(*GAME_STATE.scene, .{0,0,0}+.{20,20,20}, 16, .{1,0,0,1} );
+	debug_draw_point(*ZRENDERER, .{0,0,0}, 25, .{1,0,0,1}); 
+	debug_draw_point(*ZRENDERER,.{5,5,5}, 25, .{0,0,1,1}); 
+	debug_draw_point(*ZRENDERER, .{10,10,10}, 25, .{0,1,0,1}); 
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}, 16, .{1,0,0,1} );
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{5,5,5}, 16, .{0,0,1,1} );
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{10,10,10}, 16, .{1,0,0,1} );
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{15,15,15}, 16, .{1,0,0,1} );
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{20,20,20}, 16, .{1,0,0,1} );
 	{
 		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
 			for *pos: position_array {

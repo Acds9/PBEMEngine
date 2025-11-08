@@ -67,13 +67,14 @@ load_assets :: (zr: *ZRenderer) {
 		material_instance.albedo_image_index = image.image_index;
 		material_instance.albedo_sampler_index = zr.sampler_nearest_index;
 		ion_frigate_hull_material := zr.m_opaque.create_material_instance(*zr.m_opaque, zr, *material_instance);
-		ion_frigate_mesh.surfaces[0].material_instance = <<table_add(*zr.material_instance_table, "ion_frigate_hull_material", ion_frigate_hull_material);
+		ion_frigate_mesh.surfaces[0].default_material_instance = <<table_add(*zr.material_instance_table, "ion_frigate_hull_material", ion_frigate_hull_material);
 	}
 
 	//Debug sphere
 	{
 		debug_sphere_mesh := load_glt_meshes(zr, "H:/PBEMJai/content/meshes/sphere_debug_1x1.glb");
 		debug_sphere_mesh.name = "debug_sphere";
+		debug_sphere_mesh.surfaces[0].default_material_instance = zr.debug_system.mi_debug_wireframe;
 		table_add(*zr.mesh_map, debug_sphere_mesh.name, debug_sphere_mesh);
 	}
 }

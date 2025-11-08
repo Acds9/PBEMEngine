@@ -1,8 +1,7 @@
 MESH_BUFFER_SIZE 		:: 8*1024*1024; // 8MB
 TRANSFORM_BUFFER_SIZE 	:: 8*1024*1024; 
 LIGHT_BUFFER_SIZE 		:: 8*1024*1024;
-// TODO: these buffer sizes are all overkill
-SCENE_DEBUG_BUFFER_SIZE :: 1*1024*1024;
+
 
 ZScene :: struct {
 		
@@ -12,11 +11,6 @@ ZScene :: struct {
 
 	////////////////// LIGHT ////////////////////////////////////
 	point_lights	: Staged_Uniform_Storage_Buffer;
-
-	//////////////////// DEBUG //////////////////////////////////
-	debug_point_instances 			: Staged_Uniform_Storage_Buffer;
-	debug_mesh_instances			: Staged_Uniform_Storage_Buffer;
-	debug_mesh_transforms			: Staged_Uniform_Storage_Buffer;
 }
 
 create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
@@ -30,15 +24,6 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 	
 	scene.point_lights = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, LIGHT_BUFFER_SIZE, size_of(Point_Light), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "point_lights buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.point_lights);
-
-	scene.debug_point_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Debug_Point), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_point_instances buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_point_instances);
-
-	scene.debug_mesh_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_mesh_instances buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_mesh_instances);
-
-	scene.debug_mesh_transforms = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, SCENE_DEBUG_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_mesh_transforms buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.debug_mesh_transforms);
 
 	return scene;
 }
@@ -106,20 +91,10 @@ render_get_local_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance) ->
 	return render_get_transform(scene, mesh_instance.transform_address).local_transform;
 }
 
-clear_debug_buffers :: (using scene: *ZScene) {
-	debug_point_instances.reset(*debug_point_instances);			
-	debug_mesh_instances.reset(*debug_mesh_instances);	
-	debug_mesh_transforms.reset(*debug_mesh_transforms);
-}
-
 copy_staging_to_device_buffers :: (using scene: *ZScene, cmd: VkCommandBuffer) {
 	mesh_instances.transfer(*mesh_instances, cmd);
 	mesh_transforms.transfer(*mesh_transforms, cmd);
 	point_lights.transfer(*point_lights, cmd);
-
-	debug_point_instances.transfer(*debug_point_instances, cmd);
-	debug_mesh_instances.transfer(*debug_mesh_instances, cmd);
-	debug_mesh_transforms.transfer(*debug_mesh_transforms, cmd);
 
 	// Barrier to ensure copies complete before rendering
     barrier : VkMemoryBarrier;

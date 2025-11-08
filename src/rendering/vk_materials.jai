@@ -14,7 +14,7 @@ Material_Instance :: struct {
 	albedo_image_index		: u32;
 	albedo_sampler_index 	: u32;
 	pass					: MATERIAL_PASS;
-	padding					: [4]u8;
+	padding					: [6]u8;
 }
 
 Material_Pipeline_Debug_Point :: struct {
@@ -82,10 +82,10 @@ Material_Pipeline_Debug_Point :: struct {
 		
 	}
 
-	create_material_instance :: (using self: *Material_Pipeline_Debug_Point, zr: *ZRenderer, data: *Material_Instance) -> u32 {
-		data.pass = .DEBUG_POINT;
-		allocation := zr.material_instances.allocate(*zr.material_instances, data);
-		return xx,no_check ((allocation - zr.material_instances.staging_buffer.base_address) / size_of(Material_Instance));
+	create_material_instance :: (using self: *Material_Pipeline_Debug_Point, zr: *ZRenderer, data: *Debug_Material_Instance) -> u32 {
+		buffer := zr.debug_system.point_material_instances;
+		allocation := buffer.allocate(*buffer, data);
+		return xx,no_check ((allocation - buffer.staging_buffer.base_address) / size_of(Debug_Material_Instance));
 	}
 }
 
@@ -159,10 +159,10 @@ Material_Pipeline_Debug_Wireframe :: struct {
 		
 	}
 
-	create_material_instance :: (using self: *Material_Pipeline_Debug_Wireframe, zr: *ZRenderer, data: *Material_Instance) -> u32 {
-		data.pass = .DEBUG_WIREFRAME;
-		allocation := zr.material_instances.allocate(*zr.material_instances, data);
-		return xx,no_check ((allocation - zr.material_instances.staging_buffer.base_address) / size_of(Material_Instance));
+	create_material_instance :: (using self: *Material_Pipeline_Debug_Wireframe, zr: *ZRenderer, data: *Debug_Material_Instance) -> u32 {
+		buffer := zr.debug_system.mesh_material_instances;
+		allocation := buffer.allocate(*buffer, data);
+		return xx,no_check ((allocation - buffer.staging_buffer.base_address) / size_of(Debug_Material_Instance));
 	}
 }
 
@@ -242,5 +242,4 @@ Material_Pipeline_Opaque :: struct {
 		allocation := zr.material_instances.allocate(*zr.material_instances, <<data);
 		return xx,no_check((allocation - zr.material_instances.staging_buffer.base_address) / size_of(Material_Instance));
 	}
-
 }

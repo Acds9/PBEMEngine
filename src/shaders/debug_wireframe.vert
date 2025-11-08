@@ -1,32 +1,31 @@
-#version 450
+#version 460
 
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_scalar_block_layout : require
 #include "input_structures.glsl"
+#include "debug_types.glsl"
 
-struct Vertex {
-    vec3 position;
-    float uv_x;
-    vec3 normal;
-    float uv_y;
-    vec4 color;
-}; 
 
-layout(buffer_reference, scalar) readonly buffer VertexBuffer { 
-    Vertex vertices[];
-};
-
-layout(buffer_reference, scalar) readonly buffer TransformBuffer {
-    Transform transforms[];
-};
+layout (location = 0) flat out uint out_material_index;
 
 void main() {
-    CameraData camera = CameraData(push_constants.camera_data_address);
-    TransformBuffer transform_ref = TransformBuffer(push_constants.transform_address);
-    VertexBuffer vertex_buffer = VertexBuffer(push_constants.vertex_address);
-    
+    Indexed_Indirect_Buffer draw_buffer = Indexed_Indirect_Buffer(push_constants.draw_buffer_address);
+    Draw_Command draw = draw_buffer.commands[gl_DrawID];
+
+    Vertex_Buffer vertex_buffer = Vertex_Buffer(draw.vertex_address);
     Vertex v = vertex_buffer.vertices[gl_VertexIndex];
-    gl_Position = camera.view_proj * transform_ref.transforms[0].transform * vec4(v.position, 1.0);
+
+    Transform_Buffer transform_buffer = Transform_Buffer(draw.transform_address);
+    Transform transform = transform_buffer.transform;
+    mat4 world_matrix = transform.transform; // Need to actually calc this one from parents, do it in CPU side
+
+    Camera_Data camera = Camera_Data(push_constants.camera_data_address);
+
+    vec4 position = vec4(v.position, 1.0);
+    vec4 world_pos = world_matrix * position;
+
+    out_material_index = draw.material_instance;
+    gl_Position = camera.view_proj * world_matrix * vec4(v.position, 1.0);
 }

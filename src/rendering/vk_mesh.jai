@@ -3,6 +3,8 @@
 GEOPOOL_VERTEX_ALLOC_SIZE :: 64 * 1024 * 1024;
 GEOPOOL_INDEX_ALLOC_SIZE :: 64 * 1024 * 1024;
 
+MAX_GEO_SURFACES :: 8;
+
 GLTF_TO_ZENGINE_COORDINATES :: Matrix4.{
     0,  0,  1,  0,   // glTF Z to ZEngine X
    -1,  0,  0,  0,   // glTF -X to  ZEngine Y
@@ -37,7 +39,7 @@ Geo_Surface :: struct {
 
 	pool			: *GPU_Geometry_Pool;
 
-	material_instance : u32;
+	default_material_instance : u32;
 }
 
 Mesh_Asset :: struct {
@@ -175,9 +177,13 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 		}
 
 		new_surface := upload_mesh(zr, *zr.geometry_pool, indices, vertices);
-		new_surface.material_instance = zr.mi_default;
+		new_surface.default_material_instance = zr.mi_default;
 		// TODO: need to load the actual material
 		array_add(*new_mesh.surfaces, new_surface);
+
+		if new_mesh.surfaces.count > MAX_GEO_SURFACES {
+			panic(sprint("Attempted to load mesh with more than MAX_GEO_SURFACES (currently %), either don't or increase MAX_GEO_SURFACES", MAX_GEO_SURFACES));
+		}
 
 		array_reset(*indices);
 		array_reset(*vertices);
