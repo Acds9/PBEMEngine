@@ -19,11 +19,10 @@ Debug_System :: struct {
 	mesh_instances				: Staged_Array_Buffer;
 	mesh_transforms				: Staged_Array_Buffer;
 
-	point_material_instances 	: Staged_Array_Buffer;
 	mesh_material_instances		: Staged_Array_Buffer; 
 
 	m_debug_point				: Material_Pipeline_Debug_Point;
-	mi_debug_point				: u32;					
+	mi_debug_point				: u32;
 	m_debug_wireframe			: Material_Pipeline_Debug_Wireframe;
 	mi_debug_wireframe 			: u32;
 
@@ -32,7 +31,6 @@ Debug_System :: struct {
 		mesh_instances.transfer(*mesh_instances, cmd);
 		mesh_transforms.transfer(*mesh_transforms, cmd);
 
-		point_material_instances.transfer(*point_material_instances, cmd);
 		mesh_material_instances.transfer(*mesh_material_instances, cmd);
 	}
 
@@ -41,7 +39,6 @@ Debug_System :: struct {
 		mesh_instances.reset(*mesh_instances);
 		mesh_transforms.reset(*mesh_transforms);
 
-		point_material_instances.reset(*point_material_instances);
 		mesh_material_instances.reset(*mesh_material_instances);
 	}
 }
@@ -58,9 +55,6 @@ create_debug_system :: (allocator: VmaAllocator, device: VkDevice) -> Debug_Syst
 	system.mesh_transforms = make_staged_array_buffer(VMA_ALLOCATOR, DEBUG_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_mesh_transforms buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *system.mesh_transforms);
 
-	system.point_material_instances = make_staged_array_buffer(VMA_ALLOCATOR, DEBUG_MI_BUFFER_SIZE, size_of(Debug_Material_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_point_mi buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *system.point_material_instances);
-
 	system.mesh_material_instances = make_staged_array_buffer(VMA_ALLOCATOR, DEBUG_MI_BUFFER_SIZE, size_of(Debug_Material_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "debug_mesh_mi buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *system.mesh_material_instances);
 	
@@ -68,9 +62,9 @@ create_debug_system :: (allocator: VmaAllocator, device: VkDevice) -> Debug_Syst
 }
 
 Debug_Point :: struct {
+	color		: Vector4;
 	position	: Vector3;
 	size 		: float;
-	color		: Vector4;
 }
 
 Debug_Line :: struct {
@@ -122,9 +116,10 @@ Debug_Shape_Component :: struct {
 }
 
 debug_draw_point :: (zr: *ZRenderer, position: Vector3, size: float, color: Vector4) {
-	shape_buffer := *zr.debug_system.point_instances; // Not using the debug point materials for now
-	point := Debug_Point.{position, size, color};
-	shape_buffer.allocate(shape_buffer, point);
+	point_buffer := *zr.debug_system.point_instances;
+
+	point := Debug_Point.{color, position, size};
+	point_buffer.allocate(point_buffer, point);
 }
 
 debug_draw_sphere :: (zr: *ZRenderer, position: Vector3, size: float, color: Vector4) {
