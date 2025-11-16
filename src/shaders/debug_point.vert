@@ -15,6 +15,12 @@ layout(buffer_reference, scalar) readonly buffer Camera_Data {
 	mat4 view_proj;
 };
 
+layout(push_constant, scalar) uniform Debug_Point_Push_Constants {
+    uint64_t render_globals_address;
+    uint64_t vertex_address;
+    uint64_t transform_address;
+    uint64_t camera_data_address;
+} debug_push_constants;
 
 layout(location = 0) out vec3 outColor;
 

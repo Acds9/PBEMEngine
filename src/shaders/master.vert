@@ -5,7 +5,17 @@
 #extension GL_EXT_buffer_reference2 : require 
 #extension GL_EXT_scalar_block_layout : require
 
-#include "input_structures.glsl"
+#include "common_types.glsl"
+
+layout(push_constant, scalar) uniform Draw_Push_Constants {
+    uint64_t render_globals_address;
+    uint64_t draw_buffer_address;
+    uint64_t camera_data_address;
+    uint64_t material_buffer_address;
+    uint64_t light_cluster_buffer_address;
+    uint64_t point_lights_address;
+    uint point_lights_count;
+} push_constants;
 
 layout (location = 0) out vec3 out_normal;
 layout (location = 1) out vec2 out_UV;

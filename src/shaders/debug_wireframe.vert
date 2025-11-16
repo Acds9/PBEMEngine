@@ -4,9 +4,15 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_scalar_block_layout : require
-#include "input_structures.glsl"
+#include "common_types.glsl"
 #include "debug_types.glsl"
 
+layout(push_constant, scalar) uniform Debug_Wireframe_Push_Constants {
+    uint64_t render_globals_address;
+    uint64_t draw_buffer_address;
+    uint64_t camera_data_address;
+    uint64_t material_buffer_address;
+} push_constants;
 
 layout (location = 0) flat out uint out_material_index;
 

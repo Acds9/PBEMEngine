@@ -198,6 +198,26 @@ Staged_Array_Buffer :: struct {
     }
 }
 
+// For single struct buffers that NEED low access latency of device memory
+Staged_Struct_Buffer :: struct {
+	staging_buffer  : Allocated_Buffer;
+    device_buffer   : Allocated_Buffer;
+	size			: u32;
+
+	allocate :: (using self: *Staged_Struct_Buffer, value: $T) -> VkDeviceAddress {
+		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
+		cast_data[0] = value;
+
+		return staging_buffer.base_address;
+	}
+    
+    transfer :: (using self: *Staged_Struct_Buffer, cmd: VkCommandBuffer) {
+        copy : VkBufferCopy;
+        copy.size = size;
+        vkCmdCopyBuffer(cmd, staging_buffer.buffer, device_buffer.buffer, 1, *copy);
+    }
+}
+
 create_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Allocated_Buffer {
 	buffer_info : VkBufferCreateInfo;
 	buffer_info.sType = .VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -279,6 +299,17 @@ make_staged_array_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_s
 	};
 }
 
+make_staged_struct_buffer :: (allocator: VmaAllocator, alloc_size: u32, usage: VkBufferUsageFlags, device: VkDevice = null, debug_name: string = "") -> Staged_Struct_Buffer {
+	staging_name := sprint("%_%", debug_name, "staging");
+	device_name := sprint("%_%", debug_name, "device");
+	
+	return .{
+		staging_buffer = create_buffer(allocator, alloc_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | usage, .CPU_ONLY, device, staging_name),
+		device_buffer = create_buffer(allocator, alloc_size, .VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, .GPU_ONLY, device, device_name),
+		size = alloc_size
+	};
+}
+
 destroy_buffer :: (allocator: VmaAllocator, buffer: *Allocated_Buffer) {
 	vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
 }
@@ -288,4 +319,5 @@ destroy_buffer :: (allocator: VmaAllocator, buffer: *Storage_Buffer) {
 destroy_buffer :: (allocator: VmaAllocator, buffer: *Uniform_Storage_Buffer) {
 	vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
 }
+
 

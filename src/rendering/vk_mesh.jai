@@ -40,6 +40,8 @@ Geo_Surface :: struct {
 	pool			: *GPU_Geometry_Pool;
 
 	default_material_instance : u32;
+
+	aabb : AABB;
 }
 
 Mesh_Asset :: struct {
@@ -125,6 +127,9 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 	
 	primitive_count := mesh.primitives_count;
 
+	aabb_min : Vector3 = .{FLOAT32_MIN, FLOAT32_MIN, FLOAT32_MIN};
+	aabb_max : Vector3 = .{FLOAT32_MAX, FLOAT32_MAX, FLOAT32_MAX};
+
 	for primitive_index: 0..primitive_count-1 {
 		primitive := mesh.primitives[primitive_index];
 			
@@ -166,6 +171,14 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 			vertex.position.x = position[2];
 			vertex.position.y = -position[0];
 			vertex.position.z = position[1];
+
+			aabb_min.x = min(aabb_min.x, vertex.position.x);
+			aabb_min.y = min(aabb_min.y, vertex.position.y);
+			aabb_min.z = min(aabb_min.z, vertex.position.z);
+
+			aabb_max.x = max(aabb_max.x, vertex.position.x);
+			aabb_max.y = max(aabb_max.y, vertex.position.y);
+			aabb_max.z = max(aabb_max.z, vertex.position.z);
 
 			// Normal
 			if normal_accessor {
@@ -215,8 +228,11 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 			array_add(*vertices, vertex);
 		}
 
+		half_extents := (aabb_max - aabb_min) * 0.5;
+		extents_center := (aabb_min + aabb_max) * 0.5;
 		new_surface := upload_mesh(zr, *zr.geometry_pool, indices, vertices);
 		new_surface.default_material_instance = zr.mi_default;
+		new_surface.aabb = .{extents_center, half_extents};
 		// TODO: need to load the actual material
 		array_add(*new_mesh.surfaces, new_surface);
 

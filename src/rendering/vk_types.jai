@@ -256,14 +256,17 @@ GPU_Mesh_Buffers :: struct {
 }
 
 Draw_Push_Constants :: struct {
+	render_globals		: VkDeviceAddress;
 	draw_address		: VkDeviceAddress;
 	camera_data_address : VkDeviceAddress;
 	material_address	: VkDeviceAddress;
+	cluster_index_address		: VkDeviceAddress;
 	point_lights_address: VkDeviceAddress;
 	point_lights_count	: u32;
 }
 
 Debug_Draw_Push_Constants :: struct {
+	render_globals		: VkDeviceAddress;
 	vertex_address		: VkDeviceAddress;
 	transform_address	: VkDeviceAddress;
 	camera_data_address : VkDeviceAddress;
@@ -275,3 +278,16 @@ Render_Transform :: struct {
 	padding			: [8]u8;
 }
 
+AABB :: struct {
+	center : Vector3;
+	half_extents : Vector3;
+}
+
+Render_Globals :: struct {
+	resolution_x	: u32;
+	resolution_y	: u32;
+
+	light_cluster_x	: u32;
+	light_cluster_y	: u32;
+	light_cluster_z	: u32;
+}

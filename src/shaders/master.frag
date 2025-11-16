@@ -7,8 +7,18 @@
 #extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_scalar_block_layout : require
 
-#include "input_structures.glsl"
+#include "common_types.glsl"
+#include "light_types.glsl"
 
+layout(push_constant, scalar) uniform Draw_Push_Constants {
+    uint64_t render_globals_address;
+    uint64_t draw_buffer_address;
+    uint64_t camera_data_address;
+    uint64_t material_buffer_address;
+    uint64_t light_cluster_buffer_address;
+    uint64_t point_lights_address;
+    uint point_lights_count;
+} push_constants;
 
 layout(set = 0, binding = 0) uniform texture2D textures[];
 layout(set = 1, binding = 0) uniform sampler samplers[];
@@ -27,9 +37,21 @@ vec4 sunlight_color = vec4(1.f, 1.f, 1.f, 0.f);
 
 void main() 
 {
+    Render_Globals globals = Render_Globals(push_constants.render_globals_address);
+
     Material_Buffer material_buffer = Material_Buffer(push_constants.material_buffer_address);
     Material_Instance mat = material_buffer.materials[in_material_index];
+  
+    Light_Indices_Buffer light_index_buffer = Light_Indices_Buffer(push_constants.light_cluster_buffer_address);
+
+    // Clean this up, this is awful
+    uvec3 cluster_count = uvec3(globals.light_cluster_x,globals.light_cluster_y,globals.light_cluster_z);
+    vec2 screen_size = vec2(globals.resolution_x, globals.resolution_y);
+    vec2 tile_size = screen_size / cluster_count.xy;
+
+    uvec2 cluster_xy = uvec2(gl_FragCoord.xy / tile_size);
     
+    vec3 cluster_color = vec3(1,0,0) / (cluster_xy.x+cluster_xy.y);
     switch(uint(mat.type))
     {
         case 0: //Opaque
@@ -40,7 +62,7 @@ void main()
             
             vec3 final_color = albedo;
             
-            out_color = vec4(final_color, 1.0);
+            out_color = vec4(cluster_color, 1.0);
             break;
         }
     }

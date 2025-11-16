@@ -70,6 +70,7 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 
 	chosen_extent.width = clamp(chosen_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
 	chosen_extent.height = clamp(chosen_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+	zr.resolution = chosen_extent;
 	print("Swap Extent: %x%\n", chosen_extent.width, chosen_extent.height);
 
 	// IMAGE COUNT

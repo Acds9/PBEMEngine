@@ -93,17 +93,3 @@ render_get_world_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance) ->
 render_get_local_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance) -> Matrix4 {
 	return render_get_transform(scene, mesh_instance.transform_address).local_transform;
 }
-
-copy_staging_to_device_buffers :: (using scene: *ZScene, cmd: VkCommandBuffer) {
-	mesh_instances.transfer(*mesh_instances, cmd);
-	mesh_transforms.transfer(*mesh_transforms, cmd);
-	point_lights.transfer(*point_lights, cmd);
-
-	// Barrier to ensure copies complete before rendering
-    barrier : VkMemoryBarrier;
-    barrier.sType = .VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-    barrier.srcAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = .VK_ACCESS_SHADER_READ_BIT;
-    
-    vkCmdPipelineBarrier(cmd, .VK_PIPELINE_STAGE_TRANSFER_BIT, .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 1, *barrier, 0, null, 0, null);
-}
