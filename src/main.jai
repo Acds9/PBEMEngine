@@ -52,6 +52,13 @@ game_init :: (using state: *Game_State) -> bool {
 	light_component := get_entity_component(*world, light_entity, Point_Light_Component);
     light_component.radius = 16;
     light_component.color = .{.3,.3,1,1};
+
+	light_entity_2 := create_entity(*world, Archetype_Point_Light); 
+	position_2 := get_entity_component(*world, light_entity_2, Position);
+	position_2.pos = .{1,1,10};
+	light_component_2 := get_entity_component(*world, light_entity_2, Point_Light_Component);
+    light_component_2.radius = 64;
+    light_component_2.color = .{.3,1,.3,1};
 	
     // Input setup
     SDL_SetRelativeMouseMode(SDL_TRUE);
@@ -112,16 +119,6 @@ game_update_camera :: (using state: *Game_State) {
 current_position : Vector3;
 game_tick :: (using state: *Game_State) {
 	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
-
-	debug_draw_point(*ZRENDERER, 	.{0,0,0}, 		25, 	.{1,0,0,1}); 
-	debug_draw_point(*ZRENDERER,	.{5,5,5}, 		25, 	.{0,0,1,1}); 
-	debug_draw_point(*ZRENDERER, 	.{10,10,10}, 	25, 	.{0,1,0,1}); 
-
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}, 			16, 	.{1,0,0,1} );
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{5,5,5}, 	16, 	.{1,1,0,1} );
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{10,10,10}, 16, 	.{0,0,1,1} );
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{15,15,15}, 16, 	.{1,1,0,1} );
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}+.{20,20,20}, 16, 	.{0,1,1,1} );
 	{
 		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
 			for *pos: position_array {
@@ -130,7 +127,7 @@ game_tick :: (using state: *Game_State) {
 				}
 				dir := pos.pos - current_position;
 				norm := normalize(dir);
-				pos.pos -= norm*10*GAME_STATE.delta_time;
+				//pos.pos -= norm*10*GAME_STATE.delta_time;
 			}
 		});
 	}
@@ -154,7 +151,9 @@ game_tick :: (using state: *Game_State) {
 		execute_Query_Debug_Draw_Point_Light(*GAME_STATE.world, #code {
 			for *pos: position_array {
 				point_light := *point_light_component_array[it_index];
-				
+				position	:= *position_array[it_index].pos;
+				debug_draw_point(*ZRENDERER, position, 5, point_light.color); 
+				debug_draw_sphere(*ZRENDERER, position, point_light.radius, point_light.color);
 				
 			}
 		});

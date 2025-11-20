@@ -1,7 +1,7 @@
 LIGHT_CLUSTER_NUM_WIDTH 	:: 32;
 LIGHT_CLUSTER_NUM_HEIGHT 	:: 16;
 LIGHT_CLUSTER_NUM_DEPTH		:: 24;
-MAX_LIGHTS_PER_CLUSTER		:: 25; // Anything after this is discarded
+MAX_LIGHTS_PER_CLUSTER		:: 32; // Anything after this is discarded
 
 Light_Clustering_Push_Constants :: struct {
 	render_globals			: VkDeviceAddress;
@@ -60,8 +60,8 @@ Compute_Pipeline_Light_Clustering :: struct {
 			cluster_x	: u32 = LIGHT_CLUSTER_NUM_WIDTH;
 			cluster_y	: u32 = LIGHT_CLUSTER_NUM_HEIGHT;
 			cluster_z	: u32 = LIGHT_CLUSTER_NUM_DEPTH;
-			z_near		: float = 1.0;
-			z_far		: float = 1000.0;
+			z_near		: float = NEAR_PLANE;
+			z_far		: float = FAR_PLANE;
 			max_lights	: u32 = MAX_LIGHTS_PER_CLUSTER;
 		};
 
@@ -94,7 +94,7 @@ Compute_Pipeline_Light_Clustering :: struct {
 		vkDestroyShaderModule(zr.device, light_clustering_shader, null);
 	}
 }
-
+// TODO: it crashes when exiting the mesh, not when looking at light?
 Light_Cluster_System :: struct {
 	m_c_light_cluster 		: Compute_Pipeline_Light_Clustering;
 	
@@ -107,11 +107,11 @@ Light_Cluster_System :: struct {
 		cluster_count : u64 = LIGHT_CLUSTER_NUM_WIDTH * LIGHT_CLUSTER_NUM_HEIGHT * LIGHT_CLUSTER_NUM_DEPTH;
 		cluster_buffer_size : u64 = cluster_count * size_of(Light_Cluster);
 		print("CLUSTER COUNT: %\n", cluster_count);
-		light_cluster_buffer_0 = make_uniform_storage_buffer(VMA_ALLOCATOR, cluster_buffer_size, size_of(Light_Cluster), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .GPU_ONLY,
+		light_cluster_buffer_0 = make_uniform_storage_buffer(VMA_ALLOCATOR, cluster_buffer_size, size_of(Light_Cluster), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT, .GPU_ONLY,
 																	zr.device, "frame 0 light_cluster buffer");
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *light_cluster_buffer_0);
 
-		light_cluster_buffer_1 = make_uniform_storage_buffer(VMA_ALLOCATOR, cluster_buffer_size, size_of(Light_Cluster), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .GPU_ONLY,
+		light_cluster_buffer_1 = make_uniform_storage_buffer(VMA_ALLOCATOR, cluster_buffer_size, size_of(Light_Cluster), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT, .GPU_ONLY,
 																	zr.device, "frame 1 light_cluster buffer");
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *light_cluster_buffer_1);
 	}

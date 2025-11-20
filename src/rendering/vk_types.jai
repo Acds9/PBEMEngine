@@ -290,4 +290,7 @@ Render_Globals :: struct {
 	light_cluster_x	: u32;
 	light_cluster_y	: u32;
 	light_cluster_z	: u32;
+
+	near_plane		: float;
+	far_plane		: float;
 }

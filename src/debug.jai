@@ -144,3 +144,8 @@ debug_draw_sphere :: (zr: *ZRenderer, position: Vector3, size: float, color: Vec
 	mesh_render.transform_address = debug_system.mesh_transforms.allocate(*debug_system.mesh_transforms, render_transform);
 	debug_system.mesh_instances.allocate(*debug_system.mesh_instances, mesh_render);
 }
+
+Debug_Globals :: struct {
+	draw_light_clusters	: bool;
+	light_cluster_color	: Vector4;
+}

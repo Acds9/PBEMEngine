@@ -61,7 +61,7 @@ Material_Pipeline_Debug_Point :: struct {
 		pipeline_builder.set_line_width(*pipeline_builder, 1);
 		pipeline_builder.set_multisampling_none(*pipeline_builder);
 		pipeline_builder.disable_blending(*pipeline_builder);
-		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_LESS_OR_EQUAL);
+		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_GREATER_OR_EQUAL);
 
 		pipeline_builder.set_color_attachment_format(*pipeline_builder, zr.draw_image.image_format);
 		pipeline_builder.set_depth_format(*pipeline_builder, zr.depth_image.image_format);
@@ -132,7 +132,7 @@ Material_Pipeline_Debug_Wireframe :: struct {
 		pipeline_builder.set_line_width(*pipeline_builder, 1);
 		pipeline_builder.set_multisampling_none(*pipeline_builder);
 		pipeline_builder.disable_blending(*pipeline_builder);
-		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_LESS_OR_EQUAL);
+		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_GREATER_OR_EQUAL);
 
 		pipeline_builder.set_color_attachment_format(*pipeline_builder, zr.draw_image.image_format);
 		pipeline_builder.set_depth_format(*pipeline_builder, zr.depth_image.image_format);
@@ -211,7 +211,7 @@ Material_Pipeline_Opaque :: struct {
 		pipeline_builder.set_cull_mode(*pipeline_builder, .VK_CULL_MODE_BACK_BIT, .VK_FRONT_FACE_COUNTER_CLOCKWISE);
 		pipeline_builder.set_multisampling_none(*pipeline_builder);
 		pipeline_builder.disable_blending(*pipeline_builder);
-		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_LESS_OR_EQUAL);
+		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_GREATER_OR_EQUAL);
 
 		pipeline_builder.set_color_attachment_format(*pipeline_builder, zr.draw_image.image_format);
 		pipeline_builder.set_depth_format(*pipeline_builder, zr.depth_image.image_format);

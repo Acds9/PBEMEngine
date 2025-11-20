@@ -2,6 +2,9 @@ AXIS_FORWARD	:: Vector3.{1,0,0};
 AXIS_RIGHT		:: Vector3.{0,1,0};
 AXIS_UP			:: Vector3.{0,0,1};
 
+NEAR_PLANE		: float : 1;
+FAR_PLANE		: float : 1000.0;
+
 
 Render_Camera :: struct {
 	GPU_Camera_Data :: struct {
@@ -36,7 +39,7 @@ init_camera :: (camera: *Render_Camera) {
 	camera.position = .{-5, 0, 0};
 	camera.rotation = ROTOR_IDENTITY;
 	camera.fov = 95.0;
-	camera.near_plane = 0.1;
-	camera.far_plane = 10000.0;
+	camera.near_plane = NEAR_PLANE;
+	camera.far_plane = FAR_PLANE;
 }
 

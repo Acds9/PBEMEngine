@@ -12,7 +12,7 @@ GLTF_TO_ZENGINE_COORDINATES :: Matrix4.{
     0,  0,  0,  1
 };
 
-// This contains the raw data for the loaded meshes, and is owned by the ZRenderer. It is not a Uniform_Storage_Buffer because meshe vertex/index SETS are not uniform, even if vertices/indices are
+// This contains the raw data for the loaded meshes, and is owned by the ZRenderer. It is not a Uniform_Storage_Buffer because mesh vertex/index SETS are not uniform, even if vertices/indices are
 GPU_Geometry_Pool :: struct {
 	vertex_buffer			: Storage_Buffer;
 	index_buffer			: Storage_Buffer;

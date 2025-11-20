@@ -332,7 +332,7 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 
 	zr.render_globals = make_staged_struct_buffer(VMA_ALLOCATOR, size_of(Render_Globals), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, zr.device, "render globals buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *zr.render_globals);
-	rg := Render_Globals.{zr.swapchain_extent.width, zr.swapchain_extent.height, LIGHT_CLUSTER_NUM_WIDTH, LIGHT_CLUSTER_NUM_HEIGHT, LIGHT_CLUSTER_NUM_DEPTH};
+	rg := Render_Globals.{zr.swapchain_extent.width, zr.swapchain_extent.height, LIGHT_CLUSTER_NUM_WIDTH, LIGHT_CLUSTER_NUM_HEIGHT, LIGHT_CLUSTER_NUM_DEPTH, NEAR_PLANE, FAR_PLANE};
 	zr.render_globals.allocate(*zr.render_globals, rg);
 
 	success, error = init_commands(zr);
@@ -486,14 +486,27 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		debug_draw_counts := generate_debug_draw_commands(zr, frame_data, cmd);
 		draw_counts := generate_draw_commands(zr, scene, frame_data, cmd);
 
-		// Scene buffers transferred, ready to start compute, move this stuff to a function
+		cluster_buffer := zr.light_cluster_system.get_frame_buffer(*zr.light_cluster_system, zr.current_frame);
+
+		// Zero the light cluster buffer
+		vkCmdFillBuffer(cmd, cluster_buffer.buffer, 0, cluster_buffer.info.size, 0);
+
+		// Barrier to make sure the zeroing is done
+		barrier := VkMemoryBarrier.{
+			sType = .VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+			srcAccessMask = .VK_ACCESS_TRANSFER_WRITE_BIT,
+			dstAccessMask = .VK_ACCESS_SHADER_READ_BIT | .VK_ACCESS_SHADER_WRITE_BIT,
+		};
+		vkCmdPipelineBarrier(cmd, .VK_PIPELINE_STAGE_TRANSFER_BIT, .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, *barrier, 0, null, 0, null);
+
+		// Buffers ready, ready to start compute, move this stuff to a function
 		vkCmdBindPipeline(cmd, .COMPUTE, zr.light_cluster_system.m_c_light_cluster.pipeline);
 
 		push: Light_Clustering_Push_Constants;
 		push.render_globals = zr.render_globals.device_buffer.base_address;
 		push.camera_data_address = frame_data.camera_buffer.base_address;
 		push.point_light_address = scene.point_lights.device_buffer.base_address;
-		push.cluster_buffer_address = zr.light_cluster_system.get_frame_buffer(*zr.light_cluster_system, zr.current_frame).base_address;
+		push.cluster_buffer_address = cluster_buffer.base_address;
 		push.point_light_count = scene.point_lights.count;
 	
 		vkCmdPushConstants(cmd, 
@@ -550,7 +563,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, *clear_value, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 		depth_clear : VkClearValue;
-		depth_clear.depthStencil.depth = 1.0;
+		depth_clear.depthStencil.depth = 0.0;
 		depth_attachment : VkRenderingAttachmentInfo = vkinit_depth_attachment_info(zr.depth_image.image_view, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 		depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depth_attachment.clearValue = depth_clear;
@@ -724,8 +737,9 @@ execute_draw :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer
         push.camera_data_address = frame_data.camera_buffer.base_address;
         push.material_address = zr.material_instances.device_buffer.base_address;
 		push.cluster_index_address = light_cluster_buffer.base_address;
+		push.point_lights_address = scene.point_lights.device_buffer.base_address;
+		push.point_lights_count = scene.point_lights.count;
 
-        
         vkCmdPushConstants(command_buffer, zr.m_opaque.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Draw_Push_Constants), *push);
 
 		vkCmdDrawIndexedIndirect(command_buffer, frame_data.draw_commands_opaque.device_buffer.buffer, 0, draw_counts[MATERIAL_PASS.OPAQUE], size_of(Draw_Command));
@@ -807,14 +821,14 @@ update_scene :: (zr: *ZRenderer) {
     proj_matrix := make_projection_matrix(
         fov_vertical = fov_radians,
         aspect_ratio_horizontal_over_vertical = aspect_ratio,
-        z_near = near_plane,
-        z_far = far_plane,
+        z_near = far_plane, // Inverted depth
+        z_far = near_plane,
         depth_range_01 = true
     );
     proj_matrix._22 *= -1;
     
-    gpu_data.view = view_matrix;
-    gpu_data.proj = proj_matrix;
+    gpu_data.view = transpose(view_matrix);
+    gpu_data.proj = transpose(proj_matrix);
     gpu_data.view_proj = transpose(proj_matrix * view_matrix);
 }
 

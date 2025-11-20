@@ -18,78 +18,94 @@ layout(push_constant, scalar) uniform Light_Clustering_Push_Constants {
     uint point_light_count;
 } push_constants;
 
-float distance_squared(vec3 a, vec3 b) {
-  float dx = a[0] - b[0];
-  float dy = a[1] - b[1];
-  float dz = a[2] - b[2];
-
-  return dx*dx + dy*dy + dz*dz;
-}
-
 layout(constant_id = 0) const uint CLUSTER_X = 32;
 layout(constant_id = 1) const uint CLUSTER_Y = 16;
 layout(constant_id = 2) const uint CLUSTER_Z = 24;
-layout(constant_id = 3) const float Z_NEAR = 1.0;
-layout(constant_id = 4) const float Z_FAR = 1000.0;
-layout(constant_id = 5) const uint MAX_LIGHTS_PER_CLUSTER = 64;
+layout(constant_id = 3) const float Z_NEAR = 0.1;
+layout(constant_id = 4) const float Z_FAR = 100.0;
+layout(constant_id = 5) const uint MAX_LIGHTS_PER_CLUSTER = 32;
 
+bool sphere_intersects_aabb(vec3 sphere_center, float sphere_radius, vec3 aabb_min, vec3 aabb_max) {
+    // Find closest point on AABB to sphere center
+    vec3 closest = clamp(sphere_center, aabb_min, aabb_max);
+    
+    // Distance from sphere center to closest point
+    vec3 diff = sphere_center - closest;
+    float dist_sq = dot(diff, diff);
+    
+    // Intersects if distance <= radius
+    return dist_sq <= sphere_radius * sphere_radius;
+}
+
+vec4 screen2View(vec4 screen, uvec2 screen_size, mat4 inverse_projection) {
+    // Convert to NDC
+    vec2 tex_coord = screen.xy / vec2(screen_size);
+
+    // Convert to clip space
+    vec4 clip = vec4(tex_coord * 2.0 - 1.0, screen.z, screen.w);
+
+    // View space transform
+    vec4 view = inverse_projection * clip;
+
+    // Perspective projection
+    view = view / view.w;
+
+    return view;
+}
+
+vec3 lineIntersectionToZPlane(vec3 A, vec3 B, float zDistance) {
+    // All cluster planes are aligned in the same z direction
+    vec3 normal = vec3(0.0, 0.0, 1.0);
+    
+    // Getting the line from the eye to the tile
+    vec3 ab = B - A;
+    
+    // Computing the intersection length for the line and the plane
+    float t = (zDistance - dot(normal, A)) / dot(normal, ab);
+    
+    // Computing the actual xyz position of the point along the line
+    vec3 result = A + t * ab;
+    return result;
+}
 
 void main() {
     Render_Globals globals = Render_Globals(push_constants.render_globals_address);
-
     Camera_Data camera_data = Camera_Data(push_constants.camera_data_address);
     mat4 projection = camera_data.proj;
+    uvec2 screen_size = uvec2(globals.resolution_x, globals.resolution_y);
 
     uvec3 cluster_coord = gl_GlobalInvocationID;
-
-    // TODO: spec constants
     uvec3 cluster_num = uvec3(CLUSTER_X, CLUSTER_Y, CLUSTER_Z);
-    
-    vec2 screen_dimensions = vec2(globals.resolution_x, globals.resolution_y);
-    vec2 tile_size = screen_dimensions / vec2(cluster_num.xy);
+    uvec2 cluster_size_px = uvec2(screen_size.x/cluster_num.x, screen_size.y/cluster_num.y);
 
-    // Tile center in pixel coordinates
-    vec2 tile_center_px = tile_size * (vec2(cluster_coord.xy) + 0.5);
-
-    // Convert to NDC [-1, 1]
-    vec2 tile_center_ndc = (tile_center_px / screen_dimensions) * 2.0 - 1.0;
-
-    // Tile half-extent in NDC
-    vec2 tile_half_extent_ndc = tile_size / screen_dimensions;
-
-    // Scaling factors for our projection
+    // Extract FOV from projection
     float tan_half_fov_x = 1.0 / projection[0][0];
-    float tan_half_fov_y = 1.0 / projection[1][1];
+    float tan_half_fov_y = 1.0 / (projection[1][1]);
 
-    // Tile division as per Doom 2016
-    float tileNear = -Z_NEAR * pow(Z_FAR / Z_NEAR, float(cluster_coord.z) / float(cluster_num.z));
-    float tileFar = -Z_NEAR * pow(Z_FAR / Z_NEAR, float(cluster_coord.z + 1) / float(cluster_num.z));
+    // Near and far depths (positive, will negate for view space)
+    float slice_near = Z_NEAR * pow(Z_FAR / Z_NEAR, float(cluster_coord.z) / float(cluster_num.z));
+    float slice_far = Z_NEAR * pow(Z_FAR / Z_NEAR, float(cluster_coord.z + 1) / float(cluster_num.z));
 
-    // Centers near and far (view space -Z forward)
-    vec3 center_near = vec3(
-        tile_center_ndc.x * tileNear * tan_half_fov_x,
-        tile_center_ndc.y * tileNear * tan_half_fov_y,
-        -tileNear
-    );
-    vec3 center_far = vec3(
-        tile_center_ndc.x * tileFar * tan_half_fov_x,
-        tile_center_ndc.y * tileFar * tan_half_fov_y,
-        -tileFar
-    );
+    // Screen corners at near plane (Z = -1.0 in NDC)
+    vec4 screen_min = vec4(cluster_size_px * cluster_coord.xy, 1.0, 1.0);
+    vec4 screen_max = vec4(cluster_size_px * (cluster_coord.xy + 1), 1.0, 1.0);
 
-    // Sphere center and radius
-    vec3 sphere_center = (center_near + center_far) * 0.5;
-    
-    vec3 corner_far = vec3(
-        (tile_center_ndc.x + tile_half_extent_ndc.x) * tileFar * tan_half_fov_x,
-        (tile_center_ndc.y + tile_half_extent_ndc.y) * tileFar * tan_half_fov_y,
-        -tileFar
-    );
-    
-    float sphere_radius = distance(sphere_center, corner_far);
+    // Unproject to view space (gives us ray directions)
+    vec3 view_min = screen2View(screen_min, screen_size, inverse(projection)).xyz;
+    vec3 view_max = screen2View(screen_max, screen_size, inverse(projection)).xyz;
 
-    // Calculate buffer offset
-    uint CLUSTER_STRIDE = 1 + MAX_LIGHTS_PER_CLUSTER;
+    // Find where these rays intersect the cluster depth planes
+    vec3 eyePos = vec3(0.0);
+    vec3 minPointNear = lineIntersectionToZPlane(eyePos, view_min, -slice_near);
+    vec3 minPointFar = lineIntersectionToZPlane(eyePos, view_min, -slice_far);
+    vec3 maxPointNear = lineIntersectionToZPlane(eyePos, view_max, -slice_near);
+    vec3 maxPointFar = lineIntersectionToZPlane(eyePos, view_max, -slice_far);
+
+    // AABB bounds
+    vec3 aabb_min = min(min(minPointNear, minPointFar), min(maxPointNear, maxPointFar));
+    vec3 aabb_max = max(max(minPointNear, minPointFar), max(maxPointNear, maxPointFar));
+
+    uint CLUSTER_STRIDE = MAX_LIGHTS_PER_CLUSTER;
     uint cluster_idx = cluster_coord.z * cluster_num.y * cluster_num.x + 
                        cluster_coord.y * cluster_num.x + 
                        cluster_coord.x;
@@ -98,22 +114,23 @@ void main() {
     Point_Light_Data point_light_buffer = Point_Light_Data(push_constants.point_light_buffer_address);
     Light_Indices_Buffer cluster_buffer = Light_Indices_Buffer(push_constants.light_cluster_buffer_address);
 
-    // Test lights against cluster sphere
-    uint count = 0;
-    for (uint i = 0; i < push_constants.point_light_count && count < MAX_LIGHTS_PER_CLUSTER; i++) {
+    uint visible_count = 0;
+    
+    // We use point_light_count from push constants to iterate valid lights
+    uint total_lights = push_constants.point_light_count;
+
+    for (uint i = 0; i < total_lights && visible_count < MAX_LIGHTS_PER_CLUSTER - 1; i++) {
         Point_Light light = point_light_buffer.lights[i];
+        
+        // Light Position is likely in World Space. Transform to View Space.
         vec4 light_pos_view = camera_data.view * vec4(light.position, 1.0);
- 
-        // sphere/sphere intersection test using squared distance
-        vec3 diff = light_pos_view.xyz - sphere_center;
-        float dist_sq = dot(diff, diff);  // length_squared
-        float sum_radii = sphere_radius + light.radius;
-        if (dist_sq < sum_radii * sum_radii) {
-            cluster_buffer.cluster_light_indices[base + 1 + count] = i;
-            count++;
+        
+        if (sphere_intersects_aabb(light_pos_view.xyz, light.radius, aabb_min, aabb_max)) {
+            cluster_buffer.cluster_light_indices[base + visible_count + 1] = i;
+            visible_count++;
         }
     }
-    
-    // Write count as first element
-    cluster_buffer.cluster_light_indices[base] = count;
+
+    // Write the total count in the first slot
+    cluster_buffer.cluster_light_indices[base] = visible_count;
 }
