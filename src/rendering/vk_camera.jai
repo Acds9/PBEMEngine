@@ -2,7 +2,7 @@ AXIS_FORWARD	:: Vector3.{1,0,0};
 AXIS_RIGHT		:: Vector3.{0,1,0};
 AXIS_UP			:: Vector3.{0,0,1};
 
-NEAR_PLANE		: float : 1;
+NEAR_PLANE		: float : 0.1;
 FAR_PLANE		: float : 1000.0;
 
 

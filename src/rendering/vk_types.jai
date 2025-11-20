@@ -36,6 +36,10 @@ Pipeline_Builder :: struct {
     depth_stencil			: VkPipelineDepthStencilStateCreateInfo;
     render_info				: VkPipelineRenderingCreateInfo;
     color_attachment_format	: VkFormat;
+	
+	spec_data: [..]u8;
+	spec_entries: [..]VkSpecializationMapEntry;
+	spec_info: VkSpecializationInfo;
 
 	// DEBUG
 	vk_debug_name			: string;
@@ -51,6 +55,11 @@ Pipeline_Builder :: struct {
 		depth_stencil			= .{sType = .VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
 		render_info				= .{sType = .VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
 		array_reset(*shader_stages);
+		
+		array_reset(*spec_data);
+		array_reset(*spec_entries);
+		spec_info = .{};
+
 	}
 
 	build :: (self: *Pipeline_Builder, zr: *ZRenderer) -> VkPipeline {
@@ -233,6 +242,37 @@ Pipeline_Builder :: struct {
 		depth_stencil.back = .{};
 		depth_stencil.minDepthBounds = 0;
 		depth_stencil.maxDepthBounds = 1;
+	}
+
+	add_specialization_constant :: (self: *Pipeline_Builder, stage: VkShaderStageFlagBits, constant_id: u32, value: $T) {
+		using self;
+    
+		entry: VkSpecializationMapEntry = .{
+			constantID = constant_id,
+			offset = cast(u32)spec_data.count,
+			size = size_of(T)
+		};
+		array_add(*spec_entries, entry);
+    
+		// Append value bytes
+		value_bytes := cast(*u8)*value;
+		for 0..size_of(T)-1 {
+			array_add(*spec_data, value_bytes[it]);
+		}
+    
+		// Update specinfo
+		spec_info.mapEntryCount = cast(u32)spec_entries.count;
+		spec_info.pMapEntries = spec_entries.data;
+		spec_info.dataSize = cast(u64)spec_data.count;
+		spec_info.pData = spec_data.data;
+    
+		// Update the shader stage
+		for *shader_stages {
+			if it.stage == stage {
+				it.pSpecializationInfo = *spec_info;
+				break;
+			}
+		}
 	}
 
 	set_vk_object_name :: (self: *Pipeline_Builder, name: string) {

@@ -55,7 +55,7 @@ game_init :: (using state: *Game_State) -> bool {
 
 	light_entity_2 := create_entity(*world, Archetype_Point_Light); 
 	position_2 := get_entity_component(*world, light_entity_2, Position);
-	position_2.pos = .{1,1,10};
+	position_2.pos = .{1,1,32};
 	light_component_2 := get_entity_component(*world, light_entity_2, Point_Light_Component);
     light_component_2.radius = 64;
     light_component_2.color = .{.3,1,.3,1};

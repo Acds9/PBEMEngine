@@ -195,6 +195,7 @@ Material_Pipeline_Opaque :: struct {
 		mesh_layout_info.pSetLayouts = layouts.data;
 		mesh_layout_info.pPushConstantRanges = *matrix_range;
 		mesh_layout_info.pushConstantRangeCount = 1;
+		
 
 		new_layout : VkPipelineLayout;
 		result := vkCreatePipelineLayout(zr.device, *mesh_layout_info, null, *new_layout);
@@ -206,6 +207,14 @@ Material_Pipeline_Opaque :: struct {
 
 		pipeline_builder : Pipeline_Builder;
 		pipeline_builder.set_shaders(*pipeline_builder, mesh_vert_shader, mesh_frag_shader);
+
+		pipeline_builder.add_specialization_constant(*pipeline_builder, .VK_SHADER_STAGE_FRAGMENT_BIT, 0, cast(u32)LIGHT_CLUSTER_NUM_WIDTH);
+		pipeline_builder.add_specialization_constant(*pipeline_builder, .VK_SHADER_STAGE_FRAGMENT_BIT, 1, cast(u32)LIGHT_CLUSTER_NUM_HEIGHT);
+		pipeline_builder.add_specialization_constant(*pipeline_builder, .VK_SHADER_STAGE_FRAGMENT_BIT, 2, cast(u32)LIGHT_CLUSTER_NUM_DEPTH);
+		pipeline_builder.add_specialization_constant(*pipeline_builder, .VK_SHADER_STAGE_FRAGMENT_BIT, 3, cast(u32)MAX_LIGHTS_PER_CLUSTER);
+		pipeline_builder.add_specialization_constant(*pipeline_builder, .VK_SHADER_STAGE_FRAGMENT_BIT, 4, cast(float)NEAR_PLANE);
+		pipeline_builder.add_specialization_constant(*pipeline_builder, .VK_SHADER_STAGE_FRAGMENT_BIT, 5, cast(float)FAR_PLANE);
+
 		pipeline_builder.set_input_topology(*pipeline_builder, .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		pipeline_builder.set_polygon_mode(*pipeline_builder, .VK_POLYGON_MODE_FILL);
 		pipeline_builder.set_cull_mode(*pipeline_builder, .VK_CULL_MODE_BACK_BIT, .VK_FRONT_FACE_COUNTER_CLOCKWISE);

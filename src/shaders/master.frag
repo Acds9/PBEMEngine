@@ -23,6 +23,12 @@ layout(push_constant, scalar) uniform Draw_Push_Constants {
 layout(set = 0, binding = 0) uniform texture2D textures[];
 layout(set = 1, binding = 0) uniform sampler samplers[];
 
+layout(constant_id = 0) const uint CLUSTER_X = 32;
+layout(constant_id = 1) const uint CLUSTER_Y = 16;
+layout(constant_id = 2) const uint CLUSTER_Z = 24;
+layout(constant_id = 3) const uint MAX_LIGHTS_PER_CLUSTER = 32;
+layout(constant_id = 4) const float Z_NEAR = 0.1;
+layout(constant_id = 5) const float Z_FAR = 10000.0;
 
 layout(location = 0) in vec3 in_normal;
 layout(location = 1) in vec2 in_UV;
@@ -49,8 +55,6 @@ float get_view_space_depth_reversed(float window_depth, float near, float far) {
     // Convert to linear view space distance
     return far * near / (far + window_depth * (near - far));
 }
-
-uint LIGHT_STRIDE = 32; // Stride of the light index buffer, ahrdcoded for now but we'll spec constant this later
 
 vec3 evaluate_point_light(Point_Light light, vec3 world_pos, vec3 normal) {
     vec3 light_dir = light.position - world_pos;
@@ -82,19 +86,18 @@ void main()
     Point_Light_Data light_data_buffer = Point_Light_Data(push_constants.point_lights_address);
 
     // Clean this up, this is awful
-    uvec3 cluster_count = uvec3(globals.light_cluster_x,globals.light_cluster_y,globals.light_cluster_z);
+    uvec3 cluster_count = uvec3(CLUSTER_X, CLUSTER_Y, CLUSTER_Z);
     vec2 screen_size = vec2(globals.resolution_x, globals.resolution_y);
     vec2 tile_size = screen_size / cluster_count.xy;
 
-    float view_depth = get_view_space_depth(gl_FragCoord.z, globals.near_plane, globals.far_plane);
-    float depth_slice = log(view_depth / globals.near_plane) / log(globals.far_plane / globals.near_plane) * globals.light_cluster_z;
-
+    float view_depth = get_view_space_depth(gl_FragCoord.z, Z_NEAR, Z_FAR);
+    float depth_slice = log(view_depth / Z_NEAR) / log(Z_FAR / Z_NEAR) * cluster_count.z;
 
     uint cluster_x = min(uint(gl_FragCoord.x / tile_size.x), cluster_count.x - 1);
     uint cluster_y = min(uint(gl_FragCoord.y / tile_size.y), cluster_count.y - 1);
     uint cluster_z = uint(depth_slice);
     uint cluster_index = cluster_z * cluster_count.x * cluster_count.y + cluster_y * cluster_count.x + cluster_x;
-    uint cluster_buffer_offset = cluster_index * LIGHT_STRIDE;
+    uint cluster_buffer_offset = cluster_index * MAX_LIGHTS_PER_CLUSTER;
     
     uint light_count = light_index_buffer.cluster_light_indices[cluster_buffer_offset];
 
@@ -120,43 +123,3 @@ void main()
         }
     }
 }
-
-/*
-vec3 hash3(uint n) {
-    n = (n << 13U) ^ n;
-    n = n * (n * n * 15731U + 789221U) + 1376312589U;
-    uvec3 k = uvec3(n) * uvec3(0x9e3779b9U, 0x9e3779b9U, 0x9e3779b9U);
-    return vec3(k) / float(0xffffffffU);
-}
-
-uint hash(uint x) {
-    x += (x << 10u);
-    x ^= (x >> 6u);
-    x += (x << 3u);
-    x ^= (x >> 11u);
-    x += (x << 15u);
-    return x;
-}
-
-vec3 hash_color(uint id) {
-    return vec3(
-        float(hash(id)) / 4294967295.0,
-        float(hash(id * 2u)) / 4294967295.0,
-        float(hash(id * 3u)) / 4294967295.0
-    );
-}
-
-vec3 rainbow_from_id(uint id) {
-    float hue = float(id % 64) / 64.0;  // Cycle through hues
-    // HSV to RGB conversion with S=1, V=1
-    float h6 = hue * 6.0;
-    float x = 1.0 - abs(mod(h6, 2.0) - 1.0);
-    
-    if (h6 < 1.0) return vec3(1.0, x, 0.0);
-    else if (h6 < 2.0) return vec3(x, 1.0, 0.0);
-    else if (h6 < 3.0) return vec3(0.0, 1.0, x);
-    else if (h6 < 4.0) return vec3(0.0, x, 1.0);
-    else if (h6 < 5.0) return vec3(x, 0.0, 1.0);
-    else return vec3(1.0, 0.0, x);
-}
-*/

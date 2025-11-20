@@ -4,13 +4,6 @@
 layout(buffer_reference, scalar) readonly buffer Render_Globals {
 	uint resolution_x;
     uint resolution_y;
-
-    uint light_cluster_x;
-    uint light_cluster_y;
-    uint light_cluster_z;
-
-    float near_plane;
-    float far_plane;
 };
 
 layout(buffer_reference, scalar) readonly buffer Camera_Data {

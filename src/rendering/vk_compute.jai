@@ -62,7 +62,7 @@ Compute_Pipeline_Light_Clustering :: struct {
 			cluster_z	: u32 = LIGHT_CLUSTER_NUM_DEPTH;
 			z_near		: float = NEAR_PLANE;
 			z_far		: float = FAR_PLANE;
-			max_lights	: u32 = MAX_LIGHTS_PER_CLUSTER;
+			cluster_light_num	: u32 = MAX_LIGHTS_PER_CLUSTER;
 		};
 
 		spec_info := VkSpecializationInfo.{
