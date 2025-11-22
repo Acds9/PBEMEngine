@@ -157,6 +157,30 @@ Linear_Buffer :: struct {
 	}
 }
 
+// Intended to be used as a bitfield
+Bitfield_Buffer :: struct {
+	using base: Allocated_Buffer;
+
+	set_bit :: (using self: *Bitfield_Buffer, bit: u64, value: bool) {
+		words := cast,no_check(*u32) info.pMappedData;
+        word_index := bit / 32;
+        bit_pos := cast,no_check(u32)(bit % 32);
+        
+        if value {
+            words[word_index] |= cast,no_check(u32)(1 << bit_pos);
+        } else {
+            words[word_index] &= ~cast,no_check(u32)(1 << bit_pos);
+        }
+	}
+	get_bit :: (using self: *Bitfield_Buffer, bit: u64) -> bool {
+		words := cast,no_check(*u32) info.pMappedData;
+        word_index := bit / 32;
+        bit_pos := cast,no_check(u32)(bit % 32);
+        
+        return (words[word_index] & (1 << bit_pos)) != 0;
+	}
+}
+
 // Meant for writing straight into, e.g. draw command buffers
 Staged_Array_Buffer :: struct {
     staging_buffer  : Allocated_Buffer;
@@ -286,6 +310,13 @@ make_linear_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_size: u
 		base = create_buffer(allocator, alloc_size, usage, memory_usage, device, debug_name),
 		element_size = element_size
 	};
+}
+
+make_bitfield_buffer :: (allocator: VmaAllocator, num_bits: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Bitfield_Buffer {
+	alloc_size : u64 = xx ceil(cast,no_check(float)num_bits / 8.0);
+	return .{
+			base = create_buffer(allocator, alloc_size, usage, memory_usage, device, debug_name)
+		};
 }
 
 make_staged_array_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_size: u32, usage: VkBufferUsageFlags, device: VkDevice = null, debug_name: string = "") -> Staged_Array_Buffer {

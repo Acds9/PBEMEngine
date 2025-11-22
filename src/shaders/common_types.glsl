@@ -1,6 +1,3 @@
-#extension GL_EXT_shader_explicit_arithmetic_types : require
-#extension GL_EXT_scalar_block_layout : require
-
 layout(buffer_reference, scalar) readonly buffer Render_Globals {
 	uint resolution_x;
     uint resolution_y;
@@ -10,6 +7,7 @@ layout(buffer_reference, scalar) readonly buffer Camera_Data {
 	mat4 view;
 	mat4 proj;
 	mat4 view_proj;
+    vec4 view_planes[6];
 };
 
 struct Transform {

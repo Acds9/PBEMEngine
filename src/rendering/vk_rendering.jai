@@ -487,9 +487,11 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		draw_counts := generate_draw_commands(zr, scene, frame_data, cmd);
 
 		cluster_buffer := zr.light_cluster_system.get_frame_buffer(*zr.light_cluster_system, zr.current_frame);
+		light_bitfield := zr.light_cluster_system.get_frame_light_bitfield(*zr.light_cluster_system, zr.current_frame);
 
-		// Zero the light cluster buffer
+		// Zero the buffers/bitfields
 		vkCmdFillBuffer(cmd, cluster_buffer.buffer, 0, cluster_buffer.info.size, 0);
+		vkCmdFillBuffer(cmd, light_bitfield.buffer, 0, light_bitfield.info.size, 0);
 
 		// Barrier to make sure the zeroing is done
 		barrier := VkMemoryBarrier.{
@@ -500,23 +502,73 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		vkCmdPipelineBarrier(cmd, .VK_PIPELINE_STAGE_TRANSFER_BIT, .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, *barrier, 0, null, 0, null);
 
 		// Buffers ready, ready to start compute, move this stuff to a function
+
+		// LIGHT CULLING 
+		vkCmdBindPipeline(cmd, .COMPUTE, zr.light_cluster_system.m_c_light_culling.pipeline);
+		light_cull_push: Light_Culling_Push_Constants;
+		light_cull_push.bda_render_globals = zr.render_globals.device_buffer.base_address;
+		light_cull_push.bda_camera = frame_data.camera_buffer.base_address;
+		light_cull_push.bda_point_lights = scene.point_lights.device_buffer.base_address;
+		light_cull_push.bda_light_bitfield = light_bitfield.base_address;
+		light_cull_push.point_light_count = scene.point_lights.count;
+	
+		vkCmdPushConstants(cmd, 
+						zr.light_cluster_system.m_c_light_culling.layout,
+						.VK_SHADER_STAGE_COMPUTE_BIT,
+						0,
+						size_of(Light_Culling_Push_Constants),
+						*light_cull_push);
+
+		light_cull_x : u32 = 64;
+		light_cull_y : u32 = 1; 
+		light_cull_z : u32 = 1;
+		vkCmdDispatch(cmd, light_cull_x, light_cull_y, light_cull_z);
+
+		// Barrier to ensure we don't light cluster before culling is done
+		light_cull_barrier : VkBufferMemoryBarrier2;
+		light_cull_barrier = .{
+			srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+			srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+			dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+			dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+			srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			buffer = light_bitfield.buffer,
+			offset = 0,
+			size = VK_WHOLE_SIZE,
+		};
+
+		light_cull_dependency := VkDependencyInfo.{
+			bufferMemoryBarrierCount = 1,
+			pBufferMemoryBarriers = *light_cull_barrier,
+		};
+
+		vkCmdPipelineBarrier2(cmd, *light_cull_dependency);
+
+		// Now do light clustering
 		vkCmdBindPipeline(cmd, .COMPUTE, zr.light_cluster_system.m_c_light_cluster.pipeline);
 
-		push: Light_Clustering_Push_Constants;
-		push.render_globals = zr.render_globals.device_buffer.base_address;
-		push.camera_data_address = frame_data.camera_buffer.base_address;
-		push.point_light_address = scene.point_lights.device_buffer.base_address;
-		push.cluster_buffer_address = cluster_buffer.base_address;
-		push.point_light_count = scene.point_lights.count;
+		light_cluster_push: Light_Clustering_Push_Constants;
+		light_cluster_push.bda_render_globals = zr.render_globals.device_buffer.base_address;
+		light_cluster_push.bda_camera = frame_data.camera_buffer.base_address;
+		light_cluster_push.bda_point_lights = scene.point_lights.device_buffer.base_address;
+		light_cluster_push.bda_clusters = cluster_buffer.base_address;
+		light_cluster_push.bda_light_bitfield = light_bitfield.base_address;
+		light_cluster_push.point_light_count = scene.point_lights.count;
 	
 		vkCmdPushConstants(cmd, 
 						zr.light_cluster_system.m_c_light_cluster.layout,
 						.VK_SHADER_STAGE_COMPUTE_BIT,
 						0,
 						size_of(Light_Clustering_Push_Constants),
-						*push);
+						*light_cluster_push);
 
-		vkCmdDispatch(cmd, LIGHT_CLUSTER_NUM_WIDTH, LIGHT_CLUSTER_NUM_HEIGHT, LIGHT_CLUSTER_NUM_DEPTH);
+
+		// Divide by the layout local size in the shader
+		light_cluster_x : u32 = LIGHT_CLUSTER_NUM_WIDTH/8;
+		light_cluster_y : u32 = LIGHT_CLUSTER_NUM_HEIGHT/8; 
+		light_cluster_z : u32 = LIGHT_CLUSTER_NUM_DEPTH/1;
+		vkCmdDispatch(cmd, light_cluster_x, light_cluster_y, light_cluster_z);
 
 		buffer_barriers: [1] VkBufferMemoryBarrier2;
 		/*
@@ -534,7 +586,6 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		};
 		*/
 		// Barrier 2: Cluster data (compute write -> fragment shader read)
-		light_cluster_buffer := zr.light_cluster_system.get_frame_buffer(*zr.light_cluster_system, zr.current_frame);
 		buffer_barriers[0] = .{
 			srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
 			srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
@@ -542,7 +593,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 			dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
 			srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			buffer = light_cluster_buffer.buffer,
+			buffer = cluster_buffer.buffer,
 			offset = 0,
 			size = VK_WHOLE_SIZE,
 		};
@@ -826,10 +877,26 @@ update_scene :: (zr: *ZRenderer) {
         depth_range_01 = true
     );
     proj_matrix._22 *= -1;
-    
-    gpu_data.view = transpose(view_matrix);
+
+	gpu_data.view = transpose(view_matrix);
     gpu_data.proj = transpose(proj_matrix);
-    gpu_data.view_proj = transpose(proj_matrix * view_matrix);
+    gpu_data.view_proj = proj_matrix * view_matrix;
+
+	using gpu_data.view_proj;
+	gpu_data.view_planes[0] = Vector4.{_41, _42, _43, _44} + Vector4.{_11, _12, _13, _14};
+	gpu_data.view_planes[1] = Vector4.{_41, _42, _43, _44} - Vector4.{_11, _12, _13, _14};
+	gpu_data.view_planes[2] = Vector4.{_41, _42, _43, _44} + Vector4.{_21, _22, _23, _24};
+	gpu_data.view_planes[3] = Vector4.{_41, _42, _43, _44} - Vector4.{_21, _22, _23, _24};
+	gpu_data.view_planes[4] = Vector4.{_41, _42, _43, _44} + Vector4.{_31, _32, _33, _34};
+	gpu_data.view_planes[5] = Vector4.{_41, _42, _43, _44} - Vector4.{_31, _32, _33, _34};
+
+	for *plane: gpu_data.view_planes {
+		<<plane = normalize(<<plane);
+	}
+    
+	// Transpose AFTER plane calculation
+    gpu_data.view_proj = transpose(gpu_data.view_proj);
+
 }
 
 deinit_zrenderer :: (zr: *ZRenderer) {

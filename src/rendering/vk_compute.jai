@@ -1,13 +1,95 @@
+Light_Culling_Push_Constants :: struct {
+	bda_render_globals		: VkDeviceAddress;
+	bda_camera				: VkDeviceAddress;
+	bda_point_lights		: VkDeviceAddress;
+	bda_light_bitfield		: VkDeviceAddress;
+	point_light_count		: u32;
+}
+
+Compute_Pipeline_Light_Culling :: struct {
+	pipeline 	: VkPipeline;
+	layout		: VkPipelineLayout;
+
+	build :: (using self: *Compute_Pipeline_Light_Culling, zr: *ZRenderer) {
+		success : bool;
+		light_culling_shader : VkShaderModule;
+		success, light_culling_shader = create_shader_module(zr, "src/shaders/light_culling.comp.spv");
+		if !success {
+			panic("Error: Failed to create light_culling_shader compute shader");
+		}
+		
+		push_range : VkPushConstantRange;
+		push_range.offset = 0;
+		push_range.size = size_of(Light_Culling_Push_Constants);
+		push_range.stageFlags = .VK_SHADER_STAGE_COMPUTE_BIT;
+
+		layout_info : VkPipelineLayoutCreateInfo = vkinit_pipeline_layout_create_info();
+		layout_info.setLayoutCount = 0;
+		layout_info.pSetLayouts = null;
+		layout_info.pPushConstantRanges = *push_range;
+		layout_info.pushConstantRangeCount = 1;
+
+		new_layout : VkPipelineLayout;
+		result := vkCreatePipelineLayout(zr.device, *layout_info, null, *new_layout);
+		if result != .VK_SUCCESS {
+			panic("Failed to create Compute_Pipeline_Light_Culling layout");
+		}
+		layout = new_layout;
+		queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, layout);
+
+		// Specialization Constants
+		spec_entries: [2] VkSpecializationMapEntry;
+		spec_entries[0] = .{ constantID = 0, offset = 0, size = size_of(float) }; // Near Z
+		spec_entries[1] = .{ constantID = 1, offset = 4, size = size_of(float) }; // Far Z
+
+
+		spec_data: struct {
+			z_near		: float = NEAR_PLANE;
+			z_far		: float = FAR_PLANE;
+		};
+
+		spec_info := VkSpecializationInfo.{
+			mapEntryCount = spec_entries.count,
+			pMapEntries = spec_entries.data,
+			dataSize = size_of(type_of(spec_data)),
+			pData = *spec_data,
+		};
+
+		// Compute pipeline
+        stage_info : VkPipelineShaderStageCreateInfo;
+        stage_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stage_info.stage = .VK_SHADER_STAGE_COMPUTE_BIT;
+        stage_info.module = light_culling_shader;
+		stage_info.pSpecializationInfo = *spec_info;
+        stage_info.pName = "main";
+
+        compute_pipeline_info : VkComputePipelineCreateInfo;
+        compute_pipeline_info.sType = .VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        compute_pipeline_info.stage = stage_info;
+        compute_pipeline_info.layout = layout;
+
+        result = vkCreateComputePipelines(zr.device, VK_NULL_HANDLE, 1, *compute_pipeline_info, null, *pipeline);
+        if result != .VK_SUCCESS {
+            panic("Failed to create Compute_Pipeline_Light_Culling compute pipeline");
+        }
+        queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, pipeline);
+
+		vkDestroyShaderModule(zr.device, light_culling_shader, null);
+	}
+}
+
 LIGHT_CLUSTER_NUM_WIDTH 	:: 32;
 LIGHT_CLUSTER_NUM_HEIGHT 	:: 16;
 LIGHT_CLUSTER_NUM_DEPTH		:: 24;
 MAX_LIGHTS_PER_CLUSTER		:: 32; // Anything after this is discarded
 
 Light_Clustering_Push_Constants :: struct {
-	render_globals			: VkDeviceAddress;
-	camera_data_address		: VkDeviceAddress;
-	point_light_address		: VkDeviceAddress;
-	cluster_buffer_address	: VkDeviceAddress;
+	bda_render_globals		: VkDeviceAddress;
+	bda_camera				: VkDeviceAddress;
+	bda_point_lights		: VkDeviceAddress;
+	bda_clusters			: VkDeviceAddress;
+	bda_light_bitfield		: VkDeviceAddress;
+
 	point_light_count 		: u32;
 }
 
@@ -94,14 +176,29 @@ Compute_Pipeline_Light_Clustering :: struct {
 		vkDestroyShaderModule(zr.device, light_clustering_shader, null);
 	}
 }
-// TODO: it crashes when exiting the mesh, not when looking at light?
+
 Light_Cluster_System :: struct {
+	m_c_light_culling			: Compute_Pipeline_Light_Culling;
+	light_culling_bitfield_0	: Bitfield_Buffer;
+	light_culling_bitfield_1	: Bitfield_Buffer;
+
 	m_c_light_cluster 		: Compute_Pipeline_Light_Clustering;
-	
 	light_cluster_buffer_0	: Uniform_Storage_Buffer;
 	light_cluster_buffer_1	: Uniform_Storage_Buffer;
-
+	
 	init :: (using self: *Light_Cluster_System, zr: *ZRenderer, resolution: VkExtent2D) {
+		m_c_light_culling.build(*m_c_light_culling, zr);
+
+		light_culling_bitfield_0 = make_bitfield_buffer(VMA_ALLOCATOR, MAX_LIGHTS, 
+														.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+														.GPU_ONLY, zr.device, "frame 0 light_culling bitfield");
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *light_culling_bitfield_0);
+
+		light_culling_bitfield_1 = make_bitfield_buffer(VMA_ALLOCATOR, MAX_LIGHTS, 
+														.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+														.GPU_ONLY, zr.device, "frame 1 light_culling bitfield");
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *light_culling_bitfield_1);
+		
 		m_c_light_cluster.build(*m_c_light_cluster, zr);
 
 		cluster_count : u64 = LIGHT_CLUSTER_NUM_WIDTH * LIGHT_CLUSTER_NUM_HEIGHT * LIGHT_CLUSTER_NUM_DEPTH;
@@ -122,6 +219,15 @@ Light_Cluster_System :: struct {
 		}
 		else {
 			return *light_cluster_buffer_1;
+		}
+	}
+
+	get_frame_light_bitfield :: (using self: *Light_Cluster_System, frame: u8) -> *Bitfield_Buffer {
+		if frame == 0 {
+			return *light_culling_bitfield_0;
+		}
+		else {
+			return *light_culling_bitfield_1;
 		}
 	}
 }

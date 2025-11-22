@@ -11,6 +11,7 @@ Render_Camera :: struct {
 		view			: Matrix4;
 		proj			: Matrix4;
 		view_proj		: Matrix4;
+		view_planes		: [6]Vector4;
 	}
 	gpu_data 		: GPU_Camera_Data; // This is uploaded straight to the GPU
 

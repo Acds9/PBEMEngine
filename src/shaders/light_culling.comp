@@ -1,0 +1,63 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_buffer_reference2 : require 
+#extension GL_EXT_shader_explicit_arithmetic_types : require  
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_scalar_block_layout : require
+
+#include "light_types.glsl"
+#include "common_types.glsl"
+
+
+layout(push_constant, scalar) uniform Light_Culling_Push_Constants {
+    uint64_t bda_render_globals;
+    uint64_t bda_camera;
+    uint64_t bda_point_lights;
+    uint64_t bda_light_bitfield;
+    uint point_light_count;
+} push_constants;
+
+
+layout(constant_id = 0) const float Z_NEAR = 0.1;
+layout(constant_id = 1) const float Z_FAR = 10000.0;
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+bool sphere_outside_plane(vec3 sphere_center, float sphere_radius, vec4 plane) {
+    // From sphere center to plane
+    float dist = dot(plane.xyz, sphere_center) + plane.w;
+    
+    // If distance is negative and magnitude > radius, sphere is completely behind plane
+    return dist < -sphere_radius;
+}
+
+bool sphere_inside_frustum(vec3 sphere_center, float sphere_radius, vec4 planes[6]) {
+    for (int i = 0; i < 6; i++) {
+        if (sphere_outside_plane(sphere_center, sphere_radius, planes[i])) {
+            return false; // Outside at least one plane = not visible
+        }
+    }
+    return true; // Inside all planes = visible
+}
+
+void main() {
+    uint global_id = gl_GlobalInvocationID.x;
+    if(global_id >= push_constants.point_light_count) return;  // Guard against excess threads immediately
+
+    Render_Globals globals = Render_Globals(push_constants.bda_render_globals);
+    Camera_Data camera_data = Camera_Data(push_constants.bda_camera);
+    Point_Light_Data point_light_data = Point_Light_Data(push_constants.bda_point_lights);
+    Light_Bitfield light_bitfield = Light_Bitfield(push_constants.bda_light_bitfield);
+
+    Point_Light light = point_light_data.lights[global_id];
+
+
+    if(sphere_inside_frustum(light.position, light.radius, camera_data.view_planes)) {
+        uint word_index = global_id / 32;
+        uint bit_pos = global_id % 32;
+        atomicOr(light_bitfield.bitfield[word_index], 1u << bit_pos);
+    }
+    
+}

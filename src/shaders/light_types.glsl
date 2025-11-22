@@ -10,3 +10,7 @@ layout(buffer_reference, scalar) readonly buffer Point_Light_Data {
 layout(buffer_reference, scalar) buffer Light_Indices_Buffer {
     uint cluster_light_indices[];
 };
+
+layout(buffer_reference, scalar) buffer Light_Bitfield {
+    uint bitfield[];
+};
