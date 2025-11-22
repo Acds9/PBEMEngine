@@ -85,7 +85,6 @@ void main()
     Light_Indices_Buffer light_index_buffer = Light_Indices_Buffer(push_constants.light_cluster_buffer_address);
     Point_Light_Data light_data_buffer = Point_Light_Data(push_constants.point_lights_address);
 
-    // Clean this up, this is awful
     uvec3 cluster_count = uvec3(CLUSTER_X, CLUSTER_Y, CLUSTER_Z);
     vec2 screen_size = vec2(globals.resolution_x, globals.resolution_y);
     vec2 tile_size = screen_size / cluster_count.xy;

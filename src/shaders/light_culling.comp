@@ -36,10 +36,10 @@ bool sphere_outside_plane(vec3 sphere_center, float sphere_radius, vec4 plane) {
 bool sphere_inside_frustum(vec3 sphere_center, float sphere_radius, vec4 planes[6]) {
     for (int i = 0; i < 6; i++) {
         if (sphere_outside_plane(sphere_center, sphere_radius, planes[i])) {
-            return false; // Outside at least one plane = not visible
+            return false; // Outside at least one plane means not visible
         }
     }
-    return true; // Inside all planes = visible
+    return true; // Inside all planes means visible
 }
 
 void main() {

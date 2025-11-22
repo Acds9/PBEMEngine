@@ -1,0 +1,63 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_buffer_reference2 : require 
+#extension GL_EXT_shader_explicit_arithmetic_types : require  
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_scalar_block_layout : require
+
+#include "common_types.glsl"
+
+layout(push_constant, scalar) uniform Light_Culling_Push_Constants {
+    uint64_t bda_render_globals;
+    uint64_t bda_camera;
+    uint64_t bda_mesh_instances;
+    uint64_t bda_flattened_transforms;
+    uint64_t bda_material_instances;
+    uint64_t bda_draw_commands;
+    uint mesh_instance_count;
+} push_constants;
+
+
+layout(constant_id = 0) const float Z_NEAR = 0.1;
+layout(constant_id = 1) const float Z_FAR = 10000.0;
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in; // CHECK THIS
+
+bool aabb_outside_plane(vec3 aabb_min, vec3 aabb_max, vec4 plane) {
+    // Find the "positive vertex" - the corner furthest in the direction of plane normal
+    vec3 p_vertex;
+    p_vertex.x = (plane.x >= 0.0) ? aabb_max.x : aabb_min.x;
+    p_vertex.y = (plane.y >= 0.0) ? aabb_max.y : aabb_min.y;
+    p_vertex.z = (plane.z >= 0.0) ? aabb_max.z : aabb_min.z;
+    
+    // If the positive vertex is behind the plane, entire AABB is outside
+    return (dot(plane.xyz, p_vertex) + plane.w) < 0.0;
+}
+
+bool aabb_inside_frustum(vec3 aabb_min, vec3 aabb_max, vec4 planes[6]) {
+    for (int i = 0; i < 6; i++) {
+        if (aabb_outside_plane(aabb_min, aabb_max, planes[i])) {
+            return false; // Outside any plane = not visible
+        }
+    }
+    return true; // Inside all planes = visible
+}
+
+void main() {
+    uint global_id = gl_GlobalInvocationID.x;
+    if(global_id >= push_constants.mesh_instance_count) return;  // Guard against excess threads immediately
+
+    Render_Globals globals = Render_Globals(push_constants.bda_render_globals);
+    Camera_Data camera_data = Camera_Data(push_constants.bda_camera);
+    
+    Mesh_Instance_Buffer mesh_instance_buffer = Mesh_Instance_Buffer(push_constants.bda_mesh_instances);
+
+    Mesh_Instance mesh_instance = mesh_instance_buffer.mesh_instances[global_id];
+
+    Transform_Buffer transform_buffer = Transform_Buffer(mesh_instance.transform_address);
+    Transform t = transform_buffer.transforms[0]; 
+    
+
+}

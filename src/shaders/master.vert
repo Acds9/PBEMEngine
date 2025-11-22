@@ -3,6 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_buffer_reference2 : require 
+#extension GL_EXT_shader_explicit_arithmetic_types : require  
 #extension GL_EXT_scalar_block_layout : require
 
 #include "common_types.glsl"
@@ -30,8 +31,8 @@ void main() {
     Vertex v = vertex_buffer.vertices[gl_VertexIndex];
 
     Transform_Buffer transform_buffer = Transform_Buffer(draw.transform_address);
-    Transform transform = transform_buffer.transform;
-    mat4 world_matrix = transform.transform; // Need to actually calc this one from parents, do it in CPU side
+    Transform transform = transform_buffer.transforms[0];
+    mat4 world_matrix = transform.transform; 
 
     Camera_Data camera = Camera_Data(push_constants.camera_data_address);
 

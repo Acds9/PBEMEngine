@@ -1,3 +1,180 @@
+FLATTENED_TRANSFORM_BUFFER_SIZE :: 8*1024*1024; //8MB?
+
+Transform_Flatten_Push_Constants :: struct {
+	bda_transforms			: VkDeviceAddress;
+	bda_flattened_transforms: VkDeviceAddress;
+	transform_count			: u32;
+}
+
+Compute_Pipeline_Transform_Flatten :: struct {
+	pipeline 	: VkPipeline;
+	layout		: VkPipelineLayout;
+
+	build :: (using self: *Compute_Pipeline_Transform_Flatten, zr: *ZRenderer) {
+		success : bool;
+		transform_flatten_shader : VkShaderModule;
+		success, transform_flatten_shader = create_shader_module(zr, "src/shaders/transform_flatten.comp.spv");
+		if !success {
+			panic("Error: Failed to create mesh_culling_shader compute shader");
+		}
+		
+		push_range : VkPushConstantRange;
+		push_range.offset = 0;
+		push_range.size = size_of(Transform_Flatten_Push_Constants);
+		push_range.stageFlags = .VK_SHADER_STAGE_COMPUTE_BIT;
+
+		layout_info : VkPipelineLayoutCreateInfo = vkinit_pipeline_layout_create_info();
+		layout_info.setLayoutCount = 0;
+		layout_info.pSetLayouts = null;
+		layout_info.pPushConstantRanges = *push_range;
+		layout_info.pushConstantRangeCount = 1;
+
+		new_layout : VkPipelineLayout;
+		result := vkCreatePipelineLayout(zr.device, *layout_info, null, *new_layout);
+		if result != .VK_SUCCESS {
+			panic("Failed to create Compute_Pipeline_Transform_Flatten layout");
+		}
+		layout = new_layout;
+		queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, layout);
+
+		// Compute pipeline
+        stage_info : VkPipelineShaderStageCreateInfo;
+        stage_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stage_info.stage = .VK_SHADER_STAGE_COMPUTE_BIT;
+        stage_info.module = transform_flatten_shader;
+        stage_info.pName = "main";
+
+        compute_pipeline_info : VkComputePipelineCreateInfo;
+        compute_pipeline_info.sType = .VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        compute_pipeline_info.stage = stage_info;
+        compute_pipeline_info.layout = layout;
+
+        result = vkCreateComputePipelines(zr.device, VK_NULL_HANDLE, 1, *compute_pipeline_info, null, *pipeline);
+        if result != .VK_SUCCESS {
+            panic("Failed to create Compute_Pipeline_Transform_Flatten compute pipeline");
+        }
+        queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, pipeline);
+
+		vkDestroyShaderModule(zr.device, transform_flatten_shader, null);
+	}
+}
+
+
+Mesh_Culling_Push_Constants :: struct {
+	bda_render_globals		: VkDeviceAddress;
+	bda_camera				: VkDeviceAddress;
+	bda_mesh_instances		: VkDeviceAddress;
+	bda_flattened_transforms: VkDeviceAddress;
+	bda_material_instances	: VkDeviceAddress;
+	bda_draw_commands		: VkDeviceAddress;
+	mesh_instance_count		: u32;
+}
+
+Compute_Pipeline_Mesh_Culling :: struct {
+	pipeline 	: VkPipeline;
+	layout		: VkPipelineLayout;
+
+	build :: (using self: *Compute_Pipeline_Mesh_Culling, zr: *ZRenderer) {
+		success : bool;
+		mesh_culling_shader : VkShaderModule;
+		success, mesh_culling_shader = create_shader_module(zr, "src/shaders/mesh_culling.comp.spv");
+		if !success {
+			panic("Error: Failed to create mesh_culling_shader compute shader");
+		}
+		
+		push_range : VkPushConstantRange;
+		push_range.offset = 0;
+		push_range.size = size_of(Compute_Pipeline_Mesh_Culling);
+		push_range.stageFlags = .VK_SHADER_STAGE_COMPUTE_BIT;
+
+		layout_info : VkPipelineLayoutCreateInfo = vkinit_pipeline_layout_create_info();
+		layout_info.setLayoutCount = 0;
+		layout_info.pSetLayouts = null;
+		layout_info.pPushConstantRanges = *push_range;
+		layout_info.pushConstantRangeCount = 1;
+
+		new_layout : VkPipelineLayout;
+		result := vkCreatePipelineLayout(zr.device, *layout_info, null, *new_layout);
+		if result != .VK_SUCCESS {
+			panic("Failed to create Compute_Pipeline_Mesh_Culling layout");
+		}
+		layout = new_layout;
+		queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, layout);
+
+		// Specialization Constants
+		spec_entries: [2] VkSpecializationMapEntry;
+		spec_entries[0] = .{ constantID = 0, offset = 0, size = size_of(float) }; // Near Z
+		spec_entries[1] = .{ constantID = 1, offset = 4, size = size_of(float) }; // Far Z
+
+
+		spec_data: struct {
+			z_near		: float = NEAR_PLANE;
+			z_far		: float = FAR_PLANE;
+		};
+
+		spec_info := VkSpecializationInfo.{
+			mapEntryCount = spec_entries.count,
+			pMapEntries = spec_entries.data,
+			dataSize = size_of(type_of(spec_data)),
+			pData = *spec_data,
+		};
+
+		// Compute pipeline
+        stage_info : VkPipelineShaderStageCreateInfo;
+        stage_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stage_info.stage = .VK_SHADER_STAGE_COMPUTE_BIT;
+        stage_info.module = mesh_culling_shader;
+		stage_info.pSpecializationInfo = *spec_info;
+        stage_info.pName = "main";
+
+        compute_pipeline_info : VkComputePipelineCreateInfo;
+        compute_pipeline_info.sType = .VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        compute_pipeline_info.stage = stage_info;
+        compute_pipeline_info.layout = layout;
+
+        result = vkCreateComputePipelines(zr.device, VK_NULL_HANDLE, 1, *compute_pipeline_info, null, *pipeline);
+        if result != .VK_SUCCESS {
+            panic("Failed to create Compute_Pipeline_Mesh_Culling compute pipeline");
+        }
+        queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, pipeline);
+
+		vkDestroyShaderModule(zr.device, mesh_culling_shader, null);
+	}
+}
+
+Mesh_Compute_System :: struct {
+	m_c_transform_flatten			: Compute_Pipeline_Transform_Flatten;
+	flattened_transform_buffer_0	: Allocated_Buffer; // These are GPU side so we don't need fancy buffer types
+	flattened_transform_buffer_1	: Allocated_Buffer;
+
+	m_c_mesh_culling	 		: Compute_Pipeline_Mesh_Culling;
+	
+	init :: (using self: *Mesh_Compute_System, zr: *ZRenderer) {
+		m_c_transform_flatten.build(*m_c_transform_flatten, zr);
+
+		flattened_transform_buffer_0 = create_buffer(VMA_ALLOCATOR, FLATTENED_TRANSFORM_BUFFER_SIZE, 
+														.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+														.GPU_ONLY, zr.device, "frame 0 flattened_transform buffer");
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *flattened_transform_buffer_0);
+
+		flattened_transform_buffer_1 = create_buffer(VMA_ALLOCATOR, FLATTENED_TRANSFORM_BUFFER_SIZE, 
+														.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+														.GPU_ONLY, zr.device, "frame 1 flattened_transform buffer");
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *flattened_transform_buffer_1);
+		
+		m_c_mesh_culling.build(*m_c_mesh_culling, zr);
+	}
+
+	get_frame_transform_buffer :: (using self: *Mesh_Compute_System, frame: u8) -> *Allocated_Buffer {
+		if frame == 0 {
+			return *flattened_transform_buffer_0;
+		}
+		else {
+			return *flattened_transform_buffer_1;
+		}
+	}
+}
+
 Light_Culling_Push_Constants :: struct {
 	bda_render_globals		: VkDeviceAddress;
 	bda_camera				: VkDeviceAddress;
@@ -177,7 +354,7 @@ Compute_Pipeline_Light_Clustering :: struct {
 	}
 }
 
-Light_Cluster_System :: struct {
+Light_Compute_System :: struct {
 	m_c_light_culling			: Compute_Pipeline_Light_Culling;
 	light_culling_bitfield_0	: Bitfield_Buffer;
 	light_culling_bitfield_1	: Bitfield_Buffer;
@@ -186,7 +363,7 @@ Light_Cluster_System :: struct {
 	light_cluster_buffer_0	: Uniform_Storage_Buffer;
 	light_cluster_buffer_1	: Uniform_Storage_Buffer;
 	
-	init :: (using self: *Light_Cluster_System, zr: *ZRenderer, resolution: VkExtent2D) {
+	init :: (using self: *Light_Compute_System, zr: *ZRenderer) {
 		m_c_light_culling.build(*m_c_light_culling, zr);
 
 		light_culling_bitfield_0 = make_bitfield_buffer(VMA_ALLOCATOR, MAX_LIGHTS, 
@@ -213,7 +390,7 @@ Light_Cluster_System :: struct {
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *light_cluster_buffer_1);
 	}
 
-	get_frame_buffer :: (using self: *Light_Cluster_System, frame: u8) -> *Uniform_Storage_Buffer {
+	get_frame_buffer :: (using self: *Light_Compute_System, frame: u8) -> *Uniform_Storage_Buffer {
 		if frame == 0 {
 			return *light_cluster_buffer_0;
 		}
@@ -222,7 +399,7 @@ Light_Cluster_System :: struct {
 		}
 	}
 
-	get_frame_light_bitfield :: (using self: *Light_Cluster_System, frame: u8) -> *Bitfield_Buffer {
+	get_frame_light_bitfield :: (using self: *Light_Compute_System, frame: u8) -> *Bitfield_Buffer {
 		if frame == 0 {
 			return *light_culling_bitfield_0;
 		}

@@ -118,7 +118,8 @@ ZRenderer :: struct {
 
 	render_globals			: Staged_Struct_Buffer;
 	// Compute
-	light_cluster_system	: Light_Cluster_System;
+	mesh_compute_system		: Mesh_Compute_System;
+	light_compute_system	: Light_Compute_System;
     
 	Frame_Data :: struct {
 		command_pool 				: VkCommandPool;
@@ -326,7 +327,8 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	init_descriptor_layouts(zr);
 	init_frames(zr);
 
-	zr.light_cluster_system.init(*zr.light_cluster_system, zr, zr.resolution); // This needs to be re-initialized upon resolution changes?
+	zr.mesh_compute_system.init(*zr.mesh_compute_system, zr);
+	zr.light_compute_system.init(*zr.light_compute_system, zr);
 
 	zr.debug_system = create_debug_system(VMA_ALLOCATOR, zr.device);
 
@@ -486,8 +488,8 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		debug_draw_counts := generate_debug_draw_commands(zr, frame_data, cmd);
 		draw_counts := generate_draw_commands(zr, scene, frame_data, cmd);
 
-		cluster_buffer := zr.light_cluster_system.get_frame_buffer(*zr.light_cluster_system, zr.current_frame);
-		light_bitfield := zr.light_cluster_system.get_frame_light_bitfield(*zr.light_cluster_system, zr.current_frame);
+		cluster_buffer := zr.light_compute_system.get_frame_buffer(*zr.light_compute_system, zr.current_frame);
+		light_bitfield := zr.light_compute_system.get_frame_light_bitfield(*zr.light_compute_system, zr.current_frame);
 
 		// Zero the buffers/bitfields
 		vkCmdFillBuffer(cmd, cluster_buffer.buffer, 0, cluster_buffer.info.size, 0);
@@ -504,7 +506,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		// Buffers ready, ready to start compute, move this stuff to a function
 
 		// LIGHT CULLING 
-		vkCmdBindPipeline(cmd, .COMPUTE, zr.light_cluster_system.m_c_light_culling.pipeline);
+		vkCmdBindPipeline(cmd, .COMPUTE, zr.light_compute_system.m_c_light_culling.pipeline);
 		light_cull_push: Light_Culling_Push_Constants;
 		light_cull_push.bda_render_globals = zr.render_globals.device_buffer.base_address;
 		light_cull_push.bda_camera = frame_data.camera_buffer.base_address;
@@ -513,7 +515,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		light_cull_push.point_light_count = scene.point_lights.count;
 	
 		vkCmdPushConstants(cmd, 
-						zr.light_cluster_system.m_c_light_culling.layout,
+						zr.light_compute_system.m_c_light_culling.layout,
 						.VK_SHADER_STAGE_COMPUTE_BIT,
 						0,
 						size_of(Light_Culling_Push_Constants),
@@ -546,7 +548,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		vkCmdPipelineBarrier2(cmd, *light_cull_dependency);
 
 		// Now do light clustering
-		vkCmdBindPipeline(cmd, .COMPUTE, zr.light_cluster_system.m_c_light_cluster.pipeline);
+		vkCmdBindPipeline(cmd, .COMPUTE, zr.light_compute_system.m_c_light_cluster.pipeline);
 
 		light_cluster_push: Light_Clustering_Push_Constants;
 		light_cluster_push.bda_render_globals = zr.render_globals.device_buffer.base_address;
@@ -557,7 +559,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		light_cluster_push.point_light_count = scene.point_lights.count;
 	
 		vkCmdPushConstants(cmd, 
-						zr.light_cluster_system.m_c_light_cluster.layout,
+						zr.light_compute_system.m_c_light_cluster.layout,
 						.VK_SHADER_STAGE_COMPUTE_BIT,
 						0,
 						size_of(Light_Clustering_Push_Constants),
@@ -780,7 +782,7 @@ execute_draw :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer
 	if draw_counts[MATERIAL_PASS.OPAQUE] > 0 {
 		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.m_opaque.pipeline);
 
-		light_cluster_buffer := zr.light_cluster_system.get_frame_buffer(*zr.light_cluster_system, zr.current_frame);
+		light_cluster_buffer := zr.light_compute_system.get_frame_buffer(*zr.light_compute_system, zr.current_frame);
 
 		push : Draw_Push_Constants;
 		push.render_globals = zr.render_globals.device_buffer.base_address;

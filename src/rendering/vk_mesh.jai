@@ -62,10 +62,6 @@ Mesh_Instance :: struct {
 	mesh_asset			: *Mesh_Asset; 
 	transform_address	: VkDeviceAddress;
 	generation			: u8;
-
-	get_render_transform :: (using self: *Mesh_Instance) -> *Render_Transform {
-		return cast,no_check(*Render_Transform)transform_address;
-	}
 }
 
 calculate_transform_depth :: (transform: *Render_Transform) -> u8 {
