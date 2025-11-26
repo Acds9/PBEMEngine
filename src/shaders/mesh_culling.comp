@@ -9,13 +9,15 @@
 
 #include "common_types.glsl"
 
-layout(push_constant, scalar) uniform Light_Culling_Push_Constants {
+layout(push_constant, scalar) uniform Mesh_Culling_Push_Constants {
     uint64_t bda_render_globals;
     uint64_t bda_camera;
     uint64_t bda_mesh_instances;
     uint64_t bda_flattened_transforms;
+    uint64_t bda_aabb;
+    uint64_t bda_geo_surface;
     uint64_t bda_material_instances;
-    uint64_t bda_draw_commands;
+    uint64_t bda_draw_address_buffer;
     uint mesh_instance_count;
 } push_constants;
 
@@ -53,11 +55,62 @@ void main() {
     Camera_Data camera_data = Camera_Data(push_constants.bda_camera);
     
     Mesh_Instance_Buffer mesh_instance_buffer = Mesh_Instance_Buffer(push_constants.bda_mesh_instances);
-
     Mesh_Instance mesh_instance = mesh_instance_buffer.mesh_instances[global_id];
 
-    Transform_Buffer transform_buffer = Transform_Buffer(mesh_instance.transform_address);
-    Transform t = transform_buffer.transforms[0]; 
-    
+    Flattened_Transform_Buffer transform_buffer = Flattened_Transform_Buffer(push_constants.bda_flattened_transforms);
+    mat4 t = transform_buffer.transforms[mesh_instance.idx_transform];   
 
-}
+    AABB_Buffer aabb_buffer = AABB_Buffer(push_constants.bda_aabb);
+    AABB aabb = aabb_buffer.aabbs[mesh_instance.idx_aabb];
+
+    Material_Buffer material_instance_buffer = Material_Buffer(push_constants.bda_material_instances);
+
+    vec3 world_center = (t * vec4(aabb.center, 1.0)).xyz;
+    mat3 rotation = mat3(t);
+    vec3 world_extents = abs(rotation[0]) * aabb.half_extents.x 
+                    + abs(rotation[1]) * aabb.half_extents.y 
+                    + abs(rotation[2]) * aabb.half_extents.z;
+    vec3 aabb_min = world_center - world_extents;
+    vec3 aabb_max = world_center + world_extents;
+    if (!aabb_inside_frustum(aabb_min, aabb_max, camera_data.view_planes))
+        return; // Not in frustum, cull
+
+    Geo_Surface_Buffer geo_surface_buffer = Geo_Surface_Buffer(push_constants.bda_geo_surface);
+
+    Draw_Address_Buffer draw_address_buffer = Draw_Address_Buffer(push_constants.bda_draw_address_buffer);
+    Draw_Command_Buffer command_buffer_opaque = Draw_Command_Buffer(draw_address_buffer.bda_command_buffer_opaque);
+    Draw_Command_Buffer command_buffer_translucent = Draw_Command_Buffer(draw_address_buffer.bda_command_buffer_translucent);
+    Draw_Command_Buffer command_buffer_emissive = Draw_Command_Buffer(draw_address_buffer.bda_command_buffer_emissive);
+    
+    uint surface_count = min(mesh_instance.geo_surface_count, 64u);
+    for (int i = 0; i < surface_count; i++) {
+        Geo_Surface surface = geo_surface_buffer.geo_surfaces[mesh_instance.idx_geo_surface + i];
+        Draw_Command draw_command;
+        draw_command.draw.indexCount = surface.index_count;
+        draw_command.draw.instanceCount = 1;
+        draw_command.draw.firstIndex = surface.idx_index;
+        draw_command.draw.vertexOffset = surface.idx_vertex;
+        draw_command.draw.firstInstance = 0;
+        draw_command.idx_transform = mesh_instance.idx_transform;
+        draw_command.idx_material_instance = surface.default_material_instance; // TODO: need to support overrides
+        
+        uint8_t material_type = material_instance_buffer.materials[surface.default_material_instance].type;
+        uint draw_index = 0;
+        switch (uint(material_type)) {
+        case 0: // Opaque
+            draw_index = atomicAdd(command_buffer_opaque.count, 1);
+            if(draw_index < 64) { // Temp value just to test
+                command_buffer_opaque.commands[draw_index] = draw_command;
+            }
+            break;
+        case 1:
+            draw_index = atomicAdd(command_buffer_translucent.count, 1);
+            command_buffer_translucent.commands[draw_index] = draw_command;
+            break;
+        case 2:
+            draw_index = atomicAdd(command_buffer_emissive.count, 1);
+            command_buffer_emissive.commands[draw_index] = draw_command;
+            break;
+        }
+    }
+}   

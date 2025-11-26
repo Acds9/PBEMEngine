@@ -119,7 +119,8 @@ game_update_camera :: (using state: *Game_State) {
 current_position : Vector3;
 game_tick :: (using state: *Game_State) {
 	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
-	{
+	debug_draw_sphere(*ZRENDERER, .{0,0,0}, 16, .{1,0,0,1});
+	/*{
 		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
 			for *pos: position_array {
 				if pos.pos == current_position {
@@ -130,7 +131,7 @@ game_tick :: (using state: *Game_State) {
 				//pos.pos -= norm*10*GAME_STATE.delta_time;
 			}
 		});
-	}
+	}*/
 	{
 		execute_Query_Update_Render_Proxy(*GAME_STATE.world, #code {
 			for *pos: position_array {
@@ -138,15 +139,13 @@ game_tick :: (using state: *Game_State) {
 				scale := scale_array[it_index];
 				transform := Transform.{pos.pos, rot.rot, scale.scale};
 				matrix := transform_to_matrix4(transform);
-				address := mesh_render_proxy_ec_array[it_index].mesh_address;
-				if address {
-					mesh_instance := render_get_mesh_instance(*GAME_STATE.scene, address);
-					render_set_transform(*GAME_STATE.scene, mesh_instance, *matrix);
-				}
+				idx := mesh_render_proxy_ec_array[it_index].idx_mesh_instance;
 				
+				mesh_instance := render_get_mesh_instance(*GAME_STATE.scene, idx);
+				render_set_transform(*GAME_STATE.scene, idx, *matrix);
 			}
 		});
-	}
+	}/*
 	{
 		execute_Query_Debug_Draw_Point_Light(*GAME_STATE.world, #code {
 			for *pos: position_array {
@@ -157,7 +156,7 @@ game_tick :: (using state: *Game_State) {
 				
 			}
 		});
-	}
+	}*/
 	
 	tick_world(*world, delta_time);
 }

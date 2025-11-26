@@ -296,41 +296,53 @@ GPU_Mesh_Buffers :: struct {
 }
 
 Draw_Push_Constants :: struct {
-	render_globals		: VkDeviceAddress;
-	draw_address		: VkDeviceAddress;
-	camera_data_address : VkDeviceAddress;
-	material_address	: VkDeviceAddress;
-	cluster_index_address		: VkDeviceAddress;
-	point_lights_address: VkDeviceAddress;
-	point_lights_count	: u32;
+	render_globals					: VkDeviceAddress;
+	bda_draws						: VkDeviceAddress;
+	bda_flattened_transforms		: VkDeviceAddress;
+	bda_vertices					: VkDeviceAddress;
+	bda_camera						: VkDeviceAddress;
+	bda_materials					: VkDeviceAddress;
+	bda_cluster_index				: VkDeviceAddress;
+	bda_point_lights				: VkDeviceAddress;
+	point_lights_count				: u32;
 }
 
 Debug_Draw_Push_Constants :: struct {
 	render_globals		: VkDeviceAddress;
-	vertex_address		: VkDeviceAddress;
-	transform_address	: VkDeviceAddress;
-	camera_data_address : VkDeviceAddress;
+	bda_vertex			: VkDeviceAddress;
+	bda_transform		: VkDeviceAddress;
+	bda_camera			: VkDeviceAddress;
+}
+
+Draw_Command :: struct {
+	draw 				: VkDrawIndexedIndirectCommand;
+    idx_transform		: u32;
+    idx_material_instance   : u32;
 }
 
 Render_Transform :: struct {
 	local_transform	: Matrix4;
-	parent_address	: VkDeviceAddress;
-	padding			: [8]u8;
+	parent_idx		: u32;
+	padding			: [12]u8;
 }
 
 AABB :: struct {
 	center : Vector3;
+	pad0	: float;
 	half_extents : Vector3;
+	pad1	: float;
 }
 
 Render_Globals :: struct {
 	resolution_x	: u32;
 	resolution_y	: u32;
-
-	light_cluster_x	: u32;
-	light_cluster_y	: u32;
-	light_cluster_z	: u32;
-
-	near_plane		: float;
-	far_plane		: float;
 }
+
+Draw_Command_Buffers :: struct {
+	bda_command_buffer_opaque 		: VkDeviceAddress;
+	bda_command_buffer_translucent	: VkDeviceAddress;
+	bda_command_buffer_emissive 	: VkDeviceAddress;
+	bda_commands_debug_point		: VkDeviceAddress;
+	bda_commands_debug_wireframe	: VkDeviceAddress;
+}
+

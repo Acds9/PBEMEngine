@@ -155,9 +155,7 @@ Material_Pipeline_Debug_Wireframe :: struct {
 
 	create_material_instance :: (using self: *Material_Pipeline_Debug_Wireframe, zr: *ZRenderer, data: *Debug_Material_Instance) -> u32 {
 		buffer := *zr.debug_system.mesh_material_instances;
-		allocation := buffer.allocate(buffer, <<data);
-		
-		return xx,no_check ((allocation - buffer.staging_buffer.base_address) / size_of(Debug_Material_Instance));
+		return buffer.allocate(buffer, <<data);
 	}
 }
 
@@ -243,7 +241,6 @@ Material_Pipeline_Opaque :: struct {
 
 	create_material_instance :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer, data: *Material_Instance) -> u32 {
 		data.pass = .OPAQUE;
-		allocation := zr.material_instances.allocate(*zr.material_instances, <<data);
-		return xx,no_check((allocation - zr.material_instances.staging_buffer.base_address) / size_of(Material_Instance));
+		return zr.material_instances.allocate(*zr.material_instances, <<data);;
 	}
 }

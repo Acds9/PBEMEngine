@@ -57,7 +57,7 @@ load_assets :: (zr: *ZRenderer) {
 
 	//Ion Frigate
 	{
-		ion_frigate_mesh := load_glt_meshes(zr, "H:/PBEMJai/content/meshes/ion_frigate.glb");
+		ion_frigate_mesh := load_glt_mesh(zr, "H:/PBEMJai/content/meshes/ion_frigate.glb");
 		ion_frigate_mesh.name = "ion_frigate";
 		table_add(*zr.mesh_map, ion_frigate_mesh.name, ion_frigate_mesh);
 
@@ -66,15 +66,19 @@ load_assets :: (zr: *ZRenderer) {
 		material_instance.color_factors = Vector4.{1,1,1,1};
 		material_instance.albedo_image_index = image.image_index;
 		material_instance.albedo_sampler_index = zr.sampler_nearest_index;
+
 		ion_frigate_hull_material := zr.m_opaque.create_material_instance(*zr.m_opaque, zr, *material_instance);
-		ion_frigate_mesh.surfaces[0].default_material_instance = <<table_add(*zr.material_instance_table, "ion_frigate_hull_material", ion_frigate_hull_material);
+		surface : *Geo_Surface = get_mesh_geo_surface(*ZRENDERER, ion_frigate_mesh, 0);
+		surface.default_material_instance = <<table_add(*zr.material_instance_table, "ion_frigate_hull_material", ion_frigate_hull_material);
 	}
 
 	//Debug sphere
 	{
-		debug_sphere_mesh := load_glt_meshes(zr, "H:/PBEMJai/content/meshes/sphere_debug_1x1.glb");
+		debug_sphere_mesh := load_glt_mesh(zr, "H:/PBEMJai/content/meshes/sphere_debug_1x1.glb");
 		debug_sphere_mesh.name = "debug_sphere";
-		debug_sphere_mesh.surfaces[0].default_material_instance = zr.debug_system.mi_debug_wireframe;
+		surface : *Geo_Surface = get_mesh_geo_surface(*ZRENDERER, debug_sphere_mesh, 0);
+		surface.default_material_instance = zr.debug_system.mi_debug_wireframe;
+		
 		table_add(*zr.mesh_map, debug_sphere_mesh.name, debug_sphere_mesh);
 	}
 }

@@ -27,69 +27,51 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 
 	return scene;
 }
-
-add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, parent_transform: VkDeviceAddress = 0, material_overrides: *[8]u32 = null) -> VkDeviceAddress {
-	mesh_render : Mesh_Instance;
-	mesh_render.mesh_asset = mesh;
+add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, parent_transform: u32 = U32_MAX, material_overrides: *[8]u32 = null) -> u32 {
+	mesh_instance : Mesh_Instance;
+	mesh_instance.idx_mesh_asset = mesh.mesh_index;
+	mesh_instance.idx_aabb = mesh.idx_aabb;
+	mesh_instance.idx_geo_surface = mesh.idx_geo_surface;
+	mesh_instance.geo_surface_count = mesh.geo_surface_count;
 	if material_overrides {
-		mesh_render.material_overrides = <<material_overrides;
+		mesh_instance.material_overrides = <<material_overrides;
 	}
 
 	render_transform : Render_Transform;
 	render_transform.local_transform = local_transform;
-	render_transform.parent_address = parent_transform;
+	render_transform.parent_idx = parent_transform;
 
-	mesh_render.transform_address = scene.mesh_transforms.allocate(*scene.mesh_transforms, render_transform);
+	mesh_instance.idx_transform = scene.mesh_transforms.allocate(*scene.mesh_transforms, render_transform);
 
-	return scene.mesh_instances.allocate(*scene.mesh_instances, mesh_render);
+	
+	return scene.mesh_instances.allocate(*scene.mesh_instances, mesh_instance);
 }
 
-add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, transform: Transform, parent_transform: VkDeviceAddress = 0, material_overrides: []u32 = .[]) -> VkDeviceAddress {
+add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, transform: Transform, parent_transform: u32 = 0, material_overrides: []u32 = .[]) -> u32 {
 	transform_to_matrix4(transform);
 	return add_scene_mesh(scene, mesh, transform_to_matrix4(transform), parent_transform);
 }
 
-remove_scene_mesh :: (scene: *ZScene, address: VkDeviceAddress) {
-    scene.mesh_transforms.buffer_remove(*scene.mesh_transforms, address);
-    scene.mesh_instances.buffer_remove(*scene.mesh_instances, address);
+remove_scene_mesh :: (scene: *ZScene, idx: u32) {
+    scene.mesh_transforms.buffer_remove(*scene.mesh_transforms, idx);
+    scene.mesh_instances.buffer_remove(*scene.mesh_instances, idx);
 }
 
-add_scene_point_light :: (scene: *ZScene, light: Point_Light) -> VkDeviceAddress {
+add_scene_point_light :: (scene: *ZScene, light: Point_Light) -> u32 {
 	return scene.point_lights.allocate(*scene.point_lights, light);
 }
 
-render_get_mesh_instance :: (scene: *ZScene, instance_address: VkDeviceAddress) -> *Mesh_Instance {
-	instance_buffer := *scene.mesh_instances.staging_buffer;
-	offset := instance_address - instance_buffer.base_address;
-
-	dest_ptr := cast,no_check(*Mesh_Instance)(cast,no_check(*u8)instance_buffer.info.pMappedData + offset);
-  	return dest_ptr;
+render_get_mesh_instance :: (scene: *ZScene, instance_idx: u32) -> *Mesh_Instance {
+	mesh_instances := cast(*Mesh_Instance)scene.mesh_instances.staging_buffer.info.pMappedData;
+  	return *mesh_instances[instance_idx];
 }
 
-render_set_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance, new_transform: *Matrix4) {
-	render_set_transform(scene, mesh_instance.transform_address, new_transform);
+render_set_transform :: (scene: *ZScene, transform_idx: u32, new_transform: *Matrix4) {
+    transforms := cast(*Render_Transform)scene.mesh_transforms.staging_buffer.info.pMappedData;
+    transforms[transform_idx].local_transform = <<new_transform;
 }
 
-render_set_transform :: (scene: *ZScene, transform_address: VkDeviceAddress, new_transform: *Matrix4) {
-	transform_buffer := *scene.mesh_transforms.staging_buffer;
-    offset := transform_address - transform_buffer.base_address;
-    
-    dest_ptr := cast,no_check(*Render_Transform)(cast,no_check(*u8)transform_buffer.info.pMappedData + offset);
-    dest_ptr.local_transform = <<new_transform;
-}
-
-render_get_transform :: (scene: *ZScene, transform_address: VkDeviceAddress) -> *Render_Transform {
-	transform_buffer := *scene.mesh_transforms.staging_buffer;
-    offset := transform_address - transform_buffer.base_address;
-    
-    dest_ptr := cast,no_check(*Render_Transform)(cast,no_check(*u8)transform_buffer.info.pMappedData + offset);
-   	return dest_ptr;
-}
-
-render_get_world_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance) -> Matrix4 {
-	return calculate_world_transform(render_get_transform(scene, mesh_instance.transform_address));
-}
-
-render_get_local_transform :: (scene: *ZScene, mesh_instance: *Mesh_Instance) -> Matrix4 {
-	return render_get_transform(scene, mesh_instance.transform_address).local_transform;
+render_get_transform :: (scene: *ZScene, transform_idx: u32) -> *Render_Transform {
+	transforms := cast(*Render_Transform)scene.mesh_transforms.staging_buffer.info.pMappedData;
+    return *transforms[transform_idx];
 }

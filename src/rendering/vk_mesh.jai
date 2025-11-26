@@ -2,6 +2,8 @@
 
 GEOPOOL_VERTEX_ALLOC_SIZE :: 64 * 1024 * 1024;
 GEOPOOL_INDEX_ALLOC_SIZE :: 64 * 1024 * 1024;
+GEOPOOL_AABB_ALLOC_SIZE :: 8 * 1024 * 1024; // TODO: way too big at 8MB
+GEOPOOL_GEO_SURFACE_ALLOC_SIZE :: 8 * 1024 * 1024; // ^
 
 MAX_GEO_SURFACES :: 8;
 
@@ -12,41 +14,50 @@ GLTF_TO_ZENGINE_COORDINATES :: Matrix4.{
     0,  0,  0,  1
 };
 
-// This contains the raw data for the loaded meshes, and is owned by the ZRenderer. It is not a Uniform_Storage_Buffer because mesh vertex/index SETS are not uniform, even if vertices/indices are
-GPU_Geometry_Pool :: struct {
+// This contains the raw data for the loaded meshes, and is owned by the ZRenderer. 
+// Vertex and Index are NOT Uniform_Storage_Buffers because mesh vertex/index SETS are not uniform, even if vertices/indices are, making freelist etc pointless
+Geometry_Pool :: struct {
 	vertex_buffer			: Storage_Buffer;
 	index_buffer			: Storage_Buffer;
 
-	init :: (using self: *GPU_Geometry_Pool, device: VkDevice, allocator: VmaAllocator, vertex_alloc_size: u64, index_alloc_size: u64, debug_name: string = "") {
-		vertex_buffer = make_storage_buffer(allocator, vertex_alloc_size, 
+	geo_surface_buffer		: Staged_Uniform_Storage_Buffer;
+	default_aabb_buffer		: Staged_Uniform_Storage_Buffer; // Stores defaults, any per-instance AABBs will be stored in ZScene
+
+	init :: (using self: *Geometry_Pool, device: VkDevice, allocator: VmaAllocator) {
+		vertex_buffer = make_storage_buffer(allocator, GEOPOOL_VERTEX_ALLOC_SIZE, 
 										.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
 										.VMA_MEMORY_USAGE_GPU_ONLY, device, "Vertex Geometry Pool");
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, vertex_buffer.buffer, vertex_buffer.allocation);
 
-		index_buffer = make_storage_buffer(allocator, index_alloc_size, 
+		index_buffer = make_storage_buffer(allocator, GEOPOOL_INDEX_ALLOC_SIZE, 
 										.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
 										.VMA_MEMORY_USAGE_GPU_ONLY, device, "Index Geometry Pool");
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, index_buffer.buffer, index_buffer.allocation);
+
+		geo_surface_buffer = make_staged_uniform_storage_buffer(allocator, GEOPOOL_AABB_ALLOC_SIZE, size_of(Geo_Surface),
+										.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
+										device, "geo_surface buffer");
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *geo_surface_buffer);
+
+		default_aabb_buffer = make_staged_uniform_storage_buffer(allocator, GEOPOOL_GEO_SURFACE_ALLOC_SIZE, size_of(AABB),
+										.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
+										device, "default AABB buffer");
+		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *default_aabb_buffer);
+	}
+
+	transfer :: (using self: *Geometry_Pool, cmd: VkCommandBuffer) {
+		geo_surface_buffer.transfer(*geo_surface_buffer, cmd);
+		default_aabb_buffer.transfer(*default_aabb_buffer, cmd);
 	}
 }
 
 Geo_Surface :: struct {
-	// Offsets into shared pool
-	vertex_address	: VkDeviceAddress; // TODO: why call them address if they are offsets?
+	idx_vertex		: u32;
 	vertex_count	: u32;
-	index_address	: VkDeviceAddress;
+	idx_index		: u32;
 	index_count		: u32;
 
-	pool			: *GPU_Geometry_Pool;
-
 	default_material_instance : u32;
-
-	aabb : AABB;
-}
-
-Mesh_Asset :: struct {
-	name			: string;
-	surfaces		: [..]Geo_Surface;
 }
 
 DEFAULT_MATERIAL_OVERRIDES :: #run -> [MAX_GEO_SURFACES]u32 {
@@ -59,32 +70,30 @@ DEFAULT_MATERIAL_OVERRIDES :: #run -> [MAX_GEO_SURFACES]u32 {
 
 Mesh_Instance :: struct {
 	material_overrides	: [MAX_GEO_SURFACES]u32 = DEFAULT_MATERIAL_OVERRIDES;
-	mesh_asset			: *Mesh_Asset; 
-	transform_address	: VkDeviceAddress;
+	idx_mesh_asset		: u32; 
+	idx_transform		: u32;
+	idx_aabb			: u32;
+	idx_geo_surface		: u32; 
+	geo_surface_count	: u8;
 	generation			: u8;
 }
 
-calculate_transform_depth :: (transform: *Render_Transform) -> u8 {
-	depth : u8 = 0;
-	current_transform := transform;
-	while current_transform.parent_address != 0 {
-		depth += 1;
-		current_transform = cast,no_check(*Render_Transform) current_transform.parent_address;
-	}
-	return depth;
+// CPU side representation of a full mesh asset
+Mesh_Asset :: struct { 
+	name					: string;
+	mesh_index				: u32;
+	idx_geo_surface			: u32;
+	idx_aabb				: u32;
+	geo_surface_count		: u8;
 }
 
-calculate_world_transform :: (base_transform: *Render_Transform) -> Matrix4 {
-	current_transform := base_transform;
-	world_transform := current_transform.local_transform;
-	while current_transform.parent_address != 0 {
-		current_transform = cast,no_check(*Render_Transform) current_transform.parent_address;
-		world_transform = current_transform.local_transform * world_transform;
-	}
-	return world_transform;
+get_mesh_geo_surface :: (zr: *ZRenderer, mesh: *Mesh_Asset, surface_idx: u32) -> *Geo_Surface {
+	surface_buffer := *zr.geometry_pool.geo_surface_buffer;
+	surfaces := cast,no_check(*Geo_Surface)surface_buffer.staging_buffer.info.pMappedData;
+	return *surfaces[mesh.idx_geo_surface + surface_idx];
 }
 
-load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
+load_glt_mesh :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 	filetype_found, left, filetype := split_from_right(file_path, ".");
 	if filetype_found && filetype != "glb" {
 		print("ERROR: Trying to load mesh from non-glb file, but only glb is supported.\n");
@@ -117,20 +126,18 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 		
 	new_mesh : Mesh_Asset; // Temp on stack
 	new_mesh.name = copy_string(to_string(mesh.name));
+	new_mesh.idx_geo_surface = U32_MAX; // See bottom of mesh loading
 
 	array_reset(*indices);
 	array_reset(*vertices);
-	
-	primitive_count := mesh.primitives_count;
 
-	aabb_min : Vector3 = .{FLOAT32_MIN, FLOAT32_MIN, FLOAT32_MIN};
-	aabb_max : Vector3 = .{FLOAT32_MAX, FLOAT32_MAX, FLOAT32_MAX};
+	aabb_min : Vector3 = .{FLOAT32_MAX, FLOAT32_MAX, FLOAT32_MAX};
+	aabb_max : Vector3 = .{FLOAT32_MIN, FLOAT32_MIN, FLOAT32_MIN};
 
-	for primitive_index: 0..primitive_count-1 {
+	for primitive_index: 0..mesh.primitives_count-1 {
 		primitive := mesh.primitives[primitive_index];
 			
 		initial_vertex : s64 = vertices.count; // Again, need to keep going across loops
-
 
 		// Indices
 		index_accessor : *cgltf_accessor = primitive.indices;
@@ -224,31 +231,40 @@ load_glt_meshes :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 			array_add(*vertices, vertex);
 		}
 
-		half_extents := (aabb_max - aabb_min) * 0.5;
-		extents_center := (aabb_min + aabb_max) * 0.5;
-		new_surface := upload_mesh(zr, *zr.geometry_pool, indices, vertices);
-		new_surface.default_material_instance = zr.mi_default;
-		new_surface.aabb = .{extents_center, half_extents};
-		// TODO: need to load the actual material
-		array_add(*new_mesh.surfaces, new_surface);
+		
+		new_index := upload_surface(zr, *zr.geometry_pool, indices, vertices, zr.mi_default);
 
-		if new_mesh.surfaces.count > MAX_GEO_SURFACES {
+		// Somewhat ugly but this way we only set the first one
+		if new_mesh.idx_geo_surface == U32_MAX {
+			new_mesh.idx_geo_surface = new_index;
+		}
+		new_mesh.geo_surface_count += 1;
+		
+		if new_mesh.geo_surface_count > MAX_GEO_SURFACES {
 			panic(sprint("Attempted to load mesh with more than MAX_GEO_SURFACES (currently %), either don't or increase MAX_GEO_SURFACES", MAX_GEO_SURFACES));
 		}
 
 		array_reset(*indices);
 		array_reset(*vertices);
 	}
+	
+	half_extents := (aabb_max - aabb_min) * 0.5;
+	extents_center := (aabb_min + aabb_max) * 0.5;
+	mesh_aabb := AABB.{extents_center, 0, half_extents, 0};
+	
+	new_mesh.idx_aabb = zr.geometry_pool.default_aabb_buffer.allocate(*zr.geometry_pool.default_aabb_buffer, mesh_aabb);
+	
+	new_mesh.mesh_index = xx zr.meshes.count;
 	array_add(*zr.meshes, new_mesh);
 	mesh_ptr := *zr.meshes[zr.meshes.count - 1];
 
 	return mesh_ptr;
 }
 
-upload_mesh :: (zr: *ZRenderer, pool: *GPU_Geometry_Pool, indices: []u32, vertices: []Vertex) -> Geo_Surface {
+upload_surface :: (zr: *ZRenderer, pool: *Geometry_Pool, indices: []u32, vertices: []Vertex, mi_index: u32) -> u32 {
 	if vertices.count == 0 || indices.count == 0 {
 		print("WARNING: Trying to upload empty mesh\n");
-		return .{};  
+		return U32_MAX;  
 	}
 	vertex_size := vertices.count * size_of(Vertex);
 	index_size := indices.count * size_of(u32);
@@ -264,12 +280,9 @@ upload_mesh :: (zr: *ZRenderer, pool: *GPU_Geometry_Pool, indices: []u32, vertic
 
 	data : *void = staging.info.pMappedData;
 
-	// Save these to init the addresses 
-	vertex_offset := pool.vertex_buffer.offset;
-	index_offset := pool.index_buffer.offset;
-
 	// Calculate vertex offset in terms of vertex count (not bytes)
-    vertex_count_offset := pool.vertex_buffer.offset / size_of(Vertex);
+    vertex_idx := pool.vertex_buffer.offset / size_of(Vertex);
+	index_idx := pool.index_buffer.offset / size_of(u32);
 
 	memcpy(data, vertices.data, vertex_size); // Vertices into data
 	memcpy(cast,no_check(*u8)data + vertex_size, indices.data, index_size); // Indices into data at the offset of vertex size
@@ -293,11 +306,11 @@ upload_mesh :: (zr: *ZRenderer, pool: *GPU_Geometry_Pool, indices: []u32, vertic
 	pool.index_buffer.offset += xx index_size;
 
 	surface : Geo_Surface;
-	surface.vertex_address = pool.vertex_buffer.base_address + vertex_offset;
+	surface.idx_vertex = xx vertex_idx;
 	surface.vertex_count = xx vertices.count;
-	surface.index_address = pool.index_buffer.base_address + index_offset;
+	surface.idx_index = xx index_idx;
 	surface.index_count = xx indices.count;
-	surface.pool = pool;
+	surface.default_material_instance = mi_index;
 
-	return surface;
+	return pool.geo_surface_buffer.allocate(*pool.geo_surface_buffer, surface);
 }

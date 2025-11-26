@@ -32,7 +32,7 @@ Entity_Representation_Flags :: struct {
 
 Mesh_Render_Proxy_EC :: struct {
 	using #as entity_component: Entity_Component;
-	mesh_address	: u64;
+	idx_mesh_instance	: u32;
 }
 
 Point_Light_Component :: struct {

@@ -285,6 +285,7 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 	device_featuresVK12.bufferDeviceAddress = VK_TRUE;
 	device_featuresVK12.runtimeDescriptorArray = VK_TRUE;
 	device_featuresVK12.storageBuffer8BitAccess = VK_TRUE;
+	device_featuresVK12.drawIndirectCount = VK_TRUE;
 	device_featuresVK12.shaderInt8 = VK_TRUE;
 
 	device_featuresVK11 : VkPhysicalDeviceVulkan11Features;

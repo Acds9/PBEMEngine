@@ -59,14 +59,15 @@ Compute_Pipeline_Transform_Flatten :: struct {
 	}
 }
 
-
 Mesh_Culling_Push_Constants :: struct {
 	bda_render_globals		: VkDeviceAddress;
 	bda_camera				: VkDeviceAddress;
 	bda_mesh_instances		: VkDeviceAddress;
 	bda_flattened_transforms: VkDeviceAddress;
+	bda_aabb				: VkDeviceAddress;
+	bda_geo_surfaces		: VkDeviceAddress;
 	bda_material_instances	: VkDeviceAddress;
-	bda_draw_commands		: VkDeviceAddress;
+	bda_draw_address_buffer : VkDeviceAddress;
 	mesh_instance_count		: u32;
 }
 
@@ -84,7 +85,7 @@ Compute_Pipeline_Mesh_Culling :: struct {
 		
 		push_range : VkPushConstantRange;
 		push_range.offset = 0;
-		push_range.size = size_of(Compute_Pipeline_Mesh_Culling);
+		push_range.size = size_of(Mesh_Culling_Push_Constants);
 		push_range.stageFlags = .VK_SHADER_STAGE_COMPUTE_BIT;
 
 		layout_info : VkPipelineLayoutCreateInfo = vkinit_pipeline_layout_create_info();
@@ -144,34 +145,24 @@ Compute_Pipeline_Mesh_Culling :: struct {
 
 Mesh_Compute_System :: struct {
 	m_c_transform_flatten			: Compute_Pipeline_Transform_Flatten;
-	flattened_transform_buffer_0	: Allocated_Buffer; // These are GPU side so we don't need fancy buffer types
-	flattened_transform_buffer_1	: Allocated_Buffer;
+	flattened_transform_buffer		: [2]Allocated_Buffer; // These are GPU side so we don't need fancy buffer types
 
 	m_c_mesh_culling	 		: Compute_Pipeline_Mesh_Culling;
 	
 	init :: (using self: *Mesh_Compute_System, zr: *ZRenderer) {
+		for *buffer: flattened_transform_buffer {
+			<<buffer = create_buffer(VMA_ALLOCATOR, FLATTENED_TRANSFORM_BUFFER_SIZE, 
+															.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+															.GPU_ONLY, zr.device, sprint("frame % flattened_transform buffer", it_index));
+			queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, buffer);
+		}
+
 		m_c_transform_flatten.build(*m_c_transform_flatten, zr);
-
-		flattened_transform_buffer_0 = create_buffer(VMA_ALLOCATOR, FLATTENED_TRANSFORM_BUFFER_SIZE, 
-														.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-														.GPU_ONLY, zr.device, "frame 0 flattened_transform buffer");
-		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *flattened_transform_buffer_0);
-
-		flattened_transform_buffer_1 = create_buffer(VMA_ALLOCATOR, FLATTENED_TRANSFORM_BUFFER_SIZE, 
-														.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-														.GPU_ONLY, zr.device, "frame 1 flattened_transform buffer");
-		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *flattened_transform_buffer_1);
-		
 		m_c_mesh_culling.build(*m_c_mesh_culling, zr);
 	}
 
 	get_frame_transform_buffer :: (using self: *Mesh_Compute_System, frame: u8) -> *Allocated_Buffer {
-		if frame == 0 {
-			return *flattened_transform_buffer_0;
-		}
-		else {
-			return *flattened_transform_buffer_1;
-		}
+		return *flattened_transform_buffer[frame];
 	}
 }
 
@@ -266,14 +257,12 @@ Light_Clustering_Push_Constants :: struct {
 	bda_point_lights		: VkDeviceAddress;
 	bda_clusters			: VkDeviceAddress;
 	bda_light_bitfield		: VkDeviceAddress;
-
 	point_light_count 		: u32;
 }
 
 Light_Cluster :: struct {
 	light_indices 	: [MAX_LIGHTS_PER_CLUSTER]u32;
 }
-
 
 Compute_Pipeline_Light_Clustering :: struct {
 	pipeline 	: VkPipeline;
@@ -356,55 +345,36 @@ Compute_Pipeline_Light_Clustering :: struct {
 
 Light_Compute_System :: struct {
 	m_c_light_culling			: Compute_Pipeline_Light_Culling;
-	light_culling_bitfield_0	: Bitfield_Buffer;
-	light_culling_bitfield_1	: Bitfield_Buffer;
-
-	m_c_light_cluster 		: Compute_Pipeline_Light_Clustering;
-	light_cluster_buffer_0	: Uniform_Storage_Buffer;
-	light_cluster_buffer_1	: Uniform_Storage_Buffer;
+	light_culling_bitfield		: [2]Bitfield_Buffer;
+	
+	m_c_light_cluster 			: Compute_Pipeline_Light_Clustering;
+	light_cluster_buffer		: [2]Uniform_Storage_Buffer;
 	
 	init :: (using self: *Light_Compute_System, zr: *ZRenderer) {
 		m_c_light_culling.build(*m_c_light_culling, zr);
-
-		light_culling_bitfield_0 = make_bitfield_buffer(VMA_ALLOCATOR, MAX_LIGHTS, 
+		for *buffer: light_culling_bitfield {
+			<<buffer = make_bitfield_buffer(VMA_ALLOCATOR, MAX_LIGHTS, 
 														.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-														.GPU_ONLY, zr.device, "frame 0 light_culling bitfield");
-		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *light_culling_bitfield_0);
+														.GPU_ONLY, zr.device, sprint("frame % light_culling bitfield", it_index));
+			queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, buffer);
+		}
 
-		light_culling_bitfield_1 = make_bitfield_buffer(VMA_ALLOCATOR, MAX_LIGHTS, 
-														.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-														.GPU_ONLY, zr.device, "frame 1 light_culling bitfield");
-		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *light_culling_bitfield_1);
-		
 		m_c_light_cluster.build(*m_c_light_cluster, zr);
-
 		cluster_count : u64 = LIGHT_CLUSTER_NUM_WIDTH * LIGHT_CLUSTER_NUM_HEIGHT * LIGHT_CLUSTER_NUM_DEPTH;
 		cluster_buffer_size : u64 = cluster_count * size_of(Light_Cluster);
-		print("CLUSTER COUNT: %\n", cluster_count);
-		light_cluster_buffer_0 = make_uniform_storage_buffer(VMA_ALLOCATOR, cluster_buffer_size, size_of(Light_Cluster), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT, .GPU_ONLY,
-																	zr.device, "frame 0 light_cluster buffer");
-		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *light_cluster_buffer_0);
-
-		light_cluster_buffer_1 = make_uniform_storage_buffer(VMA_ALLOCATOR, cluster_buffer_size, size_of(Light_Cluster), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT, .GPU_ONLY,
-																	zr.device, "frame 1 light_cluster buffer");
-		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *light_cluster_buffer_1);
+		for *buffer: light_cluster_buffer {
+			<<buffer = make_uniform_storage_buffer(VMA_ALLOCATOR, cluster_buffer_size, size_of(Light_Cluster), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
+																	.GPU_ONLY,
+																	zr.device, sprint("frame % light_cluster buffer", it_index));
+			queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, buffer);
+		}
 	}
 
 	get_frame_buffer :: (using self: *Light_Compute_System, frame: u8) -> *Uniform_Storage_Buffer {
-		if frame == 0 {
-			return *light_cluster_buffer_0;
-		}
-		else {
-			return *light_cluster_buffer_1;
-		}
+		return *light_cluster_buffer[frame];
 	}
 
 	get_frame_light_bitfield :: (using self: *Light_Compute_System, frame: u8) -> *Bitfield_Buffer {
-		if frame == 0 {
-			return *light_culling_bitfield_0;
-		}
-		else {
-			return *light_culling_bitfield_1;
-		}
+		return *light_culling_bitfield[frame];
 	}
 }

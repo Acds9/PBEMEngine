@@ -10,11 +10,13 @@
 
 layout(push_constant, scalar) uniform Draw_Push_Constants {
     uint64_t render_globals_address;
-    uint64_t draw_buffer_address;
-    uint64_t camera_data_address;
-    uint64_t material_buffer_address;
-    uint64_t light_cluster_buffer_address;
-    uint64_t point_lights_address;
+    uint64_t bda_draws;
+    uint64_t bda_flattened_transforms;
+    uint64_t bda_vertices;
+    uint64_t bda_camera;
+    uint64_t bda_materials;
+    uint64_t bda_cluster_index;
+    uint64_t bda_point_lights;
     uint point_lights_count;
 } push_constants;
 
@@ -24,17 +26,16 @@ layout (location = 2) out vec3 out_world_pos;
 layout (location = 3) flat out uint out_material_index;
 
 void main() {
-    Indexed_Indirect_Buffer draw_buffer = Indexed_Indirect_Buffer(push_constants.draw_buffer_address);
+    Draw_Command_Buffer draw_buffer = Draw_Command_Buffer(push_constants.bda_draws);
     Draw_Command draw = draw_buffer.commands[gl_DrawID];
 
-    Vertex_Buffer vertex_buffer = Vertex_Buffer(draw.vertex_address);
+    Vertex_Buffer vertex_buffer = Vertex_Buffer(push_constants.bda_vertices);
     Vertex v = vertex_buffer.vertices[gl_VertexIndex];
 
-    Transform_Buffer transform_buffer = Transform_Buffer(draw.transform_address);
-    Transform transform = transform_buffer.transforms[0];
-    mat4 world_matrix = transform.transform; 
+    Flattened_Transform_Buffer transform_buffer = Flattened_Transform_Buffer(push_constants.bda_transforms);
+    mat4 world_matrix = transform_buffer.transforms[draw.idx_transform];
 
-    Camera_Data camera = Camera_Data(push_constants.camera_data_address);
+    Camera_Data camera = Camera_Data(push_constants.bda_camera);
 
     vec4 position = vec4(v.position, 1.0);
     vec4 world_pos = world_matrix * position;
@@ -47,5 +48,5 @@ void main() {
     out_UV.x = v.uv_x;
     out_UV.y = v.uv_y;
     out_world_pos = world_pos.xyz;
-    out_material_index = draw.material_instance;
+    out_material_index = draw.idx_material_instance;
 }

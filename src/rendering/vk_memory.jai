@@ -44,7 +44,7 @@ Uniform_Storage_Buffer :: struct {
 	free_list	: [..]u32;
 	generations	: [..]u8;
 
-	allocate :: (using self: *Uniform_Storage_Buffer, value: $T) -> VkDeviceAddress {
+	allocate :: (using self: *Uniform_Storage_Buffer, value: $T) -> u32 {
 		write_index : u32;
 		if free_list.count > 0 {
 			write_index = pop(*free_list);;
@@ -62,8 +62,7 @@ Uniform_Storage_Buffer :: struct {
 
 		cast_data := cast,no_check(*T)info.pMappedData;
 		cast_data[write_index] = value;
-		data_address := base_address + write_index * element_size;
-		return data_address;
+		return write_index;
 	}
 	buffer_remove :: (using self: *Uniform_Storage_Buffer, address: VkDeviceAddress) {
 		offset := address - base_address;
@@ -88,7 +87,7 @@ Staged_Uniform_Storage_Buffer :: struct {
 	free_list	: [..]u32;
 	generations	: [..]u8;
 
-	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T) -> VkDeviceAddress {
+	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T) -> u32 {
 		write_index : u32;
 		if free_list.count > 0 {
 			write_index = pop(*free_list);;
@@ -106,14 +105,12 @@ Staged_Uniform_Storage_Buffer :: struct {
 
 		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
 		cast_data[write_index] = value;
-		
-		address := staging_buffer.base_address + write_index * element_size;
-		return address;
+		return write_index;
 	}
 
 	transfer :: (using self: *Staged_Uniform_Storage_Buffer, cmd: VkCommandBuffer) {
 		copy : VkBufferCopy;
-		copy.size = count * element_size;
+		copy.size = xx,no_check(count * element_size);
 		if copy.size == 0 {
 			return;
 		}
@@ -194,7 +191,7 @@ Staged_Array_Buffer :: struct {
         return cast(*T) staging_buffer.info.pMappedData;
     }
 
-	allocate :: (using self: *Staged_Array_Buffer, value: $T) -> VkDeviceAddress {
+	allocate :: (using self: *Staged_Array_Buffer, value: $T) -> u32 {
 		write_index := count;
 		if count >= capacity {
 			panic(sprint("Attempted to allocate more elements than capacity allows. Capacity: %", capacity));
@@ -204,16 +201,14 @@ Staged_Array_Buffer :: struct {
 		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
 		cast_data[write_index] = value;
 		
-		address := staging_buffer.base_address + write_index * element_size;
-
-		return address;
+		return write_index;
 	}
     
     transfer :: (using self: *Staged_Array_Buffer, cmd: VkCommandBuffer) {
         if count == 0 return;
         
         copy : VkBufferCopy;
-        copy.size = count * element_size;
+        copy.size = xx,no_check(count * element_size);
         vkCmdCopyBuffer(cmd, staging_buffer.buffer, device_buffer.buffer, 1, *copy);
     }
 

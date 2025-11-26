@@ -12,11 +12,13 @@
 
 layout(push_constant, scalar) uniform Draw_Push_Constants {
     uint64_t render_globals_address;
-    uint64_t draw_buffer_address;
-    uint64_t camera_data_address;
-    uint64_t material_buffer_address;
-    uint64_t light_cluster_buffer_address;
-    uint64_t point_lights_address;
+    uint64_t bda_draws;
+    uint64_t bda_flattened_transforms;
+    uint64_t bda_vertices;
+    uint64_t bda_camera;
+    uint64_t bda_materials;
+    uint64_t bda_cluster_index;
+    uint64_t bda_point_lights;
     uint point_lights_count;
 } push_constants;
 
@@ -77,13 +79,14 @@ vec3 evaluate_point_light(Point_Light light, vec3 world_pos, vec3 normal) {
 
 void main() 
 {
+    
     Render_Globals globals = Render_Globals(push_constants.render_globals_address);
 
-    Material_Buffer material_buffer = Material_Buffer(push_constants.material_buffer_address);
+    Material_Buffer material_buffer = Material_Buffer(push_constants.bda_materials);
     Material_Instance mat = material_buffer.materials[in_material_index];
   
-    Light_Indices_Buffer light_index_buffer = Light_Indices_Buffer(push_constants.light_cluster_buffer_address);
-    Point_Light_Data light_data_buffer = Point_Light_Data(push_constants.point_lights_address);
+    Light_Indices_Buffer light_index_buffer = Light_Indices_Buffer(push_constants.bda_cluster_index);
+    Point_Light_Data light_data_buffer = Point_Light_Data(push_constants.bda_point_lights);
 
     uvec3 cluster_count = uvec3(CLUSTER_X, CLUSTER_Y, CLUSTER_Z);
     vec2 screen_size = vec2(globals.resolution_x, globals.resolution_y);
@@ -94,7 +97,8 @@ void main()
 
     uint cluster_x = min(uint(gl_FragCoord.x / tile_size.x), cluster_count.x - 1);
     uint cluster_y = min(uint(gl_FragCoord.y / tile_size.y), cluster_count.y - 1);
-    uint cluster_z = uint(depth_slice);
+    uint cluster_z = uint(clamp(depth_slice, 0.0, float(cluster_count.z - 1)));
+    
     uint cluster_index = cluster_z * cluster_count.x * cluster_count.y + cluster_y * cluster_count.x + cluster_x;
     uint cluster_buffer_offset = cluster_index * MAX_LIGHTS_PER_CLUSTER;
     
@@ -110,7 +114,7 @@ void main()
                 Point_Light point_light = light_data_buffer.lights[light_idx];
                 lighting += evaluate_point_light(point_light, in_world_pos, normalize(in_normal));
             }
-
+            
             // Sample textures using indices from material
             vec3 albedo = texture(sampler2D(textures[mat.albedo_image_index], samplers[0]), in_UV).rgb;
             albedo *= mat.color_factors.rgb;  // Apply tint
