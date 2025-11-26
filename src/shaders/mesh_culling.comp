@@ -28,7 +28,7 @@ layout(constant_id = 1) const float Z_FAR = 10000.0;
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in; // CHECK THIS
 
 bool aabb_outside_plane(vec3 aabb_min, vec3 aabb_max, vec4 plane) {
-    // Find the "positive vertex" - the corner furthest in the direction of plane normal
+    // Find the "positive vertex" AKA the corner furthest in the direction of plane normal
     vec3 p_vertex;
     p_vertex.x = (plane.x >= 0.0) ? aabb_max.x : aabb_min.x;
     p_vertex.y = (plane.y >= 0.0) ? aabb_max.y : aabb_min.y;
@@ -97,11 +97,9 @@ void main() {
         uint8_t material_type = material_instance_buffer.materials[surface.default_material_instance].type;
         uint draw_index = 0;
         switch (uint(material_type)) {
-        case 0: // Opaque
+        case 0:
             draw_index = atomicAdd(command_buffer_opaque.count, 1);
-            if(draw_index < 64) { // Temp value just to test
-                command_buffer_opaque.commands[draw_index] = draw_command;
-            }
+            command_buffer_opaque.commands[draw_index] = draw_command;
             break;
         case 1:
             draw_index = atomicAdd(command_buffer_translucent.count, 1);
