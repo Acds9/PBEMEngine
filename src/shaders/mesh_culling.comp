@@ -28,13 +28,13 @@ layout(constant_id = 1) const float Z_FAR = 10000.0;
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in; // CHECK THIS
 
 bool aabb_outside_plane(vec3 aabb_min, vec3 aabb_max, vec4 plane) {
-    // Find the "positive vertex" AKA the corner furthest in the direction of plane normal
+    // Find the corner furthest in the direction of plane normal
     vec3 p_vertex;
     p_vertex.x = (plane.x >= 0.0) ? aabb_max.x : aabb_min.x;
     p_vertex.y = (plane.y >= 0.0) ? aabb_max.y : aabb_min.y;
     p_vertex.z = (plane.z >= 0.0) ? aabb_max.z : aabb_min.z;
     
-    // If the positive vertex is behind the plane, entire AABB is outside
+    // If the positive vertex is behind the plane entire aabb is outside
     return (dot(plane.xyz, p_vertex) + plane.w) < 0.0;
 }
 

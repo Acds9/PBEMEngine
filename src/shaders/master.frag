@@ -44,16 +44,15 @@ vec3 ambient_color = vec3(.1f, .1f, .1f);
 vec4 sunlight_color = vec4(1.f, 1.f, 1.f, 0.f);
 
 float get_view_space_depth(float window_depth, float near, float far) {
-    // Vulkan NDC Z is [0,1], gl_FragCoord.z is already in window space [0,1]
     float ndc_z = window_depth;
     
-    // Linearize depth to view space (negative Z forward)
+    // Linearize depth to view space
     float view_z = (far * near) / (near - ndc_z * (near - far));
-    return view_z; // Return positive distance
+    return view_z;
 }
 
 float get_view_space_depth_reversed(float window_depth, float near, float far) {
-    // window_depth is [0,1] where 1.0 is near, 0.0 is far
+    // 1.0 is near, 0.0 is far
     // Convert to linear view space distance
     return far * near / (far + window_depth * (near - far));
 }
@@ -62,15 +61,14 @@ vec3 evaluate_point_light(Point_Light light, vec3 world_pos, vec3 normal) {
     vec3 light_dir = light.position - world_pos;
     float distance = length(light_dir);
     
-    // Outside radius? No contribution
+    // Outside radius = gone
     if (distance > light.radius) return vec3(0.0);
     
     light_dir = normalize(light_dir);
     
-    // Basic diffuse (N dot L)
+    // Basic diffuse, replace this
     float n_dot_l = max(dot(normal, light_dir), 0.0);
     
-    // Distance attenuation (inverse square with smooth falloff at radius)
     float attenuation = 1.0 - (distance / light.radius);
     attenuation = attenuation * attenuation; // Squared falloff
     
@@ -117,7 +115,7 @@ void main()
             
             // Sample textures using indices from material
             vec3 albedo = texture(sampler2D(textures[mat.albedo_image_index], samplers[0]), in_UV).rgb;
-            albedo *= mat.color_factors.rgb;  // Apply tint
+            albedo *= mat.color_factors.rgb; 
             
             vec3 final_color = albedo * lighting;
             
