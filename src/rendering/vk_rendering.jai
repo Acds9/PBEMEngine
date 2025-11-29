@@ -136,7 +136,7 @@ ZRenderer :: struct {
 		draw_commands_opaque			: Staged_Array_Buffer;
 		draw_commands_transparent		: Staged_Array_Buffer;
 		draw_commands_emissive			: Staged_Array_Buffer;
-		draw_commands_debug_point		: Staged_Array_Buffer;
+
 		draw_commands_debug_wireframe	: Staged_Array_Buffer;
 		
 
@@ -153,12 +153,6 @@ ZRenderer :: struct {
 
 			vkCmdFillBuffer(cmd, draw_commands_emissive.staging_buffer.buffer, 0, draw_commands_emissive.staging_buffer.info.size, 0);
 			vkCmdFillBuffer(cmd, draw_commands_emissive.device_buffer.buffer, 0, draw_commands_emissive.device_buffer.info.size, 0);
-
-			vkCmdFillBuffer(cmd, draw_commands_debug_point.staging_buffer.buffer, 0, draw_commands_debug_point.staging_buffer.info.size, 0);
-			vkCmdFillBuffer(cmd, draw_commands_debug_point.device_buffer.buffer, 0, draw_commands_debug_point.device_buffer.info.size, 0);
-
-			vkCmdFillBuffer(cmd, draw_commands_debug_wireframe.staging_buffer.buffer, 0, draw_commands_debug_wireframe.staging_buffer.info.size, 0);
-			vkCmdFillBuffer(cmd, draw_commands_debug_wireframe.device_buffer.buffer, 0, draw_commands_debug_wireframe.device_buffer.info.size, 0);
 		}
 	}
 
@@ -337,11 +331,6 @@ init_frames :: (zr: *ZRenderer) {
 																	zr.device, sprint("frame % draw commands emissive buffer", it_index));
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *frame.draw_commands_emissive);
 
-		frame.draw_commands_debug_point = make_staged_array_buffer(VMA_ALLOCATOR, DRAW_COMMAND_BUFFER_SIZE, size_of(Draw_Command), 
-																	.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
-																	zr.device, sprint("frame % draw commands point buffer", it_index));
-		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *frame.draw_commands_debug_point);
-
 		frame.draw_commands_debug_wireframe = make_staged_array_buffer(VMA_ALLOCATOR, DRAW_COMMAND_BUFFER_SIZE, size_of(Draw_Command), 
 																	.VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | .VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT,  
 																	zr.device, sprint("frame % draw commands wireframe buffer", it_index));
@@ -351,7 +340,6 @@ init_frames :: (zr: *ZRenderer) {
 			frame.draw_commands_opaque.device_buffer.base_address,	
 			frame.draw_commands_transparent.device_buffer.base_address,	
 			frame.draw_commands_emissive.device_buffer.base_address,	
-			frame.draw_commands_debug_point.device_buffer.base_address,	
 			frame.draw_commands_debug_wireframe.device_buffer.base_address,	
 		};
 		frame.bdab_draw_commands = make_staged_struct_buffer(VMA_ALLOCATOR, size_of(Draw_Command_Buffers), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, zr.device, sprint("frame % draw commands buffer", it_index));
@@ -401,14 +389,14 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 
 	begin_info := vkinit_command_buffer_begin_info();
 
+	frame_data.draw_commands_debug_wireframe.reset(*frame_data.draw_commands_debug_wireframe);
+	generate_debug_mesh_draws(zr, *frame_data.draw_commands_debug_wireframe);
+	
 	// Begin the command buffer to record commands, everything after this is command recording
     vkBeginCommandBuffer(cmd, *begin_info);
 	{
 		// Copy the staging buffers right at the start
 		transfer_buffers(zr, scene, cmd, current_frame);
-
-		debug_draw_counts := u32.[0];//generate_debug_draw_commands(zr, frame_data, cmd);
-		draw_counts := u32.[0];//generate_draw_commands(zr, scene, frame_data, cmd);
 
 		cluster_buffer := zr.light_compute_system.get_frame_buffer(*zr.light_compute_system, zr.current_frame);
 		light_bitfield := zr.light_compute_system.get_frame_light_bitfield(*zr.light_compute_system, zr.current_frame);
@@ -417,7 +405,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		vkCmdFillBuffer(cmd, cluster_buffer.buffer, 0, cluster_buffer.info.size, 0);
 		vkCmdFillBuffer(cmd, light_bitfield.buffer, 0, light_bitfield.info.size, 0);
 		frame_data.reset_frame_buffers(frame_data, cmd);
-
+		
 		// Barrier to make sure the zeroing is done
 		barrier := VkMemoryBarrier.{
 			sType = .VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -609,11 +597,12 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		depth_attachment.clearValue = depth_clear;
 
 		render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
-
+		
 		vkCmdBeginRendering(cmd, *render_info);
 		{
-		//	execute_debug_draw(zr, cmd, debug_draw_counts);
-			execute_draw(zr, scene, cmd, draw_counts);
+			draw_debug_points(zr, cmd);
+			draw_debug_meshes(zr, cmd);
+			execute_draw(zr, scene, cmd);
 		}
 		vkCmdEndRendering(cmd);
 
@@ -705,6 +694,7 @@ transfer_buffers :: (zr: *ZRenderer, scene: *ZScene, cmd: VkCommandBuffer, frame
 
 	zr.frames[frame].camera_buffer.transfer(*zr.frames[frame].camera_buffer, cmd);
 	zr.frames[frame].bdab_draw_commands.transfer(*zr.frames[frame].bdab_draw_commands, cmd);
+	zr.frames[frame].draw_commands_debug_wireframe.transfer(*zr.frames[frame].draw_commands_debug_wireframe, cmd);
 	
 	scene.mesh_instances.transfer(*scene.mesh_instances, cmd);
 	scene.mesh_transforms.transfer(*scene.mesh_transforms, cmd);
@@ -719,7 +709,7 @@ transfer_buffers :: (zr: *ZRenderer, scene: *ZScene, cmd: VkCommandBuffer, frame
     vkCmdPipelineBarrier(cmd, .VK_PIPELINE_STAGE_TRANSFER_BIT, .VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT , 0, 1, *barrier, 0, null, 0, null);
 }
 
-execute_draw :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer, draw_counts: []u32) {
+execute_draw :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer) {
 	frame_data := zr.get_current_frame_data(zr);
 	
 	// Set dynamic viewport and scissor
@@ -787,9 +777,42 @@ execute_draw :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer
 	vkCmdDrawIndexedIndirectCount(command_buffer, opaque_command_buffer, 4, opaque_command_buffer, 0, U16_MAX, size_of(Draw_Command));
 }
 
-execute_debug_draw :: (zr: *ZRenderer, command_buffer: VkCommandBuffer, draw_counts: []u32) {
-	// It's fine to duplicate this as it's just debug stuff
-	/*
+draw_debug_points :: (zr: *ZRenderer, command_buffer: VkCommandBuffer) {
+	frame_data := zr.get_current_frame_data(zr);
+
+	// Set dynamic viewport and scissor
+	viewport : VkViewport;
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = cast,no_check(float)zr.draw_extent.width;
+	viewport.height = cast,no_check(float)zr.draw_extent.height;
+	viewport.minDepth = 0;
+	viewport.maxDepth = 1;
+
+	vkCmdSetViewport(command_buffer, 0, 1, *viewport);
+
+	scissor : VkRect2D;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = zr.draw_extent.width;
+	scissor.extent.height = zr.draw_extent.height;
+
+	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
+
+	point_instances := *zr.debug_system.point_instances;
+	if point_instances.count > 0 {
+		push : Debug_Point_Push_Constants;
+		push.render_globals = zr.render_globals.device_buffer.base_address;
+		push.bda_vertex = point_instances.device_buffer.base_address;
+		push.bda_camera = frame_data.camera_buffer.device_buffer.base_address;
+		vkCmdPushConstants(command_buffer, zr.debug_system.m_debug_point.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Debug_Point_Push_Constants), *push);
+
+		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.debug_system.m_debug_point.pipeline);
+		vkCmdDraw(command_buffer, xx,no_check(point_instances.count), 1, 0, 0);
+	}
+}
+
+draw_debug_meshes :: (zr: *ZRenderer, command_buffer: VkCommandBuffer) {
 	frame_data := zr.get_current_frame_data(zr);
 	debug_system := *zr.debug_system;
 	
@@ -811,35 +834,25 @@ execute_debug_draw :: (zr: *ZRenderer, command_buffer: VkCommandBuffer, draw_cou
 
 	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
 
-	camera_data := cast,no_check(*Render_Camera.GPU_Camera_Data)frame_data.camera_buffer.info.pMappedData;
-	<<camera_data = zr.camera.gpu_data; 
-
 	vkCmdBindIndexBuffer(command_buffer, zr.geometry_pool.index_buffer.buffer, 0, .VK_INDEX_TYPE_UINT32);
 	
-	if draw_counts[DEBUG_SHAPE.MESH] > 0 {
-		push : Draw_Push_Constants;
+	mesh_count := debug_system.mesh_instances.count;
+	
+	if mesh_count > 0 {
+		push : Debug_Mesh_Push_Constants;
 		push.render_globals = zr.render_globals.device_buffer.base_address;
-        push.draw_address = frame_data.draw_commands_debug_wireframe.device_buffer.base_address;
-        push.camera_data_address = frame_data.camera_buffer.base_address;
-        push.material_address = debug_system.mesh_material_instances.device_buffer.base_address;
-        
-        vkCmdPushConstants(command_buffer, zr.debug_system.m_debug_wireframe.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Draw_Push_Constants), *push);
+        push.bda_draw = frame_data.draw_commands_debug_wireframe.device_buffer.base_address;
+		push.bda_vertex = zr.geometry_pool.vertex_buffer.base_address;
+		push.bda_transform = zr.debug_system.mesh_transforms.device_buffer.base_address;
+		push.bda_camera = frame_data.camera_buffer.device_buffer.base_address;
+		push.bda_materials = debug_system.mesh_material_instances.device_buffer.base_address;
+       
+        vkCmdPushConstants(command_buffer, zr.debug_system.m_debug_wireframe.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Debug_Mesh_Push_Constants), *push);
 
         vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.debug_system.m_debug_wireframe.pipeline);
-        vkCmdDrawIndexedIndirect(command_buffer, frame_data.draw_commands_debug_wireframe.device_buffer.buffer, 0, draw_counts[DEBUG_SHAPE.MESH], size_of(Draw_Command));
+		
+        vkCmdDrawIndexedIndirect(command_buffer, frame_data.draw_commands_debug_wireframe.device_buffer.buffer, 0, frame_data.draw_commands_debug_wireframe.count, size_of(Draw_Command));
     }
-	
-	point_instances := *zr.debug_system.point_instances;
-	if point_instances.count > 0 {
-		push : Debug_Draw_Push_Constants;
-		push.render_globals = zr.render_globals.device_buffer.base_address;
-		push.vertex_address = point_instances.device_buffer.base_address;
-		push.camera_data_address = frame_data.camera_buffer.base_address;
-		vkCmdPushConstants(command_buffer, zr.debug_system.m_debug_point.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Debug_Draw_Push_Constants), *push);
-
-		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.debug_system.m_debug_point.pipeline);
-		vkCmdDraw(command_buffer, xx,no_check(point_instances.count), 1, 0, 0);
-	}*/
 }
 
 update_scene :: (zr: *ZRenderer) {

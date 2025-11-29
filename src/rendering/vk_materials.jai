@@ -36,7 +36,7 @@ Material_Pipeline_Debug_Point :: struct {
 		
 		matrix_range : VkPushConstantRange;
 		matrix_range.offset = 0;
-		matrix_range.size = size_of(Debug_Draw_Push_Constants);
+		matrix_range.size = size_of(Debug_Point_Push_Constants);
 		matrix_range.stageFlags = .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT;
 
 		mesh_layout_info : VkPipelineLayoutCreateInfo = vkinit_pipeline_layout_create_info();

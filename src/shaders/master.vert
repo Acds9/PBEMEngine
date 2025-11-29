@@ -32,7 +32,7 @@ void main() {
     Vertex_Buffer vertex_buffer = Vertex_Buffer(push_constants.bda_vertices);
     Vertex v = vertex_buffer.vertices[gl_VertexIndex];
 
-    Flattened_Transform_Buffer transform_buffer = Flattened_Transform_Buffer(push_constants.bda_transforms);
+    Flattened_Transform_Buffer transform_buffer = Flattened_Transform_Buffer(push_constants.bda_flattened_transforms);
     mat4 world_matrix = transform_buffer.transforms[draw.idx_transform];
 
     Camera_Data camera = Camera_Data(push_constants.bda_camera);

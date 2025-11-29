@@ -102,6 +102,5 @@ layout(buffer_reference, scalar) readonly buffer Draw_Address_Buffer {
     uint64_t bda_command_buffer_opaque;
     uint64_t bda_command_buffer_translucent;
     uint64_t bda_command_buffer_emissive;
-    uint64_t bda_commands_debug_point;
     uint64_t bda_commands_debug_wireframe;
 };

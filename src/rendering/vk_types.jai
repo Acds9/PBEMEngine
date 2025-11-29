@@ -307,10 +307,18 @@ Draw_Push_Constants :: struct {
 	point_lights_count				: u32;
 }
 
-Debug_Draw_Push_Constants :: struct {
+Debug_Point_Push_Constants :: struct {
 	render_globals		: VkDeviceAddress;
 	bda_vertex			: VkDeviceAddress;
+	bda_camera			: VkDeviceAddress;
+}
+
+Debug_Mesh_Push_Constants :: struct {
+	render_globals		: VkDeviceAddress;
+	bda_draw			: VkDeviceAddress;
+	bda_vertex			: VkDeviceAddress;
 	bda_transform		: VkDeviceAddress;
+	bda_materials		: VkDeviceAddress;
 	bda_camera			: VkDeviceAddress;
 }
 
@@ -342,7 +350,6 @@ Draw_Command_Buffers :: struct {
 	bda_command_buffer_opaque 		: VkDeviceAddress;
 	bda_command_buffer_translucent	: VkDeviceAddress;
 	bda_command_buffer_emissive 	: VkDeviceAddress;
-	bda_commands_debug_point		: VkDeviceAddress;
 	bda_commands_debug_wireframe	: VkDeviceAddress;
 }
 

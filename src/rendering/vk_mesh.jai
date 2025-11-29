@@ -243,7 +243,6 @@ load_glt_mesh :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 		if new_mesh.geo_surface_count > MAX_GEO_SURFACES {
 			panic(sprint("Attempted to load mesh with more than MAX_GEO_SURFACES (currently %), either don't or increase MAX_GEO_SURFACES", MAX_GEO_SURFACES));
 		}
-
 		array_reset(*indices);
 		array_reset(*vertices);
 	}

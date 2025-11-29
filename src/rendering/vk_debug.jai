@@ -61,6 +61,31 @@ create_debug_system :: (allocator: VmaAllocator, device: VkDevice) -> Debug_Syst
 	return system;
 }
 
+generate_debug_mesh_draws :: (zr: *ZRenderer, draw_buffer: *Staged_Array_Buffer) {
+	count := zr.debug_system.mesh_instances.count;
+
+	mapped_data := cast,no_check(*Mesh_Instance)zr.debug_system.mesh_instances.staging_buffer.info.pMappedData;
+	for 0..count-1 {
+		mesh_instance : *Mesh_Instance = *mapped_data[it];
+		geo_surface_data := cast,no_check(*Geo_Surface)zr.geometry_pool.geo_surface_buffer.staging_buffer.info.pMappedData;
+		for 0..mesh_instance.geo_surface_count-1 {
+			geo_surface := *geo_surface_data[mesh_instance.idx_geo_surface + it];
+		
+			command : Draw_Command;
+			command.draw.indexCount = geo_surface.index_count;
+			command.draw.instanceCount = 1;
+			command.draw.firstIndex = geo_surface.idx_index;
+			command.draw.vertexOffset = xx,no_check geo_surface.idx_vertex;
+			command.draw.firstInstance = 0;
+			command.idx_transform = mesh_instance.idx_transform;
+			command.idx_material_instance = mesh_instance.material_overrides[it];
+			
+			draw_buffer.allocate(draw_buffer, command);
+		}
+		
+	}
+}
+
 Debug_Point :: struct {
 	color		: Vector4;
 	position	: Vector3;

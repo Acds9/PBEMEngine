@@ -8,31 +8,37 @@
 #include "common_types.glsl"
 #include "debug_types.glsl"
 
-layout(push_constant, scalar) uniform Debug_Wireframe_Push_Constants {
-    uint64_t render_globals_address;
-    uint64_t draw_buffer_address;
-    uint64_t camera_data_address;
-    uint64_t material_buffer_address;
+layout(push_constant, scalar) uniform Debug_Mesh_Push_Constants {
+    uint64_t render_globals;
+    uint64_t bda_draw;
+    uint64_t bda_vertex;
+    uint64_t bda_transform;
+    uint64_t bda_material;
+    uint64_t bda_camera;
 } push_constants;
 
 layout (location = 0) flat out uint out_material_index;
 
+layout(buffer_reference, scalar) buffer Debug_Draw_Command_Buffer {
+    Draw_Command commands[];
+};
+
 void main() {
-    Indexed_Indirect_Buffer draw_buffer = Indexed_Indirect_Buffer(push_constants.draw_buffer_address);
+    Debug_Draw_Command_Buffer draw_buffer = Debug_Draw_Command_Buffer(push_constants.bda_draw);
     Draw_Command draw = draw_buffer.commands[gl_DrawID];
 
-    Vertex_Buffer vertex_buffer = Vertex_Buffer(draw.vertex_address);
+    Vertex_Buffer vertex_buffer = Vertex_Buffer(push_constants.bda_vertex);
     Vertex v = vertex_buffer.vertices[gl_VertexIndex];
 
-    Transform_Buffer transform_buffer = Transform_Buffer(draw.transform_address);
-    Transform transform = transform_buffer.transforms[0];
-    mat4 world_matrix = transform.transform; // Need to actually calc this one from parents, do it in CPU side
+    Transform_Buffer transform_buffer = Transform_Buffer(push_constants.bda_transform);
+    Transform transform = transform_buffer.transforms[draw.idx_transform];
+    mat4 world_matrix = transform.transform; 
 
-    Camera_Data camera = Camera_Data(push_constants.camera_data_address);
+    Camera_Data camera = Camera_Data(push_constants.bda_camera);
 
     vec4 position = vec4(v.position, 1.0);
     vec4 world_pos = world_matrix * position;
 
-    out_material_index = draw.material_instance;
+    out_material_index = draw.idx_material_instance;
     gl_Position = camera.view_proj * world_matrix * vec4(v.position, 1.0);
 }

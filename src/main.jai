@@ -119,7 +119,6 @@ game_update_camera :: (using state: *Game_State) {
 current_position : Vector3;
 game_tick :: (using state: *Game_State) {
 	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
-	debug_draw_sphere(*ZRENDERER, .{0,0,0}, 16, .{1,0,0,1});
 	/*{
 		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
 			for *pos: position_array {
@@ -145,7 +144,7 @@ game_tick :: (using state: *Game_State) {
 				render_set_transform(*GAME_STATE.scene, idx, *matrix);
 			}
 		});
-	}/*
+	}
 	{
 		execute_Query_Debug_Draw_Point_Light(*GAME_STATE.world, #code {
 			for *pos: position_array {
@@ -153,10 +152,9 @@ game_tick :: (using state: *Game_State) {
 				position	:= *position_array[it_index].pos;
 				debug_draw_point(*ZRENDERER, position, 5, point_light.color); 
 				debug_draw_sphere(*ZRENDERER, position, point_light.radius, point_light.color);
-				
 			}
 		});
-	}*/
+	}
 	
 	tick_world(*world, delta_time);
 }
