@@ -188,7 +188,7 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 								SDL_WINDOWPOS_UNDEFINED, 
 								xx WINDOW_WIDTH, 
 								xx WINDOW_HEIGHT, 
-								SDL_WINDOW_VULKAN|SDL_WINDOW_RESIZABLE);
+								SDL_WINDOW_VULKAN);
     if zr.window == null {
         return false, sprint("Could not create window: %\n", to_string(SDL_GetError()));
     }

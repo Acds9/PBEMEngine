@@ -78,10 +78,7 @@ game_handle_input :: (using state: *Game_State, event: *SDL_Event) {
 		case SDL_KEYUP;
 			if event.key.keysym.sym == SDLK_ESCAPE quit = true;
 		case SDL_WINDOWEVENT;
-			if event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED {
-				ZRENDERER.framebuffer_resized = true;
-			}
-			else if event.window.event == SDL_WINDOWEVENT_MINIMIZED {
+			if event.window.event == SDL_WINDOWEVENT_MINIMIZED {
 				ZRENDERER.minimized = true;
 			}
 			else if event.window.event == SDL_WINDOWEVENT_RESTORED {
