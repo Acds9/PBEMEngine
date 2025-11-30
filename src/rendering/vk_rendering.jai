@@ -63,6 +63,7 @@ ZRenderer :: struct {
     swapchain_framebuffers	: [..]VkFramebuffer;
     
     // Render targets
+	render_target_format 	: VkFormat;
     draw_image            	: Allocated_Image; // This is what we actually draw to, we then blit it onto the swapchain image
     draw_extent           	: VkExtent2D;
     depth_image           	: Allocated_Image;
@@ -73,6 +74,10 @@ ZRenderer :: struct {
 
     mesh_pipeline_layout  	: VkPipelineLayout;
     mesh_pipeline         	: VkPipeline;
+
+	// Panini
+	panini_image			: Allocated_Image;
+	m_pp_panini				: Post_Process_Pipeline_Panini;
     
     // Descriptor Buffers
 	image_array_layout		: VkDescriptorSetLayout;
@@ -282,6 +287,7 @@ init_pipelines :: (zr: *ZRenderer) -> bool, string {
 	zr.debug_system.m_debug_point.build(*zr.debug_system.m_debug_point, zr);
 	zr.debug_system.m_debug_wireframe.build(*zr.debug_system.m_debug_wireframe, zr);
 	zr.m_opaque.build(*zr.m_opaque, zr);
+	zr.m_pp_panini.build(*zr.m_pp_panini, zr);
 	return true, "";
 }
 
@@ -606,13 +612,27 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		}
 		vkCmdEndRendering(cmd);
 
+		// Transition to read mode for panini projection post process
+		vkutil_transition_image(cmd, zr.draw_image.image, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
+		// And the panini image to color attachment from the transfer src last frame
+		vkutil_transition_image(cmd, zr.panini_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
+
+		panini_color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.panini_image.image_view, *clear_value, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		panini_render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *panini_color_attachment, null);
+
+		vkCmdBeginRendering(cmd, *panini_render_info);
+		{
+			apply_panini_pp(zr, cmd);
+		}
+		vkCmdEndRendering(cmd);
+
 		// Transition the draw image to be copied FROM
-		vkutil_transition_image(cmd, zr.draw_image.image, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
+		vkutil_transition_image(cmd, zr.panini_image.image, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 		// Transition the swapchain image to be copied INTO
 		vkutil_transition_image(cmd, zr.swapchain_images[image_idx], .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 
 		// Execute a copy from the draw image into the swapchain with blitting
-		vkutil_blit_copy_image_image(cmd, zr.draw_image.image, zr.swapchain_images[image_idx], zr.draw_extent, zr.swapchain_extent);
+		vkutil_blit_copy_image_image(cmd, zr.panini_image.image, zr.swapchain_images[image_idx], zr.draw_extent, zr.swapchain_extent);
 
 		// Set the swapchain image layout to be presented to the surface (AKA the window)
 		vkutil_transition_image(cmd, zr.swapchain_images[image_idx], .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .VK_IMAGE_ASPECT_COLOR_BIT);
@@ -853,6 +873,40 @@ draw_debug_meshes :: (zr: *ZRenderer, command_buffer: VkCommandBuffer) {
 		
         vkCmdDrawIndexedIndirect(command_buffer, frame_data.draw_commands_debug_wireframe.device_buffer.buffer, 0, frame_data.draw_commands_debug_wireframe.count, size_of(Draw_Command));
     }
+}
+
+apply_panini_pp :: (zr: *ZRenderer, cmd: VkCommandBuffer) {
+	viewport : VkViewport;
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = cast,no_check(float)zr.draw_extent.width;
+	viewport.height = cast,no_check(float)zr.draw_extent.height;
+	viewport.minDepth = 0;
+	viewport.maxDepth = 1;
+
+	vkCmdSetViewport(cmd, 0, 1, *viewport);
+
+	scissor : VkRect2D;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = zr.draw_extent.width;
+	scissor.extent.height = zr.draw_extent.height;
+
+	vkCmdSetScissor(cmd, 0, 1, *scissor);
+
+	vkCmdBindPipeline(cmd, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.m_pp_panini.pipeline);
+
+	push: Panini_Push_Constants;
+    push.fov = zr.camera.fov;
+    push.d = 0.5;  
+    push.s = 0.0;
+    push.aspect = cast(float)zr.draw_extent.width / cast(float)zr.draw_extent.height;
+    push.draw_image_idx = zr.draw_image.image_index;  
+	push.sampler_idx = zr.sampler_nearest_index;  
+    
+    vkCmdPushConstants(cmd, zr.m_pp_panini.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Panini_Push_Constants), *push);
+    
+    vkCmdDraw(cmd, 3, 1, 0, 0);
 }
 
 update_scene :: (zr: *ZRenderer) {

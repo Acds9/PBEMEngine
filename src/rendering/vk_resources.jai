@@ -162,6 +162,13 @@ generate_default_images :: (zr: *ZRenderer) {
 	error_checkerboard.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, error_checkerboard.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	error_checkerboard.image_name = "error_image";
 	table_add(*zr.image_table, error_checkerboard.image_name, error_checkerboard);
+
+	zr.draw_image.image_index = xx zr.descriptor_writer.write_image(
+        *zr.descriptor_writer, 
+        *zr.image_descriptor_buffer, 
+        zr.draw_image.image_view, 
+        .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    );
 }
 
 create_default_samplers :: (zr: *ZRenderer) {

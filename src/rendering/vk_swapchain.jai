@@ -143,15 +143,21 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 	draw_image_extent.height = chosen_extent.height;
 	draw_image_extent.depth = 1;
 
-	// 32bit float
-	zr.draw_image.image_format = .VK_FORMAT_R16G16B16A16_SFLOAT;
+	// For future HDR
+	zr.render_target_format = .VK_FORMAT_R16G16B16A16_SFLOAT;
+	zr.draw_image.image_format = zr.render_target_format;
+	zr.panini_image.image_format = zr.render_target_format;
+
 	zr.draw_image.image_extent = draw_image_extent;
+	zr.panini_image.image_extent = draw_image_extent;
+
 
 	draw_image_usage_flags : VkImageUsageFlags;
 	draw_image_usage_flags |= .VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 	draw_image_usage_flags |= .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	draw_image_usage_flags |= .VK_IMAGE_USAGE_STORAGE_BIT;
 	draw_image_usage_flags |= .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	draw_image_usage_flags |= .VK_IMAGE_USAGE_SAMPLED_BIT;
 
 	rimg_create_info : VkImageCreateInfo = vkinit_image_create_info(zr.draw_image.image_format, draw_image_usage_flags, draw_image_extent);
 
@@ -178,9 +184,37 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 		return false, sprint("%\n", result);
 	}
 
+	// Create panini image
+	panini_image_usage_flags : VkImageUsageFlags;
+	panini_image_usage_flags |= .VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	panini_image_usage_flags |= .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	panini_image_usage_flags |= .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	panini_image_usage_flags |= .VK_IMAGE_USAGE_SAMPLED_BIT;
+
+	panini_image_create_info : VkImageCreateInfo = vkinit_image_create_info(zr.panini_image.image_format, panini_image_usage_flags, draw_image_extent);
+
+	panini_alloc_info : VmaAllocationCreateInfo;
+	panini_alloc_info.usage = .VMA_MEMORY_USAGE_GPU_ONLY;
+	panini_alloc_info.requiredFlags = .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+	result = vmaCreateImage(VMA_ALLOCATOR, *panini_image_create_info, *panini_alloc_info, *zr.panini_image.image, *zr.panini_image.allocation, null);
+	if result != .VK_SUCCESS {
+		return false, sprint("%\n", result);
+	}
+
+	panini_view_info : VkImageViewCreateInfo = vkinit_imageview_create_info(zr.panini_image.image_format, zr.panini_image.image, .VK_IMAGE_ASPECT_COLOR_BIT);
+
+	result = vkCreateImageView(zr.device, *panini_view_info, null, *zr.panini_image.image_view);
+	if result != .VK_SUCCESS {
+		return false, sprint("%\n", result);
+	}
+
 	if(ENABLE_VALIDATION_LAYERS) {
 		set_vk_object_name(zr.device, .IMAGE, cast(u64)zr.draw_image.image, "Draw Image");
 		set_vk_object_name(zr.device, .IMAGE_VIEW, cast(u64)zr.draw_image.image_view, "Draw Image View");
+
+		set_vk_object_name(zr.device, .IMAGE, cast(u64)zr.panini_image.image, "Panini Image");
+		set_vk_object_name(zr.device, .IMAGE_VIEW, cast(u64)zr.panini_image.image_view, "Panini Image View");
 	}
 
 	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.draw_image.image_view);
@@ -209,6 +243,9 @@ init_swapchain :: (zr: *ZRenderer) -> bool, string {
 
 	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.depth_image.image_view);
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.depth_image.image, zr.depth_image.allocation);
+
+	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.panini_image.image_view);
+	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, zr.panini_image.image, zr.panini_image.allocation);
 
 	return true, "";
 }
