@@ -294,7 +294,11 @@ create_image :: (zr: *ZRenderer, size: VkExtent3D, format: VkFormat, usage: VkIm
 }
 
 create_image :: (zr: *ZRenderer, data: *void, size: VkExtent3D, format: VkFormat, usage: VkImageUsageFlags, mip_mapped : bool = false, mip_levels : u32 = 0, name: string = "") -> Allocated_Image {
-	data_size := size.width * size.height * size.depth * 16;
+	pixel_size := get_pixel_format_size(format);
+	if pixel_size < 1 {
+		panic("Pixel format size not found, add it to get_pixel_format_size or don't use it");
+	}
+	data_size := size.width * size.height * size.depth * xx,no_check pixel_size;
 	upload_buffer : Allocated_Buffer = create_buffer(VMA_ALLOCATOR, data_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .VMA_MEMORY_USAGE_CPU_TO_GPU, zr.device, "Temp Buffer");
 
 	memcpy(upload_buffer.info.pMappedData, data, data_size);

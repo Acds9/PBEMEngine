@@ -19,6 +19,18 @@ KTX2 :: struct {
 	}
 }
 
+get_pixel_format_size :: (format: VkFormat) -> s32 {
+	if format == {
+		case .VK_FORMAT_R8G8B8A8_UNORM; {
+			return 4;
+		}
+		case .VK_FORMAT_R32G32B32A32_SFLOAT; {
+			return 16;
+		}
+		case; return -1;
+	} 
+}
+
 load_image :: (zr: *ZRenderer, file_path: string) -> *Allocated_Image {
 	new_image := import_KTX2(zr, file_path);
 	new_image.image_index = xx zr.descriptor_writer.write_image(*zr.descriptor_writer, *zr.image_descriptor_buffer, new_image.image_view, .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);

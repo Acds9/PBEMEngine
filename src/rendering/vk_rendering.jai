@@ -3,7 +3,6 @@
 #import "SDL";
 #import "Flat_Pool";
 #import "Hash_Table";
-ImGui :: #import "ImGui";
 
 SDL_Vulkan_GetInstanceExtensions :: (window : *SDL_Window, num_extensions : *u32, extensions : **u8) -> SDL_bool #foreign SDL2;
 SDL_Vulkan_CreateSurface :: (window : *SDL_Window, instance : VkInstance, surface : *VkSurfaceKHR) -> SDL_bool #foreign SDL2;
@@ -31,7 +30,7 @@ ZRenderer :: struct {
     
     // Window & surface
     window                 	: *SDL_Window;
-    window_extents         	: VkExtent2D;
+    window_extents         	: VkExtent2D; // This isn't used right now, remove?
     surface                	: VkSurfaceKHR;
     
     // Resize handling
@@ -97,6 +96,9 @@ ZRenderer :: struct {
     immediate_command_pool  : VkCommandPool;
     immediate_command_buffer: VkCommandBuffer;
     immediate_fence         : VkFence;
+
+	// ImGui
+	imgui_system			: ImGui_System;
 
     // Mesh data
     mesh_pool            	: Flat_Pool;
@@ -243,7 +245,6 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	// TODO: need to load all meshes
 	
 	
-
 	generate_default_images(zr);
 	create_default_samplers(zr);
 	create_default_materials(zr);
@@ -255,6 +256,8 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *zr.render_globals);
 	rg := Render_Globals.{ zr.swapchain_extent.width, zr.swapchain_extent.height};
 	zr.render_globals.allocate(*zr.render_globals, rg);
+
+	initialize_imgui(*zr.imgui_system, zr);
 
 	zr.initialized = true;
 	return true, "";
@@ -397,7 +400,11 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 
 	frame_data.draw_commands_debug_wireframe.reset(*frame_data.draw_commands_debug_wireframe);
 	generate_debug_mesh_draws(zr, *frame_data.draw_commands_debug_wireframe);
-	
+
+	ImGui.ShowDemoWindow();
+	ImGui.Render();
+
+	imgui_populate_buffers(*zr.imgui_system, zr);
 	// Begin the command buffer to record commands, everything after this is command recording
     vkBeginCommandBuffer(cmd, *begin_info);
 	{
@@ -620,12 +627,14 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		panini_color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.panini_image.image_view, *clear_value, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 		panini_render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *panini_color_attachment, null);
 
+		// Post process rendering
 		vkCmdBeginRendering(cmd, *panini_render_info);
 		{
 			apply_panini_pp(zr, cmd);
+			imgui_draw(*zr.imgui_system, zr, cmd);
 		}
 		vkCmdEndRendering(cmd);
-
+		
 		// Transition the draw image to be copied FROM
 		vkutil_transition_image(cmd, zr.panini_image.image, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 		// Transition the swapchain image to be copied INTO
@@ -711,6 +720,7 @@ transfer_buffers :: (zr: *ZRenderer, scene: *ZScene, cmd: VkCommandBuffer, frame
 	zr.debug_system.transfer(*zr.debug_system, cmd);
 	zr.render_globals.transfer(*zr.render_globals, cmd);
 	zr.geometry_pool.transfer(*zr.geometry_pool, cmd);
+	imgui_transfer_buffers(*zr.imgui_system, cmd);
 
 	zr.frames[frame].camera_buffer.transfer(*zr.frames[frame].camera_buffer, cmd);
 	zr.frames[frame].bdab_draw_commands.transfer(*zr.frames[frame].bdab_draw_commands, cmd);

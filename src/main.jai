@@ -15,8 +15,11 @@ Game_State :: struct {
     last_counter: u64;
     delta_time: float64;
     fps: u32;
+
+	mouse_mode : bool;
 }
 
+GAME_STATE : Game_State;
 
 
 WINDOW_WIDTH 	:= 1920;
@@ -28,7 +31,7 @@ VMA_ALLOCATOR 			: VmaAllocator;
 GLOBAL_DELETION_QUEUE 	: Deletion_Queue;
 
 MOUSELOOK_SENSITIVITY	: float = 1;
-CAMERA_MOVESPEED		: float = 0.1;
+CAMERA_MOVESPEED		: float = 10;
 
 game_init :: (using state: *Game_State) -> bool {
 	init_zworld(*world);
@@ -85,6 +88,9 @@ game_handle_input :: (using state: *Game_State, event: *SDL_Event) {
 				ZRENDERER.minimized = false;
 			}
 		case SDL_MOUSEMOTION;
+			if mouse_mode {
+				return;
+			}
 			delta_x := cast,no_check(float) event.motion.xrel;
 			delta_y := -cast,no_check(float) event.motion.yrel;
 
@@ -93,6 +99,7 @@ game_handle_input :: (using state: *Game_State, event: *SDL_Event) {
 			delta_pitch := make_rotor(.{0, 1, 0}, -delta_y * sensitivity);
 
 			ZRENDERER.camera.rotation = normalize(delta_yaw * ZRENDERER.camera.rotation * delta_pitch);
+		//case SDL
 	}
 }
 
@@ -100,16 +107,16 @@ game_update_camera :: (using state: *Game_State) {
     keyboard_state := SDL_GetKeyboardState(null);
     
     if keyboard_state[SDL_SCANCODE_W] {
-        ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.forward * CAMERA_MOVESPEED);
+        ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.forward * CAMERA_MOVESPEED * delta_time);
     }
     else if keyboard_state[SDL_SCANCODE_S] {
-        ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.forward * -CAMERA_MOVESPEED);
+        ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.forward * -CAMERA_MOVESPEED * delta_time);
     }
     if keyboard_state[SDL_SCANCODE_D] {
-        ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.right * CAMERA_MOVESPEED);
+        ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.right * CAMERA_MOVESPEED * delta_time);
     }
     else if keyboard_state[SDL_SCANCODE_A] {
-        ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.right * -CAMERA_MOVESPEED);
+        ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.right * -CAMERA_MOVESPEED * delta_time);
     }
 }
 
@@ -175,8 +182,6 @@ game_shutdown :: (using state: *Game_State) {
     // Add world cleanup later
 }
 
-GAME_STATE : Game_State;
-
 main :: () {
     if !game_init(*GAME_STATE) {
         return;
@@ -189,6 +194,9 @@ main :: () {
                           cast,no_check(float64)GAME_STATE.frequency;
         GAME_STATE.fps = cast,no_check(u32)(1 / GAME_STATE.delta_time);
         GAME_STATE.last_counter = current_counter;
+
+		imgui_begin_frame(.{xx,no_check ZRENDERER.draw_extent.width, xx,no_check ZRENDERER.draw_extent.height});
+		
         
         // Process input
         while SDL_PollEvent(*event) {

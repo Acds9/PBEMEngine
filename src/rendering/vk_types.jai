@@ -351,5 +351,4 @@ Draw_Command_Buffers :: struct {
 	bda_command_buffer_translucent	: VkDeviceAddress;
 	bda_command_buffer_emissive 	: VkDeviceAddress;
 	bda_commands_debug_wireframe	: VkDeviceAddress;
-}
-
+} 
