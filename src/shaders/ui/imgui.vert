@@ -14,7 +14,7 @@ layout(buffer_reference, scalar) readonly buffer VertexBuffer {
 layout(push_constant) uniform PushConstants {
     vec2 scale;
     vec2 translate;
-    uint64_t vertex_buffer_addr;
+    uint64_t bda_vertex;
     uint texture_index;
 };
 
@@ -22,7 +22,7 @@ layout(location = 0) out vec2 frag_uv;
 layout(location = 1) out vec4 frag_color;
 
 void main() {
-    VertexBuffer buf = VertexBuffer(vertex_buffer_addr);
+    VertexBuffer buf = VertexBuffer(bda_vertex);
     uint base = gl_VertexIndex * 5;  // 20 bytes = 5 floats
     
     vec2 pos = vec2(buf.data[base + 0], buf.data[base + 1]);

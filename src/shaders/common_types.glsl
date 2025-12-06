@@ -3,6 +3,7 @@ uint UINT_MAX = 0xFFFFFFFF;
 layout(buffer_reference, scalar) readonly buffer Render_Globals {
 	uint resolution_x;
     uint resolution_y;
+    bool enable_panini;
 };
 
 layout(buffer_reference, scalar) readonly buffer Camera_Data {

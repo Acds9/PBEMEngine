@@ -7,6 +7,7 @@
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_nonuniform_qualifier : require
 
+#include "../common_types.glsl"
 
 layout(set = 0, binding = 0) uniform texture2D textures[];
 layout(set = 1, binding = 0) uniform sampler samplers[];
@@ -25,8 +26,10 @@ layout(location = 0) in vec2 in_UV;
 layout (location = 0) out vec4 out_color;
 
 void main() {
+  
     float d = push_constants.d;
     float s = push_constants.s;
+
     // Convert UV to normalized device coords [-1, 1]
     vec2 ndc = in_UV * 2.0 - 1.0;
     

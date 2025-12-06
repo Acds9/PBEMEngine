@@ -6,7 +6,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types : require  
 #extension GL_EXT_scalar_block_layout : require
 
-#include "common_types.glsl"
+#include "../common_types.glsl"
 
 layout(push_constant, scalar) uniform Panini_Push_Constants {
     float fov;

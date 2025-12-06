@@ -129,9 +129,25 @@ imgui_begin_frame :: (extents: Vector2) {
 	ImGui.NewFrame();
 }
 
+imgui_tick :: (state: *Game_State) {
+	if !state.imgui_mode {
+		return;
+	}
+
+	using ImGui;
+	CollapsingHeader("Rendering");
+	{
+		if CollapsingHeader("Panini Projection") {
+
+			SliderFloat("Strength", *ZRENDERER.panini_parameters.strength, 0, 1);
+			SliderFloat("Vertical Squeeze", *ZRENDERER.panini_parameters.squeeze, 0, 1);
+		}
+		
+	}
+
+}
+
 imgui_populate_buffers :: (using self: *ImGui_System, zr: *ZRenderer) {
-	
-	
 	vertex_buffer.reset(*vertex_buffer);
     index_buffer.reset(*index_buffer);
     
@@ -237,4 +253,39 @@ imgui_draw :: (using self: *ImGui_System, zr: *ZRenderer, cmd: VkCommandBuffer) 
 imgui_transfer_buffers :: (using self: *ImGui_System, cmd: VkCommandBuffer) {
 	vertex_buffer.transfer(*vertex_buffer, cmd);
 	index_buffer.transfer(*index_buffer, cmd);
+}
+
+imgui_process_SDL_event :: (event: *SDL_Event) {
+    io := ImGui.GetIO();
+
+    if event.type == {
+        case SDL_MOUSEMOTION;
+            io.MousePos = ImGui.ImVec2.{xx event.motion.x, xx event.motion.y};
+            
+        case SDL_MOUSEBUTTONDOWN;
+            if event.button.button == SDL_BUTTON_LEFT   io.MouseDown[0] = true;
+            if event.button.button == SDL_BUTTON_RIGHT  io.MouseDown[1] = true;
+            if event.button.button == SDL_BUTTON_MIDDLE io.MouseDown[2] = true;
+            
+        case SDL_MOUSEBUTTONUP;
+            if event.button.button == SDL_BUTTON_LEFT   io.MouseDown[0] = false;
+            if event.button.button == SDL_BUTTON_RIGHT  io.MouseDown[1] = false;
+            if event.button.button == SDL_BUTTON_MIDDLE io.MouseDown[2] = false;
+            
+        case SDL_MOUSEWHEEL;
+            io.MouseWheel = xx event.wheel.y;
+            
+        case SDL_TEXTINPUT;
+            io.AddInputCharactersUTF8(io, xx, no_check event.text.text.data);
+            
+        case SDL_KEYDOWN; #through;
+        case SDL_KEYUP;
+            key := event.key.keysym.scancode;
+            io.KeysDown[key] = (event.type == SDL_KEYDOWN);
+            
+            mods := SDL_GetModState();
+            io.KeyCtrl  = (mods & KMOD_CTRL) != 0;
+            io.KeyShift = (mods & KMOD_SHIFT) != 0;
+            io.KeyAlt   = (mods & KMOD_ALT) != 0;
+    }
 }

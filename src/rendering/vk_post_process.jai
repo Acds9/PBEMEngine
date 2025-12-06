@@ -7,6 +7,11 @@ Panini_Push_Constants :: struct {
 	sampler_idx     : u32;
 }
 
+Panini_Parameters :: struct {
+	strength 	: float = 0.5;
+	squeeze		: float = 0;
+}
+
 Post_Process_Pipeline_Panini :: struct {
 	pipeline 	: VkPipeline;
 	layout		: VkPipelineLayout;
@@ -73,4 +78,9 @@ Post_Process_Pipeline_Panini :: struct {
 		vkDestroyShaderModule(zr.device, panini_shader_vert, null);
 		vkDestroyShaderModule(zr.device, panini_shader_frag, null);
 	}
+}
+
+set_panini :: (zr: *ZRenderer, enable: bool) {
+	rg := cast,no_check(*Render_Globals)zr.render_globals.staging_buffer.info.pMappedData;
+	rg.enable_panini = enable;
 }

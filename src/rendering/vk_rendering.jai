@@ -77,6 +77,7 @@ ZRenderer :: struct {
 	// Panini
 	panini_image			: Allocated_Image;
 	m_pp_panini				: Post_Process_Pipeline_Panini;
+	panini_parameters		: Panini_Parameters;
     
     // Descriptor Buffers
 	image_array_layout		: VkDescriptorSetLayout;
@@ -254,7 +255,7 @@ init_zrenderer :: (zr: *ZRenderer) -> bool, string {
 
 	zr.render_globals = make_staged_struct_buffer(VMA_ALLOCATOR, size_of(Render_Globals), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, zr.device, "render globals buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *zr.render_globals);
-	rg := Render_Globals.{ zr.swapchain_extent.width, zr.swapchain_extent.height};
+	rg := Render_Globals.{ zr.swapchain_extent.width, zr.swapchain_extent.height, false};
 	zr.render_globals.allocate(*zr.render_globals, rg);
 
 	initialize_imgui(*zr.imgui_system, zr);
@@ -401,9 +402,8 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	frame_data.draw_commands_debug_wireframe.reset(*frame_data.draw_commands_debug_wireframe);
 	generate_debug_mesh_draws(zr, *frame_data.draw_commands_debug_wireframe);
 
-	ImGui.ShowDemoWindow();
+	
 	ImGui.Render();
-
 	imgui_populate_buffers(*zr.imgui_system, zr);
 	// Begin the command buffer to record commands, everything after this is command recording
     vkBeginCommandBuffer(cmd, *begin_info);
@@ -908,8 +908,8 @@ apply_panini_pp :: (zr: *ZRenderer, cmd: VkCommandBuffer) {
 
 	push: Panini_Push_Constants;
     push.fov = zr.camera.fov;
-    push.d = 0.5;  
-    push.s = 0.0;
+    push.d = zr.panini_parameters.strength;  
+    push.s = zr.panini_parameters.squeeze;
     push.aspect = cast(float)zr.draw_extent.width / cast(float)zr.draw_extent.height;
     push.draw_image_idx = zr.draw_image.image_index;  
 	push.sampler_idx = zr.sampler_nearest_index;  

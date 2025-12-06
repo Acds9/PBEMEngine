@@ -344,6 +344,8 @@ AABB :: struct {
 Render_Globals :: struct {
 	resolution_x	: u32;
 	resolution_y	: u32;
+	enable_panini	: bool;
+
 }
 
 Draw_Command_Buffers :: struct {
