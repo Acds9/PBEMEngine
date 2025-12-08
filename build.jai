@@ -6,6 +6,8 @@
 #import "File_Utilities";
 #import "Text_File_Handler";
 
+DEBUG_BUILD :: true;
+
 build :: () {
 	
 	file_delete("bin/PBEM.exe");
@@ -19,7 +21,8 @@ build :: () {
 	//  Build options
    	final_options := get_build_options(w_final);  
     final_options.backend = .X64;
-    set_optimization(*final_options, Optimization_Type.VERY_DEBUG, true);	
+	optimization_type : Optimization_Type = ifx DEBUG_BUILD then .VERY_DEBUG else .VERY_OPTIMIZED;
+    set_optimization(*final_options, optimization_type, DEBUG_BUILD);	
     final_options.array_bounds_check = .ON; 
     final_options.output_path = "bin";
 	final_options.output_type = .EXECUTABLE;

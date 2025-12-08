@@ -9,6 +9,9 @@
 
 #include "common_types.glsl"
 #include "light_types.glsl"
+#ifdef DEBUG
+    #include "debug.glsl"
+#endif
 
 layout(push_constant, scalar) uniform Draw_Push_Constants {
     uint64_t render_globals_address;
@@ -20,6 +23,10 @@ layout(push_constant, scalar) uniform Draw_Push_Constants {
     uint64_t bda_cluster_index;
     uint64_t bda_point_lights;
     uint point_lights_count;
+
+    #ifdef DEBUG
+        uint light_cluster_mode;
+    #endif
 } push_constants;
 
 layout(set = 0, binding = 0) uniform texture2D textures[];
@@ -77,7 +84,6 @@ vec3 evaluate_point_light(Point_Light light, vec3 world_pos, vec3 normal) {
 
 void main() 
 {
-    
     Render_Globals globals = Render_Globals(push_constants.render_globals_address);
 
     Material_Buffer material_buffer = Material_Buffer(push_constants.bda_materials);
@@ -102,6 +108,26 @@ void main()
     
     uint light_count = light_index_buffer.cluster_light_indices[cluster_buffer_offset];
 
+    #ifdef DEBUG
+        if(push_constants.light_cluster_mode == 0){}
+        else if(push_constants.light_cluster_mode == 1){
+            out_color = vec4(vec3(float(cluster_z)/float(cluster_count.z - 1)), 1.0);
+            return;
+        }
+        else if(push_constants.light_cluster_mode == 2){
+            out_color = vec4(depth_slice_colors[cluster_z % 8], 1.0);
+            return;
+        }
+        else if(push_constants.light_cluster_mode == 3){
+            out_color = vec4(float(cluster_x)/float(cluster_count.x - 1), float(cluster_y)/float(cluster_count.y - 1), 0, 1);
+            return;
+        }
+        else if(push_constants.light_cluster_mode == 4){
+            float a = float(light_count)/float(MAX_LIGHTS_PER_CLUSTER);
+            out_color = mix(vec4(0, 0.25, 0, 1), vec4(1,0,0,1), a);
+            return;
+        }
+    #endif
     switch(uint(mat.type))
     {
         case 0: //Opaque

@@ -10,6 +10,7 @@ Required_Extensions :: (*u8).[
 Required_Device_Extensions :: (*u8).[
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 	VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
+	VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME,
 ];
 
 Desired_Validation_Layers :: (*u8).[
@@ -18,8 +19,8 @@ Desired_Validation_Layers :: (*u8).[
 
 
 ENABLE_VALIDATION_LAYERS :: true;
-vkSetDebugUtilsObjectNameEXT : PFN_vkSetDebugUtilsObjectNameEXT;
-
+vkSetDebugUtilsObjectNameEXT 	: PFN_vkSetDebugUtilsObjectNameEXT;
+vkCmdSetPolygonModeEXT 			: PFN_vkCmdSetPolygonModeEXT;
 
 init_instance :: (zr: *ZRenderer) -> bool, string {
 	app_info : VkApplicationInfo;
@@ -275,8 +276,13 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 	descriptor_buffer_features.sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
 	descriptor_buffer_features.descriptorBuffer = VK_TRUE;
 
+	dynamic_state3_features: VkPhysicalDeviceExtendedDynamicState3FeaturesEXT;
+	dynamic_state3_features.sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT;
+	dynamic_state3_features.extendedDynamicState3PolygonMode = VK_TRUE;
+	dynamic_state3_features.pNext = *descriptor_buffer_features;
+
 	device_featuresVK13 : VkPhysicalDeviceVulkan13Features;
-	device_featuresVK13.pNext = *descriptor_buffer_features;
+	device_featuresVK13.pNext = *dynamic_state3_features;
 	device_featuresVK13.synchronization2 = VK_TRUE;
 	device_featuresVK13.dynamicRendering = VK_TRUE;
 
@@ -317,6 +323,7 @@ create_logical_device :: (zr: *ZRenderer) -> bool, string {
 	vkGetDescriptorEXT = cast(PFN_vkGetDescriptorEXT) vkGetDeviceProcAddr(zr.device, "vkGetDescriptorEXT");
 	vkCmdBindDescriptorBuffersEXT = cast(PFN_vkCmdBindDescriptorBuffersEXT) vkGetDeviceProcAddr(zr.device, "vkCmdBindDescriptorBuffersEXT");
 	vkCmdSetDescriptorBufferOffsetsEXT = cast(PFN_vkCmdSetDescriptorBufferOffsetsEXT) vkGetDeviceProcAddr(zr.device, "vkCmdSetDescriptorBufferOffsetsEXT");
+	vkCmdSetPolygonModeEXT = cast(PFN_vkCmdSetPolygonModeEXT) vkGetDeviceProcAddr(zr.device, "vkCmdSetPolygonModeEXT");
 
     if !vkGetDescriptorEXT {
         panic("ERROR: Failed to load vkGetDescriptorEXT");

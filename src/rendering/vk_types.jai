@@ -36,6 +36,7 @@ Pipeline_Builder :: struct {
     depth_stencil			: VkPipelineDepthStencilStateCreateInfo;
     render_info				: VkPipelineRenderingCreateInfo;
     color_attachment_format	: VkFormat;
+	dynamic_states			: [..]VkDynamicState;
 	
 	spec_data: [..]u8;
 	spec_entries: [..]VkSpecializationMapEntry;
@@ -60,6 +61,7 @@ Pipeline_Builder :: struct {
 		array_reset(*spec_entries);
 		spec_info = .{};
 
+		array_reset(*dynamic_states);
 	}
 
 	build :: (self: *Pipeline_Builder, zr: *ZRenderer) -> VkPipeline {
@@ -99,12 +101,13 @@ Pipeline_Builder :: struct {
 		pipeline_info.pDepthStencilState = *depth_stencil;
 		pipeline_info.layout = pipeline_layout;
 
-		state : []VkDynamicState = .[.VK_DYNAMIC_STATE_VIEWPORT, .VK_DYNAMIC_STATE_SCISSOR];
+		array_add(*dynamic_states, .VK_DYNAMIC_STATE_VIEWPORT);
+		array_add(*dynamic_states, .VK_DYNAMIC_STATE_SCISSOR);
 
 		dynamic_info : VkPipelineDynamicStateCreateInfo;
 		dynamic_info.sType = .VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-		dynamic_info.pDynamicStates = *state[0];
-		dynamic_info.dynamicStateCount = 2;
+		dynamic_info.pDynamicStates = dynamic_states.data;
+		dynamic_info.dynamicStateCount = xx dynamic_states.count;
 
 		pipeline_info.pDynamicState = *dynamic_info;
 
@@ -172,6 +175,10 @@ Pipeline_Builder :: struct {
 		// No alpha to coverage either
 		multisampling.alphaToCoverageEnable = VK_FALSE;
 		multisampling.alphaToOneEnable = VK_FALSE;
+	}
+
+	add_dynamic_state :: (using self: *Pipeline_Builder, state: VkDynamicState) {
+		array_add(*dynamic_states, state);
 	}
 
 	enable_blending_additive :: (using self: *Pipeline_Builder) {
@@ -305,6 +312,11 @@ Draw_Push_Constants :: struct {
 	bda_cluster_index				: VkDeviceAddress;
 	bda_point_lights				: VkDeviceAddress;
 	point_lights_count				: u32;
+
+	#if true { // DEBUG_BUILD not being recognized?
+		light_cluster_mode	: u32; // None, depth slice, flat rainbow, depth rainbow, heatmap 
+
+	}
 }
 
 Debug_Point_Push_Constants :: struct {

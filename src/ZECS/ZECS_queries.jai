@@ -36,3 +36,13 @@ Query_Debug_Draw_Point_Light :: struct {
 
 	QUERY_FLAGS				:: Query_Flags.CHUNK_PREFETCH;
 }
+
+Query_Debug_Draw_AABB :: struct {
+	using #as query: Query;
+	
+	ENTITY_COMPONENTS 		:: Type.[Position, Rotation, Scale, Mesh_Render_Proxy_EC];
+	ARCHETYPE_COMPONENTS 	:: Type.[];
+	TAGS					:: ZTags.SHIP;
+
+	QUERY_FLAGS				:: Query_Flags.CHUNK_PREFETCH;
+}

@@ -154,6 +154,7 @@ game_tick :: (using state: *Game_State) {
 			}
 		});
 	}*/
+	
 	{
 		execute_Query_Update_Render_Proxy(*GAME_STATE.world, #code {
 			for *pos: position_array {
@@ -168,7 +169,7 @@ game_tick :: (using state: *Game_State) {
 			}
 		});
 	}
-	{
+	if ZRENDERER.debug_system.light_radius_sphere {
 		execute_Query_Debug_Draw_Point_Light(*GAME_STATE.world, #code {
 			for *pos: position_array {
 				point_light := *point_light_component_array[it_index];

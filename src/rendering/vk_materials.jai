@@ -213,6 +213,8 @@ Material_Pipeline_Opaque :: struct {
 		pipeline_builder.add_specialization_constant(*pipeline_builder, .VK_SHADER_STAGE_FRAGMENT_BIT, 4, cast(float)NEAR_PLANE);
 		pipeline_builder.add_specialization_constant(*pipeline_builder, .VK_SHADER_STAGE_FRAGMENT_BIT, 5, cast(float)FAR_PLANE);
 
+		pipeline_builder.add_dynamic_state(*pipeline_builder, .VK_DYNAMIC_STATE_POLYGON_MODE_EXT);
+
 		pipeline_builder.set_input_topology(*pipeline_builder, .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		pipeline_builder.set_polygon_mode(*pipeline_builder, .VK_POLYGON_MODE_FILL);
 		pipeline_builder.set_cull_mode(*pipeline_builder, .VK_CULL_MODE_BACK_BIT, .VK_FRONT_FACE_COUNTER_CLOCKWISE);

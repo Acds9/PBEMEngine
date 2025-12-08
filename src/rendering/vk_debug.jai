@@ -14,6 +14,20 @@ Debug_Material_Instance :: struct {
 	color_factors			: Vector4;
 }
 
+DEBUG_VIEW_MODE :: enum s32 {
+	NONE;
+	WIREFRAME;
+	LIGHT_CLUSTER;
+}
+
+DEBUG_LIGHT_CLUSTER_MODE :: enum s32 {
+	NONE;
+	DEPTH_SLICE;
+	DEPTH_RAINBOW;
+	UV;
+	HEATMAP;
+}
+
 Debug_System :: struct {
 	point_instances 			: Staged_Array_Buffer;
 	mesh_instances				: Staged_Array_Buffer;
@@ -41,6 +55,14 @@ Debug_System :: struct {
 
 		mesh_material_instances.reset(*mesh_material_instances);
 	}
+
+	// Debug State
+	view_mode			: DEBUG_VIEW_MODE;
+	light_cluster_mode	: DEBUG_LIGHT_CLUSTER_MODE;
+
+	light_radius_sphere	: bool;
+	mesh_aabb			: bool;
+
 }
 
 create_debug_system :: (allocator: VmaAllocator, device: VkDevice) -> Debug_System {
@@ -63,7 +85,9 @@ create_debug_system :: (allocator: VmaAllocator, device: VkDevice) -> Debug_Syst
 
 generate_debug_mesh_draws :: (zr: *ZRenderer, draw_buffer: *Staged_Array_Buffer) {
 	count := zr.debug_system.mesh_instances.count;
-
+	if count == 0 {
+		return;
+	}
 	mapped_data := cast,no_check(*Mesh_Instance)zr.debug_system.mesh_instances.staging_buffer.info.pMappedData;
 	for 0..count-1 {
 		mesh_instance : *Mesh_Instance = *mapped_data[it];

@@ -135,14 +135,37 @@ imgui_tick :: (state: *Game_State) {
 	}
 
 	using ImGui;
-	CollapsingHeader("Rendering");
-	{
-		if CollapsingHeader("Panini Projection") {
-
+	test: bool;
+	if CollapsingHeader("Rendering"){
+		if TreeNode("Panini Projection") {
 			SliderFloat("Strength", *ZRENDERER.panini_parameters.strength, 0, 1);
 			SliderFloat("Vertical Squeeze", *ZRENDERER.panini_parameters.squeeze, 0, 1);
+			TreePop();
 		}
-		
+		if TreeNode("Debug Views") {
+			RadioButton("None", cast(*s32)*ZRENDERER.debug_system.view_mode, 0);
+			RadioButton("Wireframe", cast(*s32)*ZRENDERER.debug_system.view_mode, 1);
+			RadioButton("Light Cluster", cast(*s32)*ZRENDERER.debug_system.view_mode, 2);
+			{
+				if ZRENDERER.debug_system.view_mode == .LIGHT_CLUSTER {
+					Indent();
+					RadioButton("Depth Slice", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 1); SameLine();
+					RadioButton("Depth Rainbow", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 2); SameLine();
+					RadioButton("Screen UV", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 3); SameLine();
+					RadioButton("Heatmap", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 4);
+				}
+				else ZRENDERER.debug_system.light_cluster_mode = 0;
+			}
+
+			TreePop();
+		}
+		if TreeNode("Visualizations") {
+			if TreeNode("Lights") {
+				Checkbox("Radius Sphere", *ZRENDERER.debug_system.light_radius_sphere);
+				TreePop();
+			}
+			TreePop();
+		}
 	}
 
 }

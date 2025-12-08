@@ -25,44 +25,53 @@ layout(location = 0) in vec2 in_UV;
 
 layout (location = 0) out vec4 out_color;
 
+// Inverse Panini for x-coordinate, given Panini-space x, returns rectilinear x (tan of angle)
+float inverse_panini_x(float px, float d) {
+    // Initial guess (rectilinear)
+    float u = px;
+    
+    // NewtonRaphson iteration
+    for (int i = 0; i < 3; i++) {
+        float sqrt_term = sqrt(1.0 + u * u);
+        float denom = 1.0 + d * sqrt_term;
+        float f = (d + 1.0) * u / denom - px;
+        float df = (d + 1.0) * (sqrt_term + d) / (sqrt_term * denom * denom);
+        u = u - f / df;
+    }
+    return u;
+}
+
 void main() {
-  
+    if (push_constants.d <= 0.0) {
+        out_color = texture(sampler2D(textures[push_constants.draw_image_idx], samplers[push_constants.sampler_idx]), in_UV);
+        return;
+    }
     float d = push_constants.d;
     float s = push_constants.s;
-
-    // Convert UV to normalized device coords [-1, 1]
-    vec2 ndc = in_UV * 2.0 - 1.0;
     
-    // Aspect ratio correction
-    float aspect = push_constants.aspect;
-    ndc.x *= aspect;
+    // Output UV to Panini
+    vec2 panini = in_UV * 2.0 - 1.0;
+    panini.x *= push_constants.aspect;
     
-    // Convert to view direction (rectilinear)
     float tan_half_fov = tan(push_constants.fov * 0.5);
-    vec3 view_dir = normalize(vec3(ndc * tan_half_fov, 1.0));
+    panini *= tan_half_fov;
     
-    // Panini projection math
-    float x = view_dir.x;
-    float y = view_dir.y;
-    float z = view_dir.z;
+    // Invert Panini to rectilinear
+    float rect_x = inverse_panini_x(panini.x, d);
     
-    float d_plus_1 = d + 1.0;
-    float denom = z + d;
+    // Vertical squeeze inverse
+    float horizontal_compression = (1.0 + d) / (1.0 + d * sqrt(1.0 + rect_x * rect_x / (tan_half_fov * tan_half_fov)));
+    float rect_y = panini.y * mix(1.0, horizontal_compression, s);
     
-    vec2 panini;
-    panini.x = (d_plus_1 * x) / denom;
-    panini.y = (d_plus_1 * y) / (denom * mix(1.0, denom / d_plus_1, s));
-    
-    // Back to UV space
-    vec2 sample_uv = (panini / tan_half_fov);
-    sample_uv.x /= aspect;
+    // To UV
+    vec2 sample_uv = vec2(rect_x, rect_y) / tan_half_fov;
+    sample_uv.x /= push_constants.aspect;
     sample_uv = sample_uv * 0.5 + 0.5;
     
     // Sample with border check
     if (any(lessThan(sample_uv, vec2(0.0))) || any(greaterThan(sample_uv, vec2(1.0)))) {
         out_color = vec4(0.0, 0.0, 0.0, 1.0);
     } else {
-        vec4 color = texture(sampler2D(textures[push_constants.draw_image_idx], samplers[push_constants.sampler_idx]), sample_uv);
-        out_color = color;
+        out_color = texture(sampler2D(textures[push_constants.draw_image_idx], samplers[push_constants.sampler_idx]), sample_uv);
     }
 }

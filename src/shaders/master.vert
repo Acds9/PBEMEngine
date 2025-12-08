@@ -18,6 +18,10 @@ layout(push_constant, scalar) uniform Draw_Push_Constants {
     uint64_t bda_cluster_index;
     uint64_t bda_point_lights;
     uint point_lights_count;
+
+    #ifdef DEBUG
+        uint light_cluster_mode;
+    #endif
 } push_constants;
 
 layout (location = 0) out vec3 out_normal;

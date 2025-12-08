@@ -7,9 +7,9 @@
 SDL_Vulkan_GetInstanceExtensions :: (window : *SDL_Window, num_extensions : *u32, extensions : **u8) -> SDL_bool #foreign SDL2;
 SDL_Vulkan_CreateSurface :: (window : *SDL_Window, instance : VkInstance, surface : *VkSurfaceKHR) -> SDL_bool #foreign SDL2;
 SDL_Vulkan_GetDrawableSize :: (window : *SDL_Window, w : *u32, h : *u32) #foreign SDL2;
-vkGetDescriptorEXT : PFN_vkGetDescriptorEXT;
-vkCmdBindDescriptorBuffersEXT : PFN_vkCmdBindDescriptorBuffersEXT;
-vkCmdSetDescriptorBufferOffsetsEXT : PFN_vkCmdSetDescriptorBufferOffsetsEXT;
+vkGetDescriptorEXT 					: PFN_vkGetDescriptorEXT;
+vkCmdBindDescriptorBuffersEXT 		: PFN_vkCmdBindDescriptorBuffersEXT;
+vkCmdSetDescriptorBufferOffsetsEXT 	: PFN_vkCmdSetDescriptorBufferOffsetsEXT;
 
 MAX_FRAMES_IN_FLIGHT :: 2;
 DEFAULT_CLEARVALUE :: #run color_to_array(*COLOR_DARK_GREY);
@@ -165,7 +165,7 @@ ZRenderer :: struct {
 	}
 
 	debug_system : Debug_System;
-
+	
     // Methods
     get_current_frame_data :: (using self: *ZRenderer) -> *Frame_Data {
         return *frames[current_frame];
@@ -788,6 +788,14 @@ execute_draw :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer
 
 	vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.m_opaque.pipeline);
 
+	if zr.debug_system.view_mode == .WIREFRAME {
+		vkCmdSetPolygonModeEXT(command_buffer, .VK_POLYGON_MODE_LINE);
+	}
+	else {
+		vkCmdSetPolygonModeEXT(command_buffer, .VK_POLYGON_MODE_FILL);
+	}
+	
+
 	light_cluster_buffer := zr.light_compute_system.get_frame_buffer(*zr.light_compute_system, zr.current_frame);
 
 	push : Draw_Push_Constants;
@@ -800,6 +808,10 @@ execute_draw :: (zr: *ZRenderer, scene: *ZScene, command_buffer: VkCommandBuffer
 	push.bda_cluster_index = light_cluster_buffer.base_address;
 	push.bda_point_lights = scene.point_lights.device_buffer.base_address;
 	push.point_lights_count = xx,no_check(scene.point_lights.count);
+	#if true { // DEBUG_BUILD not being recognized?
+		push.light_cluster_mode	= cast,no_check(u32)zr.debug_system.light_cluster_mode; // None, depth slice, flat rainbow, depth rainbow, heatmap 
+
+	}
 
 	vkCmdPushConstants(command_buffer, zr.m_opaque.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Draw_Push_Constants), *push);
 	

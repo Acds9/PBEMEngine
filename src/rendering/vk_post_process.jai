@@ -8,7 +8,7 @@ Panini_Push_Constants :: struct {
 }
 
 Panini_Parameters :: struct {
-	strength 	: float = 0.5;
+	strength 	: float = 0;
 	squeeze		: float = 0;
 }
 
