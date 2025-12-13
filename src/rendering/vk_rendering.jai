@@ -103,7 +103,7 @@ ZRenderer :: struct {
 
     // Mesh data
     mesh_pool            	: Flat_Pool;
-    meshes               	: [..]Mesh_Asset;
+    meshes               	: [..]Mesh_Asset; // TODO: probably move this to a buffer?
     mesh_map             	: Table(string, *Mesh_Asset);
 
 	geometry_pool			: Geometry_Pool;
@@ -111,15 +111,16 @@ ZRenderer :: struct {
 	// Textures
 	image_table				: Table(string, Allocated_Image);
 
-	default_sampler_nearest	: VkSampler;
-	sampler_nearest_index	: u32 = 0;
-	default_sampler_linear	: VkSampler;
-	sampler_linear_index	: u32 = 1;
+	samplers				: [#run type_info(SAMPLER_TYPE).values.count]VkSampler;
 
 	material_instance_table	: Table(string, u32);
 
 	mi_default				: u32;
+
 	m_opaque				: Material_Pipeline_Opaque;
+	//m_translucent			: Material_Pipeline_Translucent;
+	//m_emissive				: Material_Pipeline_Emissive;
+	//m_additive				: Material_Pipeline_Additive;
 
 	material_instances		: Staged_Uniform_Storage_Buffer;
 
@@ -171,8 +172,6 @@ ZRenderer :: struct {
         return *frames[current_frame];
     }
 }
-
-MATERIAL_PASS_COUNT	:: #run enum_names(MATERIAL_PASS).count;
 
 Draw_Command_Point :: struct {
 	draw 			: VkDrawIndirectCommand;
@@ -924,7 +923,7 @@ apply_panini_pp :: (zr: *ZRenderer, cmd: VkCommandBuffer) {
     push.s = zr.panini_parameters.squeeze;
     push.aspect = cast(float)zr.draw_extent.width / cast(float)zr.draw_extent.height;
     push.draw_image_idx = zr.draw_image.image_index;  
-	push.sampler_idx = zr.sampler_nearest_index;  
+	push.sampler_idx = xx,no_check SAMPLER_TYPE.NEAREST;  
     
     vkCmdPushConstants(cmd, zr.m_pp_panini.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Panini_Push_Constants), *push);
     

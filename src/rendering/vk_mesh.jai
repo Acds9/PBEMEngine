@@ -163,7 +163,6 @@ load_glt_mesh :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 		vertex_count := position_accessor.count;
 		initial_vertex_count := vertices.count;
 		array_reserve(*vertices, vertices.count + xx vertex_count);
-	
 		// All coordinates are swizzled to convert from gltf2 to ZEngine
 		for vertex_idx: 0..vertex_count-1 {
 			vertex : Vertex;

@@ -46,7 +46,8 @@ game_init :: (using state: *Game_State) -> bool {
         print("ERROR: %\n", init_error);
         return false;
     }
-    load_assets(*ZRENDERER);
+	load_meshes(*ZRENDERER);
+    //load_assets(*ZRENDERER);
     
     // Scene setup
     scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device);

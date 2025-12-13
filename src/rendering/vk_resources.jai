@@ -191,19 +191,15 @@ create_default_samplers :: (zr: *ZRenderer) {
 	sampler_info.borderColor = .VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	sampler_info.unnormalizedCoordinates = VK_FALSE;
 
-	vkCreateSampler(zr.device, *sampler_info, null, *zr.default_sampler_nearest);
+	vkCreateSampler(zr.device, *sampler_info, null, *zr.samplers[SAMPLER_TYPE.NEAREST]);
 
 	sampler_info.magFilter = .VK_FILTER_LINEAR;
 	sampler_info.minFilter = .VK_FILTER_LINEAR;
-	vkCreateSampler(zr.device, *sampler_info, null, *zr.default_sampler_linear);
+	vkCreateSampler(zr.device, *sampler_info, null, *zr.samplers[SAMPLER_TYPE.LINEAR]);
 
-	// Nearest
-    zr.sampler_nearest_index = xx zr.descriptor_writer.write_sampler(*zr.descriptor_writer, *zr.sampler_descriptor_buffer,  zr.default_sampler_nearest);
-	// Linear
-    zr.sampler_linear_index = xx zr.descriptor_writer.write_sampler(*zr.descriptor_writer, *zr.sampler_descriptor_buffer, zr.default_sampler_linear);
-	
-	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_nearest);
-	queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, zr.default_sampler_linear);
+	for sampler: zr.samplers {
+		queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, sampler);
+	}
 }
 
 create_default_materials :: (zr: *ZRenderer) {
@@ -214,8 +210,8 @@ create_default_materials :: (zr: *ZRenderer) {
 		panic("Could not find error_image");
 	}
 	mi_default.albedo_image_index = image.image_index;
-	mi_default.albedo_sampler_index = zr.sampler_nearest_index;
-	mi_default.pass = .OPAQUE;
+	mi_default.albedo_sampler = SAMPLER_TYPE.NEAREST;
+	mi_default.type = .OPAQUE;
 	zr.mi_default = zr.m_opaque.create_material_instance(*zr.m_opaque, zr, *mi_default);
 
 	mi_debug_wireframe : Debug_Material_Instance;

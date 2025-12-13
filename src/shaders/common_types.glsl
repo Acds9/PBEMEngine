@@ -64,9 +64,9 @@ layout(buffer_reference, scalar) readonly buffer Vertex_Buffer {
 struct Material_Instance {
     vec4 color_factors;
     uint albedo_image_index;
-    uint albedo_sampler_index;
+    uint8_t albedo_sampler_index;
     uint8_t type;
-    uint8_t padding[4];
+    uint8_t padding[8];
 };
 layout(buffer_reference, scalar) readonly buffer Material_Buffer {
     Material_Instance materials[];

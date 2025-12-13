@@ -1,6 +1,11 @@
 MATERIAL_CONSTANTS_BUFFER_SIZE 			:: 8*1024*1024; // 8MB, probably overkill
 
-MATERIAL_PASS :: enum u8 {
+SAMPLER_TYPE	:: enum u8 {
+	NEAREST			:: 0;
+	LINEAR			:: 1;
+}
+
+MATERIAL_TYPE :: enum u8 {
 	OPAQUE			:: 0;
     TRANSPARENT		:: 1;
     EMISSIVE		:: 2;
@@ -12,9 +17,18 @@ MATERIAL_PASS :: enum u8 {
 Material_Instance :: struct {
 	color_factors			: Vector4;
 	albedo_image_index		: u32;
-	albedo_sampler_index 	: u32;
-	pass					: MATERIAL_PASS;
-	padding					: [6]u8;
+	albedo_sampler		 	: SAMPLER_TYPE;
+	type					: MATERIAL_TYPE;
+	padding					: [8]u8;
+}
+
+Material_Pipeline :: union {
+	opaque		: Material_Pipeline_Opaque;
+	transparent	: void; //Material_Pipeline_Transparent;
+	emissive	: void; //Material_Pipeline_Emissive;
+	additive	: void; //Material_Pipeline_Additive;
+	debug_point	: Material_Pipeline_Debug_Point;
+	debug_wireframe	: Material_Pipeline_Debug_Wireframe;
 }
 
 Material_Pipeline_Debug_Point :: struct {
@@ -242,7 +256,7 @@ Material_Pipeline_Opaque :: struct {
 	}
 
 	create_material_instance :: (using self: *Material_Pipeline_Opaque, zr: *ZRenderer, data: *Material_Instance) -> u32 {
-		data.pass = .OPAQUE;
+		data.type = .OPAQUE;
 		return zr.material_instances.allocate(*zr.material_instances, <<data);;
 	}
 }
