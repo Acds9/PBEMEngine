@@ -5,8 +5,10 @@
 #import "File";
 #import "File_Utilities";
 #import "Text_File_Handler";
+JaiSymbols :: #import "Jai_Symbols";
 
 DEBUG_BUILD :: true;
+symbols: JaiSymbols.Symbols;
 
 build :: () {
 	
@@ -38,10 +40,24 @@ build :: () {
 
     set_build_options(final_options, w_final);
     
-
     // Start compilation
     compiler_begin_intercept(w_final);  
     add_source_files(w_final);
+	while true {                     
+        message := compiler_wait_for_message();  
+        if !message break; 
+        
+        if message.kind == {
+            case .TYPECHECKED;
+                typechecked := cast(*Message_Typechecked)message;
+				JaiSymbols.add(*symbols, typechecked);
+            case .PHASE;
+                
+            case .COMPLETE;          
+               
+        }
+    }
+	JaiSymbols.write(*symbols);
 	compiler_end_intercept(w_final);
 	
 }
