@@ -42,7 +42,7 @@ load_material :: (zr: *ZRenderer, name: string) -> u32 {
 	}
 	for material: material_definitions {
 		if material.name != name {
-			continue; // TODO: This isn't fast
+			continue; 
 		}
 
 		albedo_image_path := sprint("H:/PBEMJai/content/textures/%.ktx2", material.albedo);
@@ -69,7 +69,40 @@ load_material :: (zr: *ZRenderer, name: string) -> u32 {
 	return U32_MAX;
 }
 
-load_meshes :: (zr: *ZRenderer) {
+/*
+* We accept the slowness of checking all mesh definitions for each mesh because this will only happen at replay load (simulation is headless and does not load meshes)
+* Simulation side mesh data will likely be separate from the mesh assets anyway
+*/
+load_meshes :: (zr: *ZRenderer, mesh_names: []string) {
+	for name: mesh_names {
+		existing, found := table_find(*zr.mesh_map, name);
+		if found {
+			continue;
+		}
+		
+		for mesh: mesh_definitions {
+			if mesh.name != name {
+				continue;
+			}
+			mesh_path := sprint("H:/PBEMJai/content/meshes/%.glb", mesh.mesh);
+			defer free(mesh_path);
+
+			loaded_mesh := load_glt_mesh(zr, mesh_path);
+			loaded_mesh.name = mesh.name;
+			for material: mesh.surface_materials {
+				idx := load_material(zr, material);
+				if idx == U32_MAX {
+					panic(sprint("Could not find material to load. Mesh: %, Material: %", loaded_mesh.name, material));
+				}
+				surface : *Geo_Surface = get_mesh_geo_surface(zr, loaded_mesh, xx,no_check it_index);
+				surface.default_material_instance = idx;
+			}
+			table_add(*zr.mesh_map, loaded_mesh.name, loaded_mesh);
+		}
+	}
+}
+
+load_all_meshes :: (zr: *ZRenderer) {
 	for mesh: mesh_definitions {
 		existing, found := table_find(*zr.mesh_map, mesh.name);
 		if found {

@@ -39,15 +39,14 @@ CAMERA_MOVESPEED		: float = 10;
 
 game_init :: (using state: *Game_State) -> bool {
 	init_zworld(*world);
-	
+
     // Renderer setup
     init_success, init_error := init_zrenderer(*ZRENDERER);
     if !init_success {
         print("ERROR: %\n", init_error);
         return false;
     }
-	load_meshes(*ZRENDERER);
-    //load_assets(*ZRENDERER);
+	load_all_meshes(*ZRENDERER); // TODO: this is temporary
     
     // Scene setup
     scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device);
