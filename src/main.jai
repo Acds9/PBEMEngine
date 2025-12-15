@@ -23,7 +23,7 @@ Game_Instance :: struct {
 	imgui_mode : bool;
 }
 
-GAME_STATE : Game_Instance;
+GAME_INSTANCE : Game_Instance;
 
 WINDOW_WIDTH 	:= 1920;
 WINDOW_HEIGHT 	:= 1080;
@@ -36,7 +36,8 @@ GLOBAL_DELETION_QUEUE 	: Deletion_Queue;
 MOUSELOOK_SENSITIVITY	: float = 1;
 CAMERA_MOVESPEED		: float = 10;
 
-game_init :: (using state: *Game_Instance) -> bool {
+game_init :: () -> bool {
+	using GAME_INSTANCE;
 	init_zworld(*world);
 
     // Renderer setup
@@ -78,7 +79,8 @@ game_init :: (using state: *Game_Instance) -> bool {
     return true;
 }
 
-window_handle_sdl_event :: (using state: *Game_Instance, event: *SDL_Event) {
+window_handle_sdl_event :: (event: *SDL_Event) {
+	using GAME_INSTANCE;
 	if event.type == {
 		case SDL_QUIT;
 			quit = true;
@@ -106,7 +108,8 @@ window_handle_sdl_event :: (using state: *Game_Instance, event: *SDL_Event) {
 	}
 }
 
-game_update_camera :: (using state: *Game_Instance) {
+game_update_camera :: () {
+	using GAME_INSTANCE;
     if get_command(*input_system, .MOVE_FORWARD).held {
         ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.forward * CAMERA_MOVESPEED * delta_time);
     }
@@ -129,7 +132,8 @@ game_update_camera :: (using state: *Game_Instance) {
     }
 }
 
-toggle_imgui_mode :: (using state: *Game_Instance) {
+toggle_imgui_mode :: () {
+	using GAME_INSTANCE;
 	if imgui_mode == true {
 		imgui_mode = false;
 	}
@@ -139,23 +143,24 @@ toggle_imgui_mode :: (using state: *Game_Instance) {
 }
 
 current_position : Vector3;
-game_tick :: (using state: *Game_Instance) {
+game_tick :: () {
+	using GAME_INSTANCE;
 	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
 	/*{
-		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
+		execute_Query_Position_Randomizer(*GAME_INSTANCE.world, #code {
 			for *pos: position_array {
 				if pos.pos == current_position {
 					current_position += .{1000,0,0};
 				}
 				dir := pos.pos - current_position;
 				norm := normalize(dir);
-				//pos.pos -= norm*10*GAME_STATE.delta_time;
+				//pos.pos -= norm*10*GAME_INSTANCE.delta_time;
 			}
 		});
 	}*/
 	
 	{
-		execute_Query_Update_Render_Proxy(*GAME_STATE.world, #code {
+		execute_Query_Update_Render_Proxy(*GAME_INSTANCE.world, #code {
 			for *pos: position_array {
 				rot := rotation_array[it_index];
 				scale := scale_array[it_index];
@@ -163,13 +168,13 @@ game_tick :: (using state: *Game_Instance) {
 				matrix := transform_to_matrix4(transform);
 				idx := mesh_render_proxy_ec_array[it_index].idx_mesh_instance;
 				
-				mesh_instance := render_get_mesh_instance(*GAME_STATE.scene, idx);
-				render_set_transform(*GAME_STATE.scene, idx, *matrix);
+				mesh_instance := render_get_mesh_instance(*GAME_INSTANCE.scene, idx);
+				render_set_transform(*GAME_INSTANCE.scene, idx, *matrix);
 			}
 		});
 	}
 	if ZRENDERER.debug_system.light_radius_sphere {
-		execute_Query_Debug_Draw_Point_Light(*GAME_STATE.world, #code {
+		execute_Query_Debug_Draw_Point_Light(*GAME_INSTANCE.world, #code {
 			for *pos: position_array {
 				point_light := *point_light_component_array[it_index];
 				position	:= *position_array[it_index].pos;
@@ -182,7 +187,8 @@ game_tick :: (using state: *Game_Instance) {
 	tick_world(*world, delta_time);
 }
 
-game_render :: (using state: *Game_Instance) {
+game_render :: () {
+	using GAME_INSTANCE;
     if !ZRENDERER.minimized {
         draw_frame(*ZRENDERER, *scene);
     }
@@ -195,59 +201,60 @@ game_render :: (using state: *Game_Instance) {
     }
 }
 
-game_shutdown :: (using state: *Game_Instance) {
+game_shutdown :: () {
+	using GAME_INSTANCE;
     vkDeviceWaitIdle(ZRENDERER.device);
     deinit_zrenderer(*ZRENDERER);
     // Add world cleanup later
 }
 
 main :: () {
-    if !game_init(*GAME_STATE) {
+    if !game_init() {
         return;
     }
 
     event: SDL_Event;
-    while !GAME_STATE.quit {
+    while !GAME_INSTANCE.quit {
         // Update timing
         current_counter := SDL_GetPerformanceCounter();
-        GAME_STATE.delta_time = cast,no_check(float64)(current_counter - GAME_STATE.last_counter) / 
-                          cast,no_check(float64)GAME_STATE.frequency;
-        GAME_STATE.fps = cast,no_check(u32)(1 / GAME_STATE.delta_time);
-        GAME_STATE.last_counter = current_counter;
+        GAME_INSTANCE.delta_time = cast,no_check(float64)(current_counter - GAME_INSTANCE.last_counter) / 
+                          cast,no_check(float64)GAME_INSTANCE.frequency;
+        GAME_INSTANCE.fps = cast,no_check(u32)(1 / GAME_INSTANCE.delta_time);
+        GAME_INSTANCE.last_counter = current_counter;
 
 		imgui_begin_frame(.{xx,no_check ZRENDERER.draw_extent.width, xx,no_check ZRENDERER.draw_extent.height});
-		input_begin_frame(*GAME_STATE.input_system);
+		input_begin_frame(*GAME_INSTANCE.input_system);
         
         // Process input
         while SDL_PollEvent(*event) {
-			if GAME_STATE.imgui_mode {
+			if GAME_INSTANCE.imgui_mode {
 				imgui_process_SDL_event(*event);
 			}
 
-			input_handle_sdl_event(*GAME_STATE.input_system, *event);
-            window_handle_sdl_event(*GAME_STATE, *event);
+			input_handle_sdl_event(*GAME_INSTANCE.input_system, *event);
+            window_handle_sdl_event(*event);
         }
 
-		if get_command(*GAME_STATE.input_system, .TOGGLE_MOUSE_MODE).key_down {
-       		toggle_mouse_input_mode(*GAME_STATE.input_system);
+		if get_command(*GAME_INSTANCE.input_system, .TOGGLE_MOUSE_MODE).key_down {
+       		toggle_mouse_input_mode(*GAME_INSTANCE.input_system);
 		}
-		if get_command(*GAME_STATE.input_system, .TOGGLE_IMGUI_MODE).key_down {
-			toggle_imgui_mode(*GAME_STATE);
+		if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_MODE).key_down {
+			toggle_imgui_mode();
 		}
-        tick_input_commands(*GAME_STATE.input_system, xx,no_check GAME_STATE.delta_time);
+        tick_input_commands(*GAME_INSTANCE.input_system, xx,no_check GAME_INSTANCE.delta_time);
 
         // Update camera from input
-        game_update_camera(*GAME_STATE);
+        game_update_camera();
         
         // Game tick
-        game_tick(*GAME_STATE);
+        game_tick();
 
 		// ImGui tick
-		imgui_tick(*GAME_STATE);
+		imgui_tick();
         
         // Render
-        game_render(*GAME_STATE);
+        game_render();
     }
     
-    game_shutdown(*GAME_STATE);
+    game_shutdown();
 }

@@ -129,8 +129,9 @@ imgui_begin_frame :: (extents: Vector2) {
 	ImGui.NewFrame();
 }
 
-imgui_tick :: (state: *Game_Instance) {
-	if !state.imgui_mode {
+imgui_tick :: () {
+	using GAME_INSTANCE;
+	if !imgui_mode {
 		return;
 	}
 
