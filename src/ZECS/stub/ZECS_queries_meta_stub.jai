@@ -60,7 +60,7 @@ Observer_Buffer :: struct {
 
 Observer_Entry :: struct {
 	priority	: u8;
-	proc		: (game_state: *Game_State, entity_indices: []ZEntity);
+	proc		: (game_instance: *Game_Instance, entity_indices: []ZEntity);
 }
 
 get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T {return null;}
@@ -68,7 +68,7 @@ get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage
 initialize_archetype_storage :: (archetype: Type, allocator: *Allocator) -> Archetype_Storage {return .{};}
 //get_archetype_component :: (world: *ZWorld, archetype: Type, $T: Type) -> *T {return null;};
 
-Game_State :: struct {
+Game_Instance :: struct {
     world: ZWorld;
     scene: ZScene;
     quit: bool;
@@ -79,7 +79,7 @@ Game_State :: struct {
     delta_time: float64;
     fps: u32;
 }
-GAME_STATE : Game_State;
+GAME_STATE : Game_Instance;
 
 ZScene :: struct {
 	device_mesh_instances	: *void;
@@ -91,5 +91,5 @@ ZScene :: struct {
 	device_debug_transforms		: *void;
 }
 
-Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_state: *Game_State) {};
-Observer_Point_Light_Spawn_Event :: (entity_idx: ZEntity, game_state: *Game_State) {};
+Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_instance: *Game_Instance) {};
+Observer_Point_Light_Spawn_Event :: (entity_idx: ZEntity, game_instance: *Game_Instance) {};

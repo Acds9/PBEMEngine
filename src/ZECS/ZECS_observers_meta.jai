@@ -21,8 +21,8 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 		if !matching_archetypes continue observer;
 
 		print_to_builder(*builder, "\n// Observer Executor for %\n", observer.name);
-		print_to_builder(*builder, "execute_% :: (game_state: *Game_State, entities: []ZEntity) {\n", observer.name);
-			print_to_builder(*builder, "\tworld := *game_state.world;\n");
+		print_to_builder(*builder, "execute_% :: (game_instance: *Game_Instance, entities: []ZEntity) {\n", observer.name);
+			print_to_builder(*builder, "\tworld := *game_instance.world;\n");
 			print_to_builder(*builder, "\tarchetype := entities[0].archetype;\n");
 			print_to_builder(*builder, "\tarch_storage := *world.world_archetypes[entities[0].archetype];\n");
 			
@@ -34,7 +34,7 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 					print_to_builder(*builder, "\t\t% := *get_archetype_component(world, get_archetype(archetype), %);\n", to_lower_copy(a_c), a_c);
 				}
 
-				print_to_builder(*builder, "\t\t%_Event(entity, game_state);\n", observer.name);
+				print_to_builder(*builder, "\t\t%_Event(entity, game_instance);\n", observer.name);
 
 			print_to_builder(*builder, "\t}\n");
 

@@ -5,7 +5,7 @@
 #import "SDL";
 #import "Input";
 
-Game_State :: struct {
+Game_Instance :: struct {
     world: ZWorld;
     scene: ZScene;
     quit: bool;
@@ -23,8 +23,7 @@ Game_State :: struct {
 	imgui_mode : bool;
 }
 
-GAME_STATE : Game_State;
-
+GAME_STATE : Game_Instance;
 
 WINDOW_WIDTH 	:= 1920;
 WINDOW_HEIGHT 	:= 1080;
@@ -37,7 +36,7 @@ GLOBAL_DELETION_QUEUE 	: Deletion_Queue;
 MOUSELOOK_SENSITIVITY	: float = 1;
 CAMERA_MOVESPEED		: float = 10;
 
-game_init :: (using state: *Game_State) -> bool {
+game_init :: (using state: *Game_Instance) -> bool {
 	init_zworld(*world);
 
     // Renderer setup
@@ -79,7 +78,7 @@ game_init :: (using state: *Game_State) -> bool {
     return true;
 }
 
-window_handle_sdl_event :: (using state: *Game_State, event: *SDL_Event) {
+window_handle_sdl_event :: (using state: *Game_Instance, event: *SDL_Event) {
 	if event.type == {
 		case SDL_QUIT;
 			quit = true;
@@ -107,7 +106,7 @@ window_handle_sdl_event :: (using state: *Game_State, event: *SDL_Event) {
 	}
 }
 
-game_update_camera :: (using state: *Game_State) {
+game_update_camera :: (using state: *Game_Instance) {
     if get_command(*input_system, .MOVE_FORWARD).held {
         ZRENDERER.camera.translate(*ZRENDERER.camera, ZRENDERER.camera.forward * CAMERA_MOVESPEED * delta_time);
     }
@@ -130,7 +129,7 @@ game_update_camera :: (using state: *Game_State) {
     }
 }
 
-toggle_imgui_mode :: (using state: *Game_State) {
+toggle_imgui_mode :: (using state: *Game_Instance) {
 	if imgui_mode == true {
 		imgui_mode = false;
 	}
@@ -140,7 +139,7 @@ toggle_imgui_mode :: (using state: *Game_State) {
 }
 
 current_position : Vector3;
-game_tick :: (using state: *Game_State) {
+game_tick :: (using state: *Game_Instance) {
 	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
 	/*{
 		execute_Query_Position_Randomizer(*GAME_STATE.world, #code {
@@ -183,7 +182,7 @@ game_tick :: (using state: *Game_State) {
 	tick_world(*world, delta_time);
 }
 
-game_render :: (using state: *Game_State) {
+game_render :: (using state: *Game_Instance) {
     if !ZRENDERER.minimized {
         draw_frame(*ZRENDERER, *scene);
     }
@@ -196,7 +195,7 @@ game_render :: (using state: *Game_State) {
     }
 }
 
-game_shutdown :: (using state: *Game_State) {
+game_shutdown :: (using state: *Game_Instance) {
     vkDeviceWaitIdle(ZRENDERER.device);
     deinit_zrenderer(*ZRENDERER);
     // Add world cleanup later
