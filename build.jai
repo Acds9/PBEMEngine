@@ -19,7 +19,7 @@ build :: () {
         print("Final Workspace creation failed.\n");
         return;
     }
-	
+
 	//  Build options
    	final_options := get_build_options(w_final);  
     final_options.backend = .X64;
@@ -43,23 +43,23 @@ build :: () {
     // Start compilation
     compiler_begin_intercept(w_final);  
     add_source_files(w_final);
+	compiler_end_intercept(w_final);
+
+	/* For when symbols need updating
 	while true {                     
         message := compiler_wait_for_message();  
-        if !message break; 
+        if !message break;
         
         if message.kind == {
             case .TYPECHECKED;
                 typechecked := cast(*Message_Typechecked)message;
 				JaiSymbols.add(*symbols, typechecked);
-            case .PHASE;
-                
-            case .COMPLETE;          
-               
+            case .COMPLETE;     
+				JaiSymbols.write(*symbols);
+				compiler_end_intercept(w_final);
         }
     }
-	JaiSymbols.write(*symbols);
-	compiler_end_intercept(w_final);
-	
+	*/
 }
 
 add_source_files :: (w: Workspace) {
