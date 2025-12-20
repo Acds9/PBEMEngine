@@ -22,5 +22,5 @@ Observer_Point_Light_Spawn_Event :: (entity_idx: ZEntity, game_instance: *Game_I
     light.position = position.pos;
     light.radius = point_light.radius;
     light.color = vec4_to_color(*point_light.color);
-  //  point_light.light_address = add_scene_point_light(scene, light);
+   	add_scene_point_light(scene, light, *point_light.light_address);
 }

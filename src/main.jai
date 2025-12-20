@@ -146,7 +146,6 @@ toggle_imgui_mode :: () {
 
 game_tick :: () {
 	using GAME_INSTANCE;
-	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
 	{
 		execute_Query_Update_Render_Proxy(*GAME_INSTANCE.world, #code {
 			transform := Transform.{position.pos, rotation.rot, scale.scale};
@@ -157,17 +156,17 @@ game_tick :: () {
 			render_set_transform(*GAME_INSTANCE.scene, idx, *matrix);
 		});
 	}
-	/*if ZRENDERER.debug_system.light_radius_sphere {
-		execute_Query_Debug_Draw_Point_Light(*GAME_INSTANCE.world, #code {
-			for *pos: position_array {
-				point_light := *point_light_component_array[it_index];
-				position	:= *position_array[it_index].pos;
-				debug_draw_point(*ZRENDERER, position, 5, point_light.color); 
-				debug_draw_sphere(*ZRENDERER, position, point_light.radius, point_light.color);
-			}
-		});
-	}*/
+	// Separate this into a debug tick, it's just easier to keep it single threaded
+	if context.thread_index == 0 {
+		ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
 	
+		if ZRENDERER.debug_system.light_radius_sphere {
+			execute_Query_Debug_Draw_Point_Light(*GAME_INSTANCE.world, #code {
+				debug_draw_point(*ZRENDERER, position.pos, 5, point_light_component.color); 
+				debug_draw_sphere(*ZRENDERER, position.pos, point_light_component.radius, point_light_component.color);
+			});
+		}
+	}
 	tick_world(*world, delta_time);
 }
 
@@ -202,7 +201,7 @@ game_loop :: () {
 							cast,no_check(float64)GAME_INSTANCE.frequency;
 			GAME_INSTANCE.fps = cast,no_check(u32)(1 / GAME_INSTANCE.delta_time);
 			GAME_INSTANCE.last_counter = current_counter;
-			print("FPS: %\n", GAME_INSTANCE.fps);
+			print("FPS: %\n", GAME_INSTANCE.fps); // TODO: add imgui fps counter
 			imgui_begin_frame(.{xx,no_check ZRENDERER.draw_extent.width, xx,no_check ZRENDERER.draw_extent.height});
 			input_begin_frame(*GAME_INSTANCE.input_system);
         
@@ -258,6 +257,3 @@ main :: () {
 
     game_shutdown();
 }
-
-//1. add a game loop entry point to main
-//2. start the threads first then launch game loop on all of them

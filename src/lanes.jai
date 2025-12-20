@@ -58,7 +58,7 @@ Lane_System :: struct {
 	CONDITION_VARIABLE :: struct { ptr: *void; }
 	INFINITE :: 0xFFFFFFFF;
 }
-
+// TODO: we have meshes, do lights
 barrier_wait :: (barrier: *Lane_Barrier) {
     EnterCriticalSection(*barrier.lock);
     

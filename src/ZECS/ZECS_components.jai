@@ -39,7 +39,7 @@ Point_Light_Component :: struct {
 	using #as entity_component: Entity_Component;
 
 	color			: Vector4;
-	light_address	: u64;
+	light_address	: u32;
 	radius			: float;
 }
 

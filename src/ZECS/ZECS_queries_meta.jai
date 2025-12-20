@@ -1,5 +1,5 @@
 #import "Basic";
-//#load "generated/ZECS_archetypes_gen.jai";
+#load "ZECS_queries.jai";
 
 // TODO: we use the metadata, maybe we should use the database instead so it's single source of truth?
 generate_queries :: (queries: []Query_Build_Metadata) -> string {
@@ -62,7 +62,12 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 				}
 				print_to_builder(*builder, "\n");
 				print_to_builder(*builder, "\t\t\tentity_count = storage.num_entities;\n");
-				print_to_builder(*builder, "\t\t\tstart, end := lane_range(entity_count);\n");
+				if query.options & cast(u32)Query_Flags.NON_PARALLEL {
+					print_to_builder(*builder, "\t\t\tstart : u32 = 0;\n");
+					print_to_builder(*builder, "\t\t\tend : u32 = entity_count;\n");
+				} else {
+					print_to_builder(*builder, "\t\t\tstart, end := lane_range(entity_count);\n");
+				}
 				print_to_builder(*builder, "\n");
 				print_to_builder(*builder, "\t\t\tfor idx: start..end {\n");
 					print_to_builder(*builder, "\t\t\t\tif !entity_is_alive(idx, storage) {\n");

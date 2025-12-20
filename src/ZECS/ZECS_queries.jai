@@ -1,20 +1,8 @@
-Query_Flags		:: enum_flags u8 {
-	CHUNK_PREFETCH;
-	PARALLEL_SAFE;
-	SORTED;
+Query_Flags		:: enum_flags u32 {
+	NON_PARALLEL;
 }
 
 Query :: struct {
-}
-
-Query_Position_Randomizer :: struct {
-	using #as query: Query;
-	
-	ENTITY_COMPONENTS 		:: Type.[Position];
-	ARCHETYPE_COMPONENTS 	:: Type.[];
-	TAGS					:: ZTags.SHIP;
-
-	QUERY_FLAGS				:: Query_Flags.CHUNK_PREFETCH;
 }
 
 Query_Update_Render_Proxy :: struct {
@@ -24,7 +12,7 @@ Query_Update_Render_Proxy :: struct {
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.SHIP;
 
-	QUERY_FLAGS				:: Query_Flags.CHUNK_PREFETCH;
+	QUERY_FLAGS				:: 0;
 }
 
 Query_Debug_Draw_Point_Light :: struct {
@@ -34,7 +22,7 @@ Query_Debug_Draw_Point_Light :: struct {
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.LIGHT;
 
-	QUERY_FLAGS				:: Query_Flags.CHUNK_PREFETCH;
+	QUERY_FLAGS				:: Query_Flags.NON_PARALLEL;
 }
 
 Query_Debug_Draw_AABB :: struct {
@@ -44,5 +32,5 @@ Query_Debug_Draw_AABB :: struct {
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.SHIP;
 
-	QUERY_FLAGS				:: Query_Flags.CHUNK_PREFETCH;
+	QUERY_FLAGS				:: 0;
 }

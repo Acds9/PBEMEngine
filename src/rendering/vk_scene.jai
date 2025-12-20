@@ -21,6 +21,7 @@ ZScene :: struct {
 	
 	Light_Queue_Entry :: struct {
 		light		: Point_Light; // Right now it's just this, but in the future we'll have transforms for lights to uniformly handle point, spot, etc lights
+		idx_ptr		: *u32;
 	}
 	light_queue		: [..][..]Light_Queue_Entry;
 }
@@ -78,8 +79,11 @@ remove_scene_mesh :: (scene: *ZScene, idx: u32) {
     scene.mesh_instances.buffer_remove(*scene.mesh_instances, idx);
 }
 
-add_scene_point_light :: (scene: *ZScene, light: Point_Light) -> u32 {
-	return scene.point_lights.allocate(*scene.point_lights, light);
+add_scene_point_light :: (scene: *ZScene, light: Point_Light, idx_ptr: *u32) {
+	queue_entry : ZScene.Light_Queue_Entry;
+	queue_entry.light = light;
+	queue_entry.idx_ptr = idx_ptr;
+	array_add(*scene.light_queue[context.thread_index], queue_entry);
 }
 
 render_get_mesh_instance :: (scene: *ZScene, instance_idx: u32) -> *Mesh_Instance {
@@ -104,7 +108,13 @@ process_scene_arrays :: (using scene: *ZScene) {
 			<<mesh.idx_ptr = scene.mesh_instances.allocate(*scene.mesh_instances, mesh.mesh_instance); // Set the value of the idx pointer that was passed
 		}
 	}
+	for *lane: light_queue {
+		for *light: <<lane {
+			<<light.idx_ptr = scene.point_lights.allocate(*scene.point_lights, light.light);
+		}
+	}
 	if context.thread_index == 0 {
 		array_reset(*mesh_queue);
+		array_reset(*light_queue);
 	}
 }

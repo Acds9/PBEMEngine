@@ -118,6 +118,7 @@ flush_observers :: (world: *ZWorld) {
 			it.proc(*GAME_INSTANCE, <<entities);
 		}
 	}
+	barrier_wait(context.lane_barrier); // Don't want thread 0 to reset before all threads are done 
 	if context.thread_index == 0 {
 		world.observer_buffer.reset(*world.observer_buffer);
 	}
