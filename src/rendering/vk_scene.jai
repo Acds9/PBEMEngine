@@ -11,6 +11,18 @@ ZScene :: struct {
 
 	////////////////// LIGHT ////////////////////////////////////
 	point_lights	: Staged_Uniform_Storage_Buffer;
+
+	Mesh_Queue_Entry :: struct {
+		mesh_instance 	: Mesh_Instance;
+		transform		: Render_Transform;
+		idx_ptr			: *u32;
+	}
+	mesh_queue		: [..][..]Mesh_Queue_Entry;
+	
+	Light_Queue_Entry :: struct {
+		light		: Point_Light; // Right now it's just this, but in the future we'll have transforms for lights to uniformly handle point, spot, etc lights
+	}
+	light_queue		: [..][..]Light_Queue_Entry;
 }
 
 create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
@@ -25,10 +37,18 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 	scene.point_lights = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, LIGHT_BUFFER_SIZE, size_of(Point_Light), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "point_lights buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.point_lights);
 
+	lane_count := GAME_INSTANCE.lane_system.lane_count;
+	array_resize(*scene.mesh_queue, lane_count);
+	array_resize(*scene.light_queue, lane_count);
+	
 	return scene;
 }
-add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, parent_transform: u32 = U32_MAX, material_overrides: *[8]u32 = null) -> u32 {
-	mesh_instance : Mesh_Instance;
+
+add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, idx_ptr: *u32, parent_transform: u32 = U32_MAX, material_overrides: *[8]u32 = null) {
+	queue_entry	: ZScene.Mesh_Queue_Entry;
+	queue_entry.idx_ptr = idx_ptr;
+
+	mesh_instance 	: Mesh_Instance;
 	mesh_instance.idx_mesh_asset = mesh.mesh_index;
 	mesh_instance.idx_aabb = mesh.idx_aabb;
 	mesh_instance.idx_geo_surface = mesh.idx_geo_surface;
@@ -36,20 +56,21 @@ add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, 
 	if material_overrides {
 		mesh_instance.material_overrides = <<material_overrides;
 	}
+	queue_entry.mesh_instance = mesh_instance;
+	
 
 	render_transform : Render_Transform;
 	render_transform.local_transform = local_transform;
 	render_transform.parent_idx = parent_transform;
-
-	mesh_instance.idx_transform = scene.mesh_transforms.allocate(*scene.mesh_transforms, render_transform);
+	queue_entry.transform = render_transform;
 
 	
-	return scene.mesh_instances.allocate(*scene.mesh_instances, mesh_instance);
+	array_add(*scene.mesh_queue[context.thread_index], queue_entry);
 }
 
-add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, transform: Transform, parent_transform: u32 = 0, material_overrides: []u32 = .[]) -> u32 {
+add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, transform: Transform, idx_ptr: *u32, parent_transform: u32 = 0, material_overrides: []u32 = .[]) {
 	transform_to_matrix4(transform);
-	return add_scene_mesh(scene, mesh, transform_to_matrix4(transform), parent_transform);
+	add_scene_mesh(scene, mesh, transform_to_matrix4(transform), idx_ptr, parent_transform);
 }
 
 remove_scene_mesh :: (scene: *ZScene, idx: u32) {
@@ -74,4 +95,16 @@ render_set_transform :: (scene: *ZScene, transform_idx: u32, new_transform: *Mat
 render_get_transform :: (scene: *ZScene, transform_idx: u32) -> *Render_Transform {
 	transforms := cast(*Render_Transform)scene.mesh_transforms.staging_buffer.info.pMappedData;
     return *transforms[transform_idx];
+}
+
+process_scene_arrays :: (using scene: *ZScene) {
+	for *lane: mesh_queue {
+		for *mesh: <<lane {
+			mesh.mesh_instance.idx_transform = scene.mesh_transforms.allocate(*scene.mesh_transforms, mesh.transform);
+			<<mesh.idx_ptr = scene.mesh_instances.allocate(*scene.mesh_instances, mesh.mesh_instance); // Set the value of the idx pointer that was passed
+		}
+	}
+	if context.thread_index == 0 {
+		array_reset(*mesh_queue);
+	}
 }

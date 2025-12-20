@@ -19,6 +19,8 @@ Game_Instance :: struct {
 	input_system : Input_System;
 	mouse_mode : bool;
 
+	lane_system : Lane_System;
+
 	// Debug
 	imgui_mode : bool;
 }
@@ -142,38 +144,20 @@ toggle_imgui_mode :: () {
 	}
 }
 
-current_position : Vector3;
 game_tick :: () {
 	using GAME_INSTANCE;
 	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
-	/*{
-		execute_Query_Position_Randomizer(*GAME_INSTANCE.world, #code {
-			for *pos: position_array {
-				if pos.pos == current_position {
-					current_position += .{1000,0,0};
-				}
-				dir := pos.pos - current_position;
-				norm := normalize(dir);
-				//pos.pos -= norm*10*GAME_INSTANCE.delta_time;
-			}
-		});
-	}*/
-	
 	{
 		execute_Query_Update_Render_Proxy(*GAME_INSTANCE.world, #code {
-			for *pos: position_array {
-				rot := rotation_array[it_index];
-				scale := scale_array[it_index];
-				transform := Transform.{pos.pos, rot.rot, scale.scale};
-				matrix := transform_to_matrix4(transform);
-				idx := mesh_render_proxy_ec_array[it_index].idx_mesh_instance;
+			transform := Transform.{position.pos, rotation.rot, scale.scale};
+			matrix := transform_to_matrix4(transform);
+			idx := mesh_render_proxy_ec.idx_mesh_instance;
 				
-				mesh_instance := render_get_mesh_instance(*GAME_INSTANCE.scene, idx);
-				render_set_transform(*GAME_INSTANCE.scene, idx, *matrix);
-			}
+			mesh_instance := render_get_mesh_instance(*GAME_INSTANCE.scene, idx);
+			render_set_transform(*GAME_INSTANCE.scene, idx, *matrix);
 		});
 	}
-	if ZRENDERER.debug_system.light_radius_sphere {
+	/*if ZRENDERER.debug_system.light_radius_sphere {
 		execute_Query_Debug_Draw_Point_Light(*GAME_INSTANCE.world, #code {
 			for *pos: position_array {
 				point_light := *point_light_component_array[it_index];
@@ -182,7 +166,7 @@ game_tick :: () {
 				debug_draw_sphere(*ZRENDERER, position, point_light.radius, point_light.color);
 			}
 		});
-	}
+	}*/
 	
 	tick_world(*world, delta_time);
 }
@@ -208,53 +192,72 @@ game_shutdown :: () {
     // Add world cleanup later
 }
 
-main :: () {
-    if !game_init() {
-        return;
-    }
-
-    event: SDL_Event;
-    while !GAME_INSTANCE.quit {
-        // Update timing
-        current_counter := SDL_GetPerformanceCounter();
-        GAME_INSTANCE.delta_time = cast,no_check(float64)(current_counter - GAME_INSTANCE.last_counter) / 
-                          cast,no_check(float64)GAME_INSTANCE.frequency;
-        GAME_INSTANCE.fps = cast,no_check(u32)(1 / GAME_INSTANCE.delta_time);
-        GAME_INSTANCE.last_counter = current_counter;
-
-		imgui_begin_frame(.{xx,no_check ZRENDERER.draw_extent.width, xx,no_check ZRENDERER.draw_extent.height});
-		input_begin_frame(*GAME_INSTANCE.input_system);
+game_loop :: () {
+	event: SDL_Event;
+	while !GAME_INSTANCE.quit {
+		if context.thread_index == 0 {
+			// Update timing
+			current_counter := SDL_GetPerformanceCounter();
+			GAME_INSTANCE.delta_time = cast,no_check(float64)(current_counter - GAME_INSTANCE.last_counter) / 
+							cast,no_check(float64)GAME_INSTANCE.frequency;
+			GAME_INSTANCE.fps = cast,no_check(u32)(1 / GAME_INSTANCE.delta_time);
+			GAME_INSTANCE.last_counter = current_counter;
+			print("FPS: %\n", GAME_INSTANCE.fps);
+			imgui_begin_frame(.{xx,no_check ZRENDERER.draw_extent.width, xx,no_check ZRENDERER.draw_extent.height});
+			input_begin_frame(*GAME_INSTANCE.input_system);
         
-        // Process input
-        while SDL_PollEvent(*event) {
-			if GAME_INSTANCE.imgui_mode {
-				imgui_process_SDL_event(*event);
+			// Process input
+			while SDL_PollEvent(*event) {
+				if GAME_INSTANCE.imgui_mode {
+					imgui_process_SDL_event(*event);
+				}
+
+				input_handle_sdl_event(*GAME_INSTANCE.input_system, *event);
+				window_handle_sdl_event(*event);
 			}
 
-			input_handle_sdl_event(*GAME_INSTANCE.input_system, *event);
-            window_handle_sdl_event(*event);
-        }
+			if get_command(*GAME_INSTANCE.input_system, .TOGGLE_MOUSE_MODE).key_down {
+				toggle_mouse_input_mode(*GAME_INSTANCE.input_system);
+			}
+			if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_MODE).key_down {
+				toggle_imgui_mode();
+			}
+			tick_input_commands(*GAME_INSTANCE.input_system, xx,no_check GAME_INSTANCE.delta_time);
 
-		if get_command(*GAME_INSTANCE.input_system, .TOGGLE_MOUSE_MODE).key_down {
-       		toggle_mouse_input_mode(*GAME_INSTANCE.input_system);
+			 // Update camera from input
+       		game_update_camera();
 		}
-		if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_MODE).key_down {
-			toggle_imgui_mode();
-		}
-        tick_input_commands(*GAME_INSTANCE.input_system, xx,no_check GAME_INSTANCE.delta_time);
-
-        // Update camera from input
-        game_update_camera();
+       	barrier_wait(context.lane_barrier);
         
         // Game tick
         game_tick();
+		barrier_wait(context.lane_barrier);
 
-		// ImGui tick
-		imgui_tick();
-        
-        // Render
-        game_render();
+		if context.thread_index == 0 {
+			// ImGui tick
+			imgui_tick();
+			// Render
+			game_render();
+		}
+		barrier_wait(context.lane_barrier);
     }
-    
+}
+
+main :: () {
+	GAME_INSTANCE.lane_system.init(*GAME_INSTANCE.lane_system);
+	// Lanes enter into game_loop, so this sets up lane 0 which is default (thread_index is already 0)
+	context.lane_count = GAME_INSTANCE.lane_system.lane_count;
+    context.lane_barrier = *GAME_INSTANCE.lane_system.barrier;
+
+    if !game_init() {
+        return;
+    }
+	
+	// And we call the same that the lanes are told to run
+	game_loop();
+
     game_shutdown();
 }
+
+//1. add a game loop entry point to main
+//2. start the threads first then launch game loop on all of them

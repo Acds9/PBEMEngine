@@ -363,6 +363,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
         return;
     }
 	update_scene(zr);
+	process_scene_arrays(scene);
 
 	current_frame := zr.current_frame;
 	frame_data := zr.get_current_frame_data(zr);
@@ -401,9 +402,10 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 	frame_data.draw_commands_debug_wireframe.reset(*frame_data.draw_commands_debug_wireframe);
 	generate_debug_mesh_draws(zr, *frame_data.draw_commands_debug_wireframe);
 
-	
+	/// ImGui
 	ImGui.Render();
 	imgui_populate_buffers(*zr.imgui_system, zr);
+
 	// Begin the command buffer to record commands, everything after this is command recording
     vkBeginCommandBuffer(cmd, *begin_info);
 	{

@@ -27,8 +27,8 @@ entity_is_alive :: (world: *ZWorld, entity: ZEntity) -> bool {
 	return bit_test(arch_storage.alive_mask, entity.index);
 }
 
-entity_is_alive :: (entity: ZEntity, storage: *Archetype_Storage ) -> bool {
-	return bit_test(storage.alive_mask, entity.index);
+entity_is_alive :: (entity_idx: u32, storage: *Archetype_Storage ) -> bool {
+	return bit_test(storage.alive_mask, entity_idx);
 }
 
 entity_to_u64 :: (e: *ZEntity) -> u64 {
@@ -118,7 +118,10 @@ flush_observers :: (world: *ZWorld) {
 			it.proc(*GAME_INSTANCE, <<entities);
 		}
 	}
-	world.observer_buffer.reset(*world.observer_buffer);
+	if context.thread_index == 0 {
+		world.observer_buffer.reset(*world.observer_buffer);
+	}
+	
 }
 
 // Entities

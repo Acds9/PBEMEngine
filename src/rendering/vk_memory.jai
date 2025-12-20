@@ -85,18 +85,15 @@ Staged_Uniform_Storage_Buffer :: struct {
 	capacity	: u64;
 	count		: u32;
 	free_list	: [..]u32;
-	generations	: [..]u8;
 
 	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T) -> u32 {
 		write_index : u32;
 		if free_list.count > 0 {
 			write_index = pop(*free_list);;
-			generations[write_index] += 1;
 		}
 		else {
 			write_index = count;
 			count += 1;
-			array_resize(*generations, count);
 		}
 
 		if count >= capacity {
@@ -106,6 +103,25 @@ Staged_Uniform_Storage_Buffer :: struct {
 		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
 		cast_data[write_index] = value;
 		return write_index;
+	}
+
+	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T, idx_address: *u32) {
+		write_index : u32;
+		if free_list.count > 0 {
+			write_index = pop(*free_list);;
+		}
+		else {
+			write_index = count;
+			count += 1;
+		}
+
+		if count >= capacity {
+			panic(sprint("Attempted to allocate more elements than capacity allows. Capacity: %", capacity));
+		}
+
+		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
+		cast_data[write_index] = value;
+		<<idx_address = write_index;
 	}
 
 	transfer :: (using self: *Staged_Uniform_Storage_Buffer, cmd: VkCommandBuffer) {
@@ -129,7 +145,6 @@ Staged_Uniform_Storage_Buffer :: struct {
 	
 	reset :: (using self: *Staged_Uniform_Storage_Buffer) {
 		array_reset(*free_list);
-		array_reset(*generations);
 		count = 0;
 	}
 }

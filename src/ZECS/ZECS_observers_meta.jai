@@ -1,6 +1,5 @@
 #import "Basic";
 
-
 generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 	builder: String_Builder;
 	for observer: observers {
@@ -25,8 +24,10 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 			print_to_builder(*builder, "\tworld := *game_instance.world;\n");
 			print_to_builder(*builder, "\tarchetype := entities[0].archetype;\n");
 			print_to_builder(*builder, "\tarch_storage := *world.world_archetypes[entities[0].archetype];\n");
-			
-			print_to_builder(*builder, "\tfor entity: entities {\n");
+			print_to_builder(*builder, "\tmin, max := lane_range(xx,no_check entities.count);\n");
+			print_to_builder(*builder, "\tfor min..max {\n");
+				print_to_builder(*builder, "\t\tentity := entities[it];\n");
+				
 				for e_c: observer.entity_components {
 					print_to_builder(*builder, "\t\t% := *get_entity_component(world, entity, %);\n", to_lower_copy(e_c), e_c);
 				}

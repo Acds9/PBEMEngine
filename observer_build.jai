@@ -49,6 +49,7 @@ code_generation :: (w: Workspace) -> bool {
 	add_build_file("src/ZECS/ZECS_archetypes.jai", w);
 	add_build_file("src/ZECS/ZECS_observers.jai", w);
 	add_build_file("src/ZECS/stub/ZECS_queries_meta_stub.jai", w);
+	add_build_file("src/ZECS/stub/ZECS_observer_meta_stub.jai", w);
 
 
 	while true {                     
