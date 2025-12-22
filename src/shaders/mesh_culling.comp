@@ -18,6 +18,7 @@ layout(push_constant, scalar) uniform Mesh_Culling_Push_Constants {
     uint64_t bda_geo_surface;
     uint64_t bda_material_instances;
     uint64_t bda_draw_address_buffer;
+    uint64_t bda_mesh_visibility_bitfield;
     uint mesh_instance_count;
 } push_constants;
 
@@ -56,6 +57,11 @@ void main() {
     
     Mesh_Instance_Buffer mesh_instance_buffer = Mesh_Instance_Buffer(push_constants.bda_mesh_instances);
     Mesh_Instance mesh_instance = mesh_instance_buffer.mesh_instances[global_id];
+
+    Visibility_Buffer visibility = Visibility_Buffer(push_constants.bda_mesh_visibility_bitfield); 
+    uint word_idx = global_id >> 5;
+    uint bit_idx = global_id & 31;
+    if (((visibility.bits[word_idx] >> bit_idx) & 1u) == 0u) return;
 
     Flattened_Transform_Buffer transform_buffer = Flattened_Transform_Buffer(push_constants.bda_flattened_transforms);
     mat4 t = transform_buffer.transforms[mesh_instance.idx_transform];   

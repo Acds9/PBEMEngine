@@ -36,12 +36,12 @@ Geometry_Pool :: struct {
 
 		geo_surface_buffer = make_staged_uniform_storage_buffer(allocator, GEOPOOL_AABB_ALLOC_SIZE, size_of(Geo_Surface),
 										.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
-										device, "geo_surface buffer");
+										false, device, "geo_surface buffer");
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *geo_surface_buffer);
 
 		default_aabb_buffer = make_staged_uniform_storage_buffer(allocator, GEOPOOL_GEO_SURFACE_ALLOC_SIZE, size_of(AABB),
 										.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | .VK_BUFFER_USAGE_TRANSFER_DST_BIT | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
-										device, "default AABB buffer");
+										false, device, "default AABB buffer");
 		queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *default_aabb_buffer);
 	}
 
@@ -75,7 +75,6 @@ Mesh_Instance :: struct {
 	idx_aabb			: u32;
 	idx_geo_surface		: u32; 
 	geo_surface_count	: u8;
-	generation			: u8;
 }
 
 // CPU side representation of a full mesh asset

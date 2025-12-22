@@ -188,6 +188,7 @@ game_shutdown :: () {
 	using GAME_INSTANCE;
     vkDeviceWaitIdle(ZRENDERER.device);
     deinit_zrenderer(*ZRENDERER);
+	WakeAllConditionVariable(*GAME_INSTANCE.lane_system.barrier.cond); // Make sure to release any thread stuck on barrier
     // Add world cleanup later
 }
 

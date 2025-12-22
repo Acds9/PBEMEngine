@@ -16,38 +16,45 @@ ZScene :: struct {
 		mesh_instance 	: Mesh_Instance;
 		transform		: Render_Transform;
 		idx_ptr			: *u32;
+		visible			: bool;
 	}
-	mesh_queue		: [..][..]Mesh_Queue_Entry;
+	mesh_add_queue		: [..][..]Mesh_Queue_Entry;
+	mesh_remove_queue	: [..][..]u32;
 	
 	Light_Queue_Entry :: struct {
 		light		: Point_Light; // Right now it's just this, but in the future we'll have transforms for lights to uniformly handle point, spot, etc lights
 		idx_ptr		: *u32;
+		visible			: bool;
 	}
-	light_queue		: [..][..]Light_Queue_Entry;
+	light_add_queue		: [..][..]Light_Queue_Entry;
+	light_remove_queue	: [..][..]u32;
 }
 
 create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 	scene : ZScene;
 
-	scene.mesh_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MESH_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "mesh_instances buffer");
+	scene.mesh_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MESH_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, true, device, "mesh_instances buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.mesh_instances);
 
-	scene.mesh_transforms = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, TRANSFORM_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "mesh_transforms buffer");
+	scene.mesh_transforms = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, TRANSFORM_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, device, "mesh_transforms buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.mesh_transforms);
 	
-	scene.point_lights = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, LIGHT_BUFFER_SIZE, size_of(Point_Light), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, device, "point_lights buffer");
+	scene.point_lights = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, LIGHT_BUFFER_SIZE, size_of(Point_Light), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, true, device, "point_lights buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.point_lights);
 
 	lane_count := GAME_INSTANCE.lane_system.lane_count;
-	array_resize(*scene.mesh_queue, lane_count);
-	array_resize(*scene.light_queue, lane_count);
+	array_resize(*scene.mesh_add_queue, lane_count);
+	array_resize(*scene.mesh_remove_queue, lane_count);
+	array_resize(*scene.light_add_queue, lane_count);
+	array_resize(*scene.light_remove_queue, lane_count);
 	
 	return scene;
 }
 
-add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, idx_ptr: *u32, parent_transform: u32 = U32_MAX, material_overrides: *[8]u32 = null) {
+add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, idx_ptr: *u32, visible: bool = true, parent_transform: u32 = U32_MAX, material_overrides: *[8]u32 = null) {
 	queue_entry	: ZScene.Mesh_Queue_Entry;
 	queue_entry.idx_ptr = idx_ptr;
+	queue_entry.visible = visible;
 
 	mesh_instance 	: Mesh_Instance;
 	mesh_instance.idx_mesh_asset = mesh.mesh_index;
@@ -66,12 +73,12 @@ add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, 
 	queue_entry.transform = render_transform;
 
 	
-	array_add(*scene.mesh_queue[context.thread_index], queue_entry);
+	array_add(*scene.mesh_add_queue[context.thread_index], queue_entry);
 }
 
-add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, transform: Transform, idx_ptr: *u32, parent_transform: u32 = 0, material_overrides: []u32 = .[]) {
+add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, transform: Transform, idx_ptr: *u32, visible: bool = true, parent_transform: u32 = 0, material_overrides: *[8]u32 = null) {
 	transform_to_matrix4(transform);
-	add_scene_mesh(scene, mesh, transform_to_matrix4(transform), idx_ptr, parent_transform);
+	add_scene_mesh(scene, mesh, transform_to_matrix4(transform), idx_ptr, visible, parent_transform, material_overrides);
 }
 
 remove_scene_mesh :: (scene: *ZScene, idx: u32) {
@@ -79,11 +86,12 @@ remove_scene_mesh :: (scene: *ZScene, idx: u32) {
     scene.mesh_instances.buffer_remove(*scene.mesh_instances, idx);
 }
 
-add_scene_point_light :: (scene: *ZScene, light: Point_Light, idx_ptr: *u32) {
+add_scene_point_light :: (scene: *ZScene, light: Point_Light, idx_ptr: *u32, visible: bool = true) {
 	queue_entry : ZScene.Light_Queue_Entry;
 	queue_entry.light = light;
 	queue_entry.idx_ptr = idx_ptr;
-	array_add(*scene.light_queue[context.thread_index], queue_entry);
+	queue_entry.visible = visible;
+	array_add(*scene.light_add_queue[context.thread_index], queue_entry);
 }
 
 render_get_mesh_instance :: (scene: *ZScene, instance_idx: u32) -> *Mesh_Instance {
@@ -101,20 +109,41 @@ render_get_transform :: (scene: *ZScene, transform_idx: u32) -> *Render_Transfor
     return *transforms[transform_idx];
 }
 
+render_get_light :: (scene: *ZScene, instance_idx: u32) -> *Point_Light {
+	lights := cast(*Point_Light)scene.point_lights.staging_buffer.info.pMappedData;
+  	return *lights[instance_idx];
+}
+
 process_scene_arrays :: (using scene: *ZScene) {
-	for *lane: mesh_queue {
+	for *lane: mesh_add_queue {
 		for *mesh: <<lane {
 			mesh.mesh_instance.idx_transform = scene.mesh_transforms.allocate(*scene.mesh_transforms, mesh.transform);
-			<<mesh.idx_ptr = scene.mesh_instances.allocate(*scene.mesh_instances, mesh.mesh_instance); // Set the value of the idx pointer that was passed
+			<<mesh.idx_ptr = scene.mesh_instances.allocate(*scene.mesh_instances, mesh.mesh_instance, mesh.visible); // Set the value of the idx pointer that was passed
 		}
 	}
-	for *lane: light_queue {
+	for *lane: light_add_queue {
 		for *light: <<lane {
-			<<light.idx_ptr = scene.point_lights.allocate(*scene.point_lights, light.light);
+			<<light.idx_ptr = scene.point_lights.allocate(*scene.point_lights, light.light, light.visible);
+		}
+	}
+	for *lane: mesh_remove_queue {
+		for idx: <<lane {
+			scene.mesh_transforms.buffer_remove(*scene.mesh_transforms, idx);
+
+    		scene.mesh_instances.buffer_remove(*scene.mesh_instances, idx);
+			scene.mesh_instances.set_visibility_idx(*scene.mesh_instances, idx, false);
+		}
+	}
+	for *lane: light_remove_queue {
+		for idx: <<lane {
+			scene.point_lights.buffer_remove(*scene.point_lights, idx);
+			scene.point_lights.set_visibility_idx(*scene.point_lights, idx, false);
 		}
 	}
 	if context.thread_index == 0 {
-		array_reset(*mesh_queue);
-		array_reset(*light_queue);
+		array_reset(*mesh_add_queue);
+		array_reset(*mesh_remove_queue);
+		array_reset(*light_add_queue);
+		array_reset(*light_remove_queue);
 	}
 }

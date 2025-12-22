@@ -284,7 +284,7 @@ immediate_submit :: (zr: *ZRenderer, body: Code) #expand {
 }
 
 init_pipelines :: (zr: *ZRenderer) -> bool, string {
-	zr.material_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MATERIAL_INSTANCE_BUFFER_SIZE, size_of(Material_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, zr.device, "material_instance buffer");
+	zr.material_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MATERIAL_INSTANCE_BUFFER_SIZE, size_of(Material_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, zr.device, "material_instance buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *zr.material_instances);
 	
 	zr.debug_system.m_debug_point.build(*zr.debug_system.m_debug_point, zr);
@@ -485,6 +485,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		mesh_cull_push.bda_geo_surfaces = zr.geometry_pool.geo_surface_buffer.device_buffer.base_address;
 		mesh_cull_push.bda_material_instances = zr.material_instances.device_buffer.base_address;
 		mesh_cull_push.bda_draw_address_buffer = frame_data.bdab_draw_commands.device_buffer.base_address;
+		mesh_cull_push.bda_mesh_visibility_bitfield = scene.mesh_instances.visibility_device.base_address;
 		mesh_cull_push.mesh_instance_count = scene.mesh_instances.count;
 		
 		vkCmdPushConstants(cmd, 
@@ -506,6 +507,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		light_cull_push.bda_camera = frame_data.camera_buffer.device_buffer.base_address;
 		light_cull_push.bda_point_lights = scene.point_lights.device_buffer.base_address;
 		light_cull_push.bda_light_bitfield = light_bitfield.base_address;
+		light_cull_push.bda_light_visibility = scene.point_lights.visibility_device.base_address;
 		light_cull_push.point_light_count = xx,no_check(scene.point_lights.count);
 	
 		vkCmdPushConstants(cmd, 

@@ -16,6 +16,7 @@ layout(push_constant, scalar) uniform Light_Culling_Push_Constants {
     uint64_t bda_camera;
     uint64_t bda_point_lights;
     uint64_t bda_light_bitfield;
+    uint64_t bda_light_visibility;
     uint point_light_count;
 } push_constants;
 
@@ -45,6 +46,12 @@ bool sphere_inside_frustum(vec3 sphere_center, float sphere_radius, vec4 planes[
 void main() {
     uint global_id = gl_GlobalInvocationID.x;
     if(global_id >= push_constants.point_light_count) return;  // Guard against excess threads immediately
+
+    // Visibility check first
+    Visibility_Buffer visibility = Visibility_Buffer(push_constants.bda_light_visibility);
+    uint word_idx = global_id >> 5;
+    uint bit_idx = global_id & 31;
+    if (((visibility.bits[word_idx] >> bit_idx) & 1u) == 0u) return;
 
     Render_Globals globals = Render_Globals(push_constants.bda_render_globals);
     Camera_Data camera_data = Camera_Data(push_constants.bda_camera);

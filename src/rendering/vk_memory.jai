@@ -86,7 +86,10 @@ Staged_Uniform_Storage_Buffer :: struct {
 	count		: u32;
 	free_list	: [..]u32;
 
-	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T) -> u32 {
+	visibility_staging 		: Allocated_Buffer;
+	visibility_device		: Allocated_Buffer;
+
+	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T, visible: bool = false) -> u32 {
 		write_index : u32;
 		if free_list.count > 0 {
 			write_index = pop(*free_list);;
@@ -99,29 +102,37 @@ Staged_Uniform_Storage_Buffer :: struct {
 		if count >= capacity {
 			panic(sprint("Attempted to allocate more elements than capacity allows. Capacity: %", capacity));
 		}
+		
+		if visibility_staging.info.size > 0 {
+			set_visibility_idx(self, write_index, visible);
+		}
 
 		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
 		cast_data[write_index] = value;
+
 		return write_index;
 	}
 
-	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T, idx_address: *u32) {
-		write_index : u32;
-		if free_list.count > 0 {
-			write_index = pop(*free_list);;
-		}
-		else {
-			write_index = count;
-			count += 1;
-		}
+	allocate :: (using self: *Staged_Uniform_Storage_Buffer, value: $T, idx_address: *u32, visible: bool = false) {
+		<<idx_address = self.allocate(self, value, idx_address, visible);
+	}
 
-		if count >= capacity {
-			panic(sprint("Attempted to allocate more elements than capacity allows. Capacity: %", capacity));
+	set_visibility_idx :: (using self: *Staged_Uniform_Storage_Buffer, idx: u32, visible: bool) {
+		cast_data := cast,no_check(*u32)visibility_staging.info.pMappedData;
+		if visible {
+			cast_data[idx >> 5] |= xx,no_check(1 << (idx & 31));
+		} else {
+			cast_data[idx >> 5] &= xx,no_check( ~(1 << (idx & 31)));
 		}
+	} 
 
-		cast_data := cast,no_check(*T)staging_buffer.info.pMappedData;
-		cast_data[write_index] = value;
-		<<idx_address = write_index;
+	// Bulk operations
+	set_visibility_all :: (using self: *Staged_Uniform_Storage_Buffer, visible: bool) {
+		if visible {
+			memset(visibility_staging.info.pMappedData, 0xFF, xx,no_check visibility_staging.info.size);
+		} else {
+			memset(visibility_staging.info.pMappedData, 0x00, xx,no_check visibility_staging.info.size);
+		}
 	}
 
 	transfer :: (using self: *Staged_Uniform_Storage_Buffer, cmd: VkCommandBuffer) {
@@ -131,6 +142,13 @@ Staged_Uniform_Storage_Buffer :: struct {
 			return;
 		}
 		vkCmdCopyBuffer(cmd, staging_buffer.buffer, device_buffer.buffer, 1, *copy);
+
+		visiblity_copy : VkBufferCopy;
+		visiblity_copy.size = visibility_staging.info.size;
+		if visiblity_copy.size == 0 {
+			return;
+		}
+		vkCmdCopyBuffer(cmd, visibility_staging.buffer, visibility_device.buffer, 1, *visiblity_copy);
 	}
 
 	get_device_address :: (using self: *Staged_Uniform_Storage_Buffer, address: VkDeviceAddress) -> VkDeviceAddress {
@@ -253,6 +271,9 @@ Staged_Struct_Buffer :: struct {
 }
 
 create_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Allocated_Buffer {
+	if alloc_size == 0 {
+		return .{};
+	}
 	buffer_info : VkBufferCreateInfo;
 	buffer_info.sType = .VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	buffer_info.size = alloc_size;
@@ -291,6 +312,9 @@ create_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsage
 }
 
 make_storage_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Storage_Buffer {
+	if alloc_size == 0 {
+		return .{};
+	}
 	return .{
 		base = create_buffer(allocator, alloc_size, usage, memory_usage, device, debug_name)
 	};
@@ -304,14 +328,20 @@ make_uniform_storage_buffer :: (allocator: VmaAllocator, alloc_size: u64, elemen
 	};
 }
 
-make_staged_uniform_storage_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_size: u32, usage: VkBufferUsageFlags, device: VkDevice = null, debug_name: string = "") -> Staged_Uniform_Storage_Buffer {
+make_staged_uniform_storage_buffer :: (allocator: VmaAllocator, alloc_size: u64, element_size: u32, usage: VkBufferUsageFlags, with_visibility : bool = false, device: VkDevice = null, debug_name: string = "") -> Staged_Uniform_Storage_Buffer {
 	staging_name := sprint("%_%", debug_name, "staging");
 	device_name := sprint("%_%", debug_name, "device");
+	
+	vis_staging_name := sprint("%_%", debug_name, "vis_staging");
+	vis_device_name := sprint("%_%", debug_name, "vis_device");
+	vis_size := ifx with_visibility then alloc_size/8 else 0;
 	return .{
 		staging_buffer = create_buffer(allocator, alloc_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | usage, .CPU_ONLY, device, staging_name),
 		device_buffer = create_buffer(allocator, alloc_size, .VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, .GPU_ONLY, device, device_name),
 		element_size = element_size,
-		capacity = alloc_size/element_size
+		capacity = alloc_size/element_size,
+		visibility_staging = create_buffer(allocator, vis_size, .VK_BUFFER_USAGE_TRANSFER_SRC_BIT | usage, .CPU_ONLY, device, vis_staging_name),
+		visibility_device = create_buffer(allocator, vis_size, .VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, .GPU_ONLY, device, vis_device_name)
 	};
 }
 

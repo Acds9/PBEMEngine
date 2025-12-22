@@ -44,7 +44,6 @@ struct Mesh_Instance {
     uint idx_aabb;
     uint idx_geo_surface;
     uint8_t geo_surface_count;
-    uint8_t generation;
 };
 layout(buffer_reference, scalar) readonly buffer Mesh_Instance_Buffer { 
     Mesh_Instance mesh_instances[];
@@ -104,4 +103,8 @@ layout(buffer_reference, scalar) readonly buffer Draw_Address_Buffer {
     uint64_t bda_command_buffer_translucent;
     uint64_t bda_command_buffer_emissive;
     uint64_t bda_commands_debug_wireframe;
+};
+
+layout(buffer_reference, scalar) buffer Visibility_Buffer {
+    uint bits[];
 };

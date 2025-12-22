@@ -100,6 +100,9 @@ queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, buffer: *Uni
 queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, buffer: *Staged_Uniform_Storage_Buffer) {
     array_add(*queue.buffers, .{allocator, buffer.staging_buffer.buffer, buffer.staging_buffer.allocation});
 	array_add(*queue.buffers, .{allocator, buffer.device_buffer.buffer, buffer.device_buffer.allocation});
+
+	array_add(*queue.buffers, .{allocator, buffer.visibility_staging.buffer, buffer.visibility_staging.allocation});
+	array_add(*queue.buffers, .{allocator, buffer.visibility_device.buffer, buffer.visibility_device.allocation});
 }
 
 queue_deletion :: (queue: *Deletion_Queue, allocator: VmaAllocator, buffer: *Staged_Array_Buffer) {

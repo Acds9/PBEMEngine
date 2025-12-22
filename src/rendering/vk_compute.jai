@@ -68,6 +68,7 @@ Mesh_Culling_Push_Constants :: struct {
 	bda_geo_surfaces		: VkDeviceAddress;
 	bda_material_instances	: VkDeviceAddress;
 	bda_draw_address_buffer : VkDeviceAddress;
+	bda_mesh_visibility_bitfield : VkDeviceAddress;
 	mesh_instance_count		: u32;
 }
 
@@ -171,6 +172,7 @@ Light_Culling_Push_Constants :: struct {
 	bda_camera				: VkDeviceAddress;
 	bda_point_lights		: VkDeviceAddress;
 	bda_light_bitfield		: VkDeviceAddress;
+	bda_light_visibility	: VkDeviceAddress;
 	point_light_count		: u32;
 }
 
