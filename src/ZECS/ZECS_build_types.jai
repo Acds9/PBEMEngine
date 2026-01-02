@@ -36,6 +36,7 @@ Query_Build_Metadata :: struct {
     archetype_components	: [..]string;
     tags					: u64; 
     options					: u32; // Should be called flags and be u8
+	counter_index			: u32; // For ATOMIC_COUNTER query option
 }
 
 

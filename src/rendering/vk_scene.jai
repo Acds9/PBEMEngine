@@ -22,12 +22,14 @@ ZScene :: struct {
 	mesh_remove_queue	: [..][..]u32;
 	
 	Light_Queue_Entry :: struct {
-		light		: Point_Light; // Right now it's just this, but in the future we'll have transforms for lights to uniformly handle point, spot, etc lights
-		idx_ptr		: *u32;
+		light			: Point_Light; // Right now it's just this, but in the future we'll have transforms for lights to uniformly handle point, spot, etc lights
+		idx_ptr			: *u32;
 		visible			: bool;
 	}
 	light_add_queue		: [..][..]Light_Queue_Entry;
 	light_remove_queue	: [..][..]u32;
+
+	bvh_system 			: LBVH_System;
 }
 
 create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
@@ -48,7 +50,16 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 	array_resize(*scene.light_add_queue, lane_count);
 	array_resize(*scene.light_remove_queue, lane_count);
 	
+	scene.bvh_system.init(*scene.bvh_system);
+
 	return scene;
+}
+
+scene_tick :: (using scene: *ZScene) {
+	compute_scene_bounds(*bvh_system);
+	generate_morton_array(*bvh_system);
+	build_tree_topology(*bvh_system);
+	compute_bounding_boxes(*bvh_system);
 }
 
 add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, idx_ptr: *u32, visible: bool = true, parent_transform: u32 = U32_MAX, material_overrides: *[8]u32 = null) {

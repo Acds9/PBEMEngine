@@ -60,6 +60,7 @@ code_generation :: (w: Workspace) -> bool {
 	add_build_file("src/ZECS/stub/ZECS_archetype_meta_stub.jai", w);
 	add_build_file("src/ZECS/generated/ZECS_constants_gen.jai", w);
 	add_build_file("src/ZECS/generated/ZECS_components_gen.jai", w);
+	add_build_file("src/types.jai", w);
 	if arch_gen {
         add_build_string("arch_gen :: true;", w);
     } else {
@@ -120,3 +121,4 @@ main :: () {}
 
 #load "src/ZECS/ZECS_build_types.jai";
 #load "src/ZECS/ZECS_archetypes_meta.jai";
+#load "src/types.jai";

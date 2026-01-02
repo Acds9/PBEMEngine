@@ -346,11 +346,16 @@ Render_Transform :: struct {
 	padding			: [12]u8;
 }
 
+
 AABB :: struct {
-	center : Vector3;
+	center : Vector3; // The center of the box, NOT the world location
 	pad0	: float;
 	half_extents : Vector3;
 	pad1	: float;
+}
+
+aabb_to_volume_bounds :: (aabb: *AABB) -> Volume_Bounds {
+	return .{aabb.center - aabb.half_extents, aabb.center + aabb.half_extents};
 }
 
 Render_Globals :: struct {

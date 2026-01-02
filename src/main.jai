@@ -15,6 +15,7 @@ Game_Instance :: struct {
     last_counter: u64;
     delta_time: float64;
     fps: u32;
+	current_frame : u64;
 
 	input_system : Input_System;
 	mouse_mode : bool;
@@ -202,7 +203,7 @@ game_loop :: () {
 							cast,no_check(float64)GAME_INSTANCE.frequency;
 			GAME_INSTANCE.fps = cast,no_check(u32)(1 / GAME_INSTANCE.delta_time);
 			GAME_INSTANCE.last_counter = current_counter;
-			print("FPS: %\n", GAME_INSTANCE.fps); // TODO: add imgui fps counter
+			GAME_INSTANCE.current_frame += 1;
 			imgui_begin_frame(.{xx,no_check ZRENDERER.draw_extent.width, xx,no_check ZRENDERER.draw_extent.height});
 			input_begin_frame(*GAME_INSTANCE.input_system);
         
@@ -228,15 +229,13 @@ game_loop :: () {
        		game_update_camera();
 		}
        	barrier_wait(context.lane_barrier);
-        
-        // Game tick
+       
+		scene_tick(*GAME_INSTANCE.scene);
         game_tick();
 		barrier_wait(context.lane_barrier);
 
 		if context.thread_index == 0 {
-			// ImGui tick
 			imgui_tick();
-			// Render
 			game_render();
 		}
 		barrier_wait(context.lane_barrier);

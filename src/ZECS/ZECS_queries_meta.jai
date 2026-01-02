@@ -5,6 +5,18 @@
 generate_queries :: (queries: []Query_Build_Metadata) -> string {
 	
 	builder: String_Builder;
+
+	print_to_builder(*builder, "\n// Atomic query counters for various uses\n");
+
+	atomic_counters_num : u32;
+	for *query: queries {
+		if query.options & cast(u32)Query_Flags.ATOMIC_COUNTER {
+			query.counter_index = atomic_counters_num;
+			atomic_counters_num += 1;
+		}
+	}
+	print_to_builder(*builder, "query_counters : [%]u32;\n", atomic_counters_num);
+
 	
 	for query: queries {
 		// First we find the archetypes that match
@@ -26,10 +38,21 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 		print_to_builder(*builder, "\n// Query Executor for %\n", query.name);
 		print_to_builder(*builder, "execute_% :: (world: *ZWorld, $body: Code) #expand {\n", query.name); 
 		print_to_builder(*builder, "\tstorage 			: *Archetype_Storage;\n");
-		print_to_builder(*builder, "\tgenerations 		: []u16;\n");
-		print_to_builder(*builder, "\tentity_count 		: u32;\n");
-		print_to_builder(*builder, "\tarchetype_index 	: u16;\n");
+		print_to_builder(*builder, "\tgenerations 		: []u16;\n"); // TODO: maybe prefix all query data with query_?
+		print_to_builder(*builder, "\t`query_entity_count : u32;\n");
+		print_to_builder(*builder, "\t`current_entity : ZEntity;\n");
+		print_to_builder(*builder, "\t`query_archetype_index : u16;\n");
 		print_to_builder(*builder, "\talive_mask 		: *Bit_Field(MAX_ENTITIES_PER_ARCHETYPE);\n");
+		print_to_builder(*builder, "\t`iteration_idx : u32;\n");
+
+		print_to_builder(*builder, "\n");
+		print_to_builder(*builder, "\tif context.thread_index == 0 {\n");
+			print_to_builder(*builder, "\t\tatomic_write(*query_counters[%], 0);\n", query.counter_index);
+		print_to_builder(*builder, "\t}\n");
+		print_to_builder(*builder, "\tbarrier_wait(context.lane_barrier);\n");
+		print_to_builder(*builder, "\n");
+
+		print_to_builder(*builder, "\t`query_counter : u32;\n");
 		print_to_builder(*builder, "\n");
 		print_to_builder(*builder, "\n");
 		for e_c: query.entity_components {
@@ -47,6 +70,7 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 			print_to_builder(*builder, "\t`% 			: *%;\n", to_lower_copy(a_c), comp_type); 
 		}
 		print_to_builder(*builder, "\n");
+
 		for arch_index: matching_archetypes {
 			print_to_builder(*builder, "\tstorage = *world.world_archetypes[%];\n", arch_index);
 			print_to_builder(*builder, "\t{\n");
@@ -61,18 +85,22 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 					print_to_builder(*builder, "\t\t\t% = cast,no_check(*%)storage.archetype_components[%];\n", to_lower_copy(a_c), comp_type, it_index);
 				}
 				print_to_builder(*builder, "\n");
-				print_to_builder(*builder, "\t\t\tentity_count = storage.num_entities;\n");
+				print_to_builder(*builder, "\t\t\tquery_entity_count = storage.num_entities;\n");
 				if query.options & cast(u32)Query_Flags.NON_PARALLEL {
 					print_to_builder(*builder, "\t\t\tstart : u32 = 0;\n");
-					print_to_builder(*builder, "\t\t\tend : u32 = entity_count;\n");
+					print_to_builder(*builder, "\t\t\tend : u32 = query_entity_count;\n");
 				} else {
-					print_to_builder(*builder, "\t\t\tstart, end := lane_range(entity_count);\n");
+					print_to_builder(*builder, "\t\t\tstart, end := lane_range(query_entity_count);\n");
 				}
+				print_to_builder(*builder, "\t\t\tgenerations = storage.generations;\n");
 				print_to_builder(*builder, "\n");
 				print_to_builder(*builder, "\t\t\tfor idx: start..end {\n");
+					print_to_builder(*builder, "\t\t\t\titeration_idx = idx;\n");
 					print_to_builder(*builder, "\t\t\t\tif !entity_is_alive(idx, storage) {\n");
 					print_to_builder(*builder, "\t\t\t\t\t continue;\n");
 					print_to_builder(*builder, "\t\t\t\t}\n");
+					print_to_builder(*builder, "\t\t\t\tquery_counter = atomic_add(*query_counters[%], 1);\n", query.counter_index);
+					print_to_builder(*builder, "\t\t\t\tcurrent_entity = .{idx, %, generations[idx]};\n", arch_index);
 					for e_c: query.entity_components {
 						comp_type := get_entity_component_type(e_c);
 						print_to_builder(*builder, "\t\t\t\t% = *%_array[idx];\n", to_lower_copy(e_c), to_lower_copy(e_c)); 

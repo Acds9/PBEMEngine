@@ -46,6 +46,7 @@ code_generation :: (w: Workspace) -> bool {
 	add_build_file("H:/PBEMJai/src/zmath.jai", w);
 	add_build_file("src/ZECS/ZECS_build_types.jai", w);
 	add_build_file("src/ZECS/ZECS_components.jai", w);
+	add_build_file("src/types.jai", w);
 
 	build_entity_components		: [..]string;
 	build_archetype_components	: [..]string;

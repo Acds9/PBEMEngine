@@ -49,7 +49,7 @@ code_generation :: (w: Workspace) -> bool {
 	add_build_file("src/ZECS/ZECS_archetypes.jai", w);
 	add_build_file("src/ZECS/ZECS_queries.jai", w);
 	add_build_file("src/ZECS/stub/ZECS_queries_meta_stub.jai", w);
-
+	add_build_file("src/types.jai", w);
 
 	while true {                     
         message := compiler_wait_for_message();  
@@ -90,6 +90,7 @@ generate_query_code :: (w: Workspace, query_metadata: []Query_Build_Metadata) {
 	#load "H:/PBEMJai/src/zmath.jai";
 	#load "src/ZECS/ZECS_types.jai";
 	#load "src/ZECS/stub/ZECS_queries_meta_stub.jai";
+	#load "src/types.jai";
 	append(*queries_file_builder, generate_queries(query_metadata));
     
 	write_entire_file(ZECS_QUERIES_GEN_PATH, builder_to_string(*queries_file_builder));

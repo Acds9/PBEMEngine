@@ -1,0 +1,3 @@
+Assorted list of footguns and other quirks its best to keep in mind:
+- Watch out for := with non-basic types e.g. structs, not obvious if getting value, *value, **value etc
+- Can do Struct.Member when Struct is the TYPE, not an instance. E.g. ZRenderer.geometry_pool works (but returns trash data) just like ZRENDERER.geometry_pool, no warning just crashes
