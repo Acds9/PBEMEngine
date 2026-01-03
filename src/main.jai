@@ -21,9 +21,6 @@ Game_Instance :: struct {
 	mouse_mode : bool;
 
 	lane_system : Lane_System;
-
-	// Debug
-	imgui_mode : bool;
 }
 
 GAME_INSTANCE : Game_Instance;
@@ -135,16 +132,6 @@ game_update_camera :: () {
     }
 }
 
-toggle_imgui_mode :: () {
-	using GAME_INSTANCE;
-	if imgui_mode == true {
-		imgui_mode = false;
-	}
-	else {
-		imgui_mode = true;
-	}
-}
-
 game_tick :: () {
 	using GAME_INSTANCE;
 	{
@@ -209,7 +196,7 @@ game_loop :: () {
         
 			// Process input
 			while SDL_PollEvent(*event) {
-				if GAME_INSTANCE.imgui_mode {
+				if imgui_active() {
 					imgui_process_SDL_event(*event);
 				}
 
@@ -220,8 +207,11 @@ game_loop :: () {
 			if get_command(*GAME_INSTANCE.input_system, .TOGGLE_MOUSE_MODE).key_down {
 				toggle_mouse_input_mode(*GAME_INSTANCE.input_system);
 			}
-			if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_MODE).key_down {
-				toggle_imgui_mode();
+			if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_DEBUG_METRICS).key_down {
+				ZRENDERER.imgui_system.show_metrics = !ZRENDERER.imgui_system.show_metrics;
+			}
+			if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_DEBUG_RENDERING).key_down {
+				ZRENDERER.imgui_system.show_rendering = !ZRENDERER.imgui_system.show_rendering;
 			}
 			tick_input_commands(*GAME_INSTANCE.input_system, xx,no_check GAME_INSTANCE.delta_time);
 

@@ -85,6 +85,14 @@ ImGui_System :: struct {
 	index_buffer		: Staged_Array_Buffer;
 
 	font_image			: Allocated_Image;
+
+	show_metrics		: bool;
+	show_rendering		: bool;
+}
+
+imgui_active :: () -> bool {
+	using ZRENDERER.imgui_system;
+	return show_metrics || show_rendering;
 }
 
 initialize_imgui :: (using self: *ImGui_System, zr: *ZRenderer) {
@@ -131,51 +139,62 @@ imgui_begin_frame :: (extents: Vector2) {
 
 imgui_tick :: () {
 	using GAME_INSTANCE;
-	if !imgui_mode {
+	if !imgui_active() {
 		return;
 	}
 
 	using ImGui;
-	test: bool;
-	if CollapsingHeader("Rendering"){
-		if TreeNode("Panini Projection") {
-			SliderFloat("Strength", *ZRENDERER.panini_parameters.strength, 0, 1);
-			SliderFloat("Vertical Squeeze", *ZRENDERER.panini_parameters.squeeze, 0, 1);
-			TreePop();
-		}
-		if TreeNode("Debug Views") {
-			RadioButton("None", cast(*s32)*ZRENDERER.debug_system.view_mode, 0);
-			RadioButton("Wireframe", cast(*s32)*ZRENDERER.debug_system.view_mode, 1);
-			RadioButton("Light Cluster", cast(*s32)*ZRENDERER.debug_system.view_mode, 2);
-			{
-				if ZRENDERER.debug_system.view_mode == .LIGHT_CLUSTER {
-					Indent();
-					RadioButton("Depth Slice", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 1); SameLine();
-					RadioButton("Depth Rainbow", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 2); SameLine();
-					RadioButton("Screen UV", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 3); SameLine();
-					RadioButton("Heatmap", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 4);
-				}
-				else ZRENDERER.debug_system.light_cluster_mode = 0;
-			}
 
-			TreePop();
-		}
-		if TreeNode("Visualizations") {
-			if TreeNode("Lights") {
-				Checkbox("Radius Sphere", *ZRENDERER.debug_system.light_radius_sphere);
+	if ZRENDERER.imgui_system.show_rendering {
+		if Begin("Rendering", flags = .AlwaysAutoResize){
+			if TreeNode("Panini Projection") {
+				SliderFloat("Strength", *ZRENDERER.panini_parameters.strength, 0, 1);
+				SliderFloat("Vertical Squeeze", *ZRENDERER.panini_parameters.squeeze, 0, 1);
 				TreePop();
 			}
-			/* Example left here, need proper selection etc
-			if Button("Toggle Light 0") {
-				GAME_INSTANCE.scene.point_lights.set_visibility_idx(*GAME_INSTANCE.scene.point_lights, 0, false);
-			}
-			if Button("Toggle Mesh 1") {
-				GAME_INSTANCE.scene.mesh_instances.set_visibility_idx(*GAME_INSTANCE.scene.mesh_instances, 1, false);
-			}*/
-			TreePop();
-		}
-	}
+			if TreeNode("Debug Views") {
+				RadioButton("None", cast(*s32)*ZRENDERER.debug_system.view_mode, 0);
+				RadioButton("Wireframe", cast(*s32)*ZRENDERER.debug_system.view_mode, 1);
+				RadioButton("Light Cluster", cast(*s32)*ZRENDERER.debug_system.view_mode, 2);
+				{
+					if ZRENDERER.debug_system.view_mode == .LIGHT_CLUSTER {
+						Indent();
+						RadioButton("Depth Slice", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 1); SameLine();
+						RadioButton("Depth Rainbow", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 2); SameLine();
+						RadioButton("Screen UV", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 3); SameLine();
+						RadioButton("Heatmap", cast(*s32)*ZRENDERER.debug_system.light_cluster_mode, 4);
+					}
+					else ZRENDERER.debug_system.light_cluster_mode = 0;
+				}
 
+				TreePop();
+			}
+			if TreeNode("Visualizations") {
+				if TreeNode("Lights") {
+					Checkbox("Radius Sphere", *ZRENDERER.debug_system.light_radius_sphere);
+					TreePop();
+				}
+				/* Example left here, need proper selection etc
+				if Button("Toggle Light 0") {
+					GAME_INSTANCE.scene.point_lights.set_visibility_idx(*GAME_INSTANCE.scene.point_lights, 0, false);
+				}
+				if Button("Toggle Mesh 1") {
+					GAME_INSTANCE.scene.mesh_instances.set_visibility_idx(*GAME_INSTANCE.scene.mesh_instances, 1, false);
+				}*/
+				TreePop();
+			}
+		}
+		End();
+	}
+	
+	if ZRENDERER.imgui_system.show_metrics {
+		if Begin("Performance", flags = .AlwaysAutoResize) {
+			Text(sprint("FPS: %", GAME_INSTANCE.fps));
+			Text(tprint("%", GAME_INSTANCE.delta_time));
+			Text(sprint("CurrentFrame: %", GAME_INSTANCE.current_frame));
+		}
+		End();
+	} 
 }
 
 imgui_populate_buffers :: (using self: *ImGui_System, zr: *ZRenderer) {
