@@ -34,7 +34,7 @@ VMA_ALLOCATOR 			: VmaAllocator;
 GLOBAL_DELETION_QUEUE 	: Deletion_Queue;
 
 MOUSELOOK_SENSITIVITY	: float = 1;
-CAMERA_MOVESPEED		: float = 10;
+CAMERA_MOVESPEED		: float = 25;
 
 game_init :: () -> bool {
 	using GAME_INSTANCE;
@@ -144,17 +144,11 @@ game_tick :: () {
 			render_set_transform(*GAME_INSTANCE.scene, idx, *matrix);
 		});
 	}
-	// Separate this into a debug tick, it's just easier to keep it single threaded
 	if context.thread_index == 0 {
-		ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
-	
-		if ZRENDERER.debug_system.light_radius_sphere {
-			execute_Query_Debug_Draw_Point_Light(*GAME_INSTANCE.world, #code {
-				debug_draw_point(*ZRENDERER, position.pos, 5, point_light_component.color); 
-				debug_draw_sphere(*ZRENDERER, position.pos, point_light_component.radius, point_light_component.color);
-			});
-		}
+		debug_tick();
 	}
+	barrier_wait(context.lane_barrier);
+
 	tick_world(*world, delta_time);
 }
 
@@ -212,6 +206,16 @@ game_loop :: () {
 			}
 			if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_DEBUG_RENDERING).key_down {
 				ZRENDERER.imgui_system.show_rendering = !ZRENDERER.imgui_system.show_rendering;
+			}
+			if get_command(*GAME_INSTANCE.input_system, .MOUSE_BUTTON_LEFT).key_down {
+				x, y : s32;
+				SDL_GetMouseState(*x, *y);
+				origin, dir := screen_to_ray(x, y, xx,no_check ZRENDERER.resolution.width, xx,no_check ZRENDERER.resolution.height, *ZRENDERER.camera.gpu_data.view_proj);
+				debug_draw_line(*ZRENDERER, origin, origin + dir*50000, .{1,0,0,1}, 500);
+				entity := trace_ray(*GAME_INSTANCE.scene.bvh_system, origin, dir);
+				print("origin: %, dir: %\n", origin, dir);
+				print("camera pos: %\n", ZRENDERER.camera.position);
+				print("Entity: %\n", entity);
 			}
 			tick_input_commands(*GAME_INSTANCE.input_system, xx,no_check GAME_INSTANCE.delta_time);
 

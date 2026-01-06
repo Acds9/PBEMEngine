@@ -33,7 +33,7 @@ Query_Debug_Draw_AABB :: struct {
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.SHIP;
 
-	QUERY_FLAGS				:: 0;
+	QUERY_FLAGS				:: Query_Flags.NON_PARALLEL;
 }
 
 Query_Spatialize_Entities :: struct {
@@ -41,7 +41,7 @@ Query_Spatialize_Entities :: struct {
 	
 	ENTITY_COMPONENTS 		:: Type.[Position, Mesh_Render_Proxy_EC]; // TODO: not the best way to determine what needs spatializing
 	ARCHETYPE_COMPONENTS 	:: Type.[];
-	TAGS					:: 0;
+	TAGS					:: ZTags.SHIP;
 
 	QUERY_FLAGS				:: Query_Flags.ATOMIC_COUNTER;
 }

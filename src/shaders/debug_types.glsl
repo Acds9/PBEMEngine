@@ -7,6 +7,12 @@ layout(buffer_reference, scalar) readonly buffer Point_Data {
 	float size;
 };
 
+layout(buffer_reference, scalar) readonly buffer Line_Data {
+    vec3 position;
+    uint pad0;
+    vec4 color;
+};
+
 struct Debug_Material_Instance {
     vec4 color_factors;
 };

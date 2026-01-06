@@ -124,8 +124,12 @@ generate_morton_array :: (using system: *LBVH_System) {
 		mesh_instance 	:= *mesh_data[mesh_render_proxy_ec.idx_mesh_instance];
 		aabb_data 		:= cast,no_check(*AABB) ZRENDERER.geometry_pool.default_aabb_buffer.staging_buffer.info.pMappedData;
 		aabb			:= *aabb_data[mesh_instance.idx_aabb];
-		
-		morton_codes[query_counter] = .{compute_morton(*position.pos, *scene_bounds, *scene_extents), current_entity, aabb_to_volume_bounds(aabb)}; 
+		local_bounds := aabb_to_volume_bounds(aabb);
+		world_bounds := Volume_Bounds.{
+			local_bounds.min + position.pos,
+			local_bounds.max + position.pos
+		};
+		morton_codes[query_counter] = .{compute_morton(*position.pos, *scene_bounds, *scene_extents), current_entity, world_bounds};
 	});
 
 	// TODO: maybe this can be parallelized if needed, cache contention/invalidation might negate. Test?
@@ -192,6 +196,9 @@ clz :: (v: u32) -> u32 {
 
 build_tree_topology :: (using system: *LBVH_System) {
     leaf_count := cast(s32) morton_codes.count;
+	if leaf_count == 0 {
+		return;
+	}
 	if context.thread_index == 0 {
 		array_resize(*internal_nodes, leaf_count - 1);
 		array_resize(*leaf_parents, leaf_count);
@@ -297,26 +304,24 @@ compute_bounding_boxes :: (using system: *LBVH_System) {
     }
 	barrier_wait(context.lane_barrier);
 
-    // Start from each leaf, walk up
-    // Parallelizable: one thread per leaf
+    // Start from each leaf and walk up
+    // Parallelizable one thread per leaf
 	min, max := lane_range(leaf_count);
     for leaf_idx: min..max {
-        // Get leaf bounds (from your entity AABBs)
+        // Get leaf bounds
         bounds := morton_codes[leaf_idx].bounds;
         
         parent_idx := leaf_parents[leaf_idx];
         
         while true {
-            // Atomic increment, returns old value
+            // Atomic increment returns old value
             count := atomic_add(*node_counters[parent_idx], 1);
             
             if count == 0 {
-                internal_nodes[parent_idx].bounds.min = bounds.min;
-   				internal_nodes[parent_idx].bounds.max = bounds.max;
                 break;
             }
             
-            // Second child: both children done, compute merged bounds
+            // Second child, both children done compute merged bounds
             node := *internal_nodes[parent_idx];
             left_bounds  := get_child_bounds(system, node.left_child, leaf_count);
             right_bounds := get_child_bounds(system, node.right_child, leaf_count);

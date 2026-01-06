@@ -29,6 +29,11 @@ mesh_definitions :: Mesh_Definition.[
 		surface_materials = .[]
 	},
 	.{
+		name = "debug_box",
+		mesh = "box_debug_1x1x1",
+		surface_materials = .[]
+	},
+	.{
 		name = "ion_frigate",
 		mesh = "ion_frigate",
 		surface_materials = string.["ion_frigate_hull"]

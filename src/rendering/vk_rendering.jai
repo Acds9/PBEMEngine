@@ -288,6 +288,7 @@ init_pipelines :: (zr: *ZRenderer) -> bool, string {
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *zr.material_instances);
 	
 	zr.debug_system.m_debug_point.build(*zr.debug_system.m_debug_point, zr);
+	zr.debug_system.m_debug_line.build(*zr.debug_system.m_debug_line, zr);
 	zr.debug_system.m_debug_wireframe.build(*zr.debug_system.m_debug_wireframe, zr);
 	zr.m_opaque.build(*zr.m_opaque, zr);
 	zr.m_pp_panini.build(*zr.m_pp_panini, zr);
@@ -431,7 +432,6 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		// Buffers ready, ready to start compute, move this stuff to a function
 
 		// We need to first flatten the transforms, then generate the draw commands from the mesh instance buffer
-		// Ignore the debug meshes for now, get the normal ones going first
 		vkCmdBindPipeline(cmd, .COMPUTE, zr.mesh_compute_system.m_c_transform_flatten.pipeline);
 		
 		flattened_transforms_buffer := zr.mesh_compute_system.get_frame_transform_buffer(*zr.mesh_compute_system, zr.current_frame);
@@ -617,6 +617,7 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		vkCmdBeginRendering(cmd, *render_info);
 		{
 			draw_debug_points(zr, cmd);
+			draw_debug_lines(zr, cmd);
 			draw_debug_meshes(zr, cmd);
 			execute_draw(zr, scene, cmd);
 		}
@@ -854,6 +855,41 @@ draw_debug_points :: (zr: *ZRenderer, command_buffer: VkCommandBuffer) {
 
 		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.debug_system.m_debug_point.pipeline);
 		vkCmdDraw(command_buffer, xx,no_check(point_instances.count), 1, 0, 0);
+	}
+}
+
+draw_debug_lines :: (zr: *ZRenderer, command_buffer: VkCommandBuffer) {
+	frame_data := zr.get_current_frame_data(zr);
+
+	// Set dynamic viewport and scissor
+	viewport : VkViewport;
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = cast,no_check(float)zr.draw_extent.width;
+	viewport.height = cast,no_check(float)zr.draw_extent.height;
+	viewport.minDepth = 0;
+	viewport.maxDepth = 1;
+
+	vkCmdSetViewport(command_buffer, 0, 1, *viewport);
+
+	scissor : VkRect2D;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = zr.draw_extent.width;
+	scissor.extent.height = zr.draw_extent.height;
+
+	vkCmdSetScissor(command_buffer, 0, 1, *scissor);
+
+	line_instances := *zr.debug_system.line_instances;
+	if line_instances.count > 0 {
+		push : Debug_Line_Push_Constants;
+		push.render_globals = zr.render_globals.device_buffer.base_address;
+		push.bda_vertex = line_instances.device_buffer.base_address;
+		push.bda_camera = frame_data.camera_buffer.device_buffer.base_address;
+		vkCmdPushConstants(command_buffer, zr.debug_system.m_debug_line.layout, .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT, 0, size_of(Debug_Line_Push_Constants), *push);
+
+		vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, zr.debug_system.m_debug_line.pipeline);
+		vkCmdDraw(command_buffer, xx,no_check(line_instances.count), 1, 0, 0);
 	}
 }
 

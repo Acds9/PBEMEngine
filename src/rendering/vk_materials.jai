@@ -79,7 +79,7 @@ Material_Pipeline_Debug_Point :: struct {
 
 		pipeline_builder.set_color_attachment_format(*pipeline_builder, zr.draw_image.image_format);
 		pipeline_builder.set_depth_format(*pipeline_builder, zr.depth_image.image_format);
-		pipeline_builder.set_vk_object_name(*pipeline_builder, "Debug Shapes Pipeline");
+		pipeline_builder.set_vk_object_name(*pipeline_builder, "Debug Point Pipeline");
 
 		pipeline_builder.pipeline_layout = new_layout;
 
@@ -93,6 +93,72 @@ Material_Pipeline_Debug_Point :: struct {
 	}
 
 	clear_resources :: (using self: *Material_Pipeline_Debug_Point, device: VkDevice) {
+		
+	}
+}
+
+Material_Pipeline_Debug_Line :: struct {
+	pipeline 	: VkPipeline;
+	layout		: VkPipelineLayout;
+
+	build :: (using self: *Material_Pipeline_Debug_Line, zr: *ZRenderer) {
+		success : bool;
+		line_vert_shader : VkShaderModule;
+		success, line_vert_shader = create_shader_module(zr, "src/shaders/debug_line.vert.spv");
+		if !success {
+			panic("Error: Failed to create debug_line vertex shader");
+		}
+		line_frag_shader : VkShaderModule;
+		success, line_frag_shader = create_shader_module(zr, "src/shaders/debug_line.frag.spv");
+		if !success {
+			panic("Error: Failed to create debug_line fragment shader");
+		}
+		
+		matrix_range : VkPushConstantRange;
+		matrix_range.offset = 0;
+		matrix_range.size = size_of(Debug_Line_Push_Constants);
+		matrix_range.stageFlags = .VK_SHADER_STAGE_VERTEX_BIT | .VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		mesh_layout_info : VkPipelineLayoutCreateInfo = vkinit_pipeline_layout_create_info();
+		mesh_layout_info.setLayoutCount = 0;
+		mesh_layout_info.pSetLayouts = null;
+		mesh_layout_info.pPushConstantRanges = *matrix_range;
+		mesh_layout_info.pushConstantRangeCount = 1;
+
+		new_layout : VkPipelineLayout;
+		result := vkCreatePipelineLayout(zr.device, *mesh_layout_info, null, *new_layout);
+		if result != .VK_SUCCESS {
+			panic("Failed to create Material_Pipeline_Debug_Line layout");
+		}
+		layout = new_layout;
+		queue_deletion(*GLOBAL_DELETION_QUEUE, zr.device, layout);
+
+		pipeline_builder : Pipeline_Builder;
+		pipeline_builder.set_shaders(*pipeline_builder, line_vert_shader, line_frag_shader);
+		pipeline_builder.set_input_topology(*pipeline_builder, .VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+		pipeline_builder.set_polygon_mode(*pipeline_builder, .VK_POLYGON_MODE_FILL);
+		pipeline_builder.set_cull_mode(*pipeline_builder, .VK_CULL_MODE_NONE, .VK_FRONT_FACE_COUNTER_CLOCKWISE);
+		pipeline_builder.set_line_width(*pipeline_builder, 1);
+		pipeline_builder.set_multisampling_none(*pipeline_builder);
+		pipeline_builder.disable_blending(*pipeline_builder);
+		pipeline_builder.enable_depthtest(*pipeline_builder, true, .VK_COMPARE_OP_GREATER_OR_EQUAL);
+
+		pipeline_builder.set_color_attachment_format(*pipeline_builder, zr.draw_image.image_format);
+		pipeline_builder.set_depth_format(*pipeline_builder, zr.depth_image.image_format);
+		pipeline_builder.set_vk_object_name(*pipeline_builder, "Debug Line Pipeline");
+
+		pipeline_builder.pipeline_layout = new_layout;
+
+		pipeline = pipeline_builder.build(*pipeline_builder, zr);
+		if pipeline == VK_NULL_HANDLE {
+			panic("Failed to create debug line pipeline");
+		}
+
+		vkDestroyShaderModule(zr.device, line_vert_shader, null);
+		vkDestroyShaderModule(zr.device, line_frag_shader, null);
+	}
+
+	clear_resources :: (using self: *Material_Pipeline_Debug_Line, device: VkDevice) {
 		
 	}
 }

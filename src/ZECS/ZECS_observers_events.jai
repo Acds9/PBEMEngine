@@ -8,7 +8,7 @@ Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_instance: *Game_Instance
 	mesh_instance_address := get_entity_component(world, entity_idx, Mesh_Render_Proxy_EC);
 	add_scene_mesh(*game_instance.scene, mesh, Matrix4.{_11=-1, _22=-1, _33=1, _44=1}, *mesh_instance_address.idx_mesh_instance);
 	location_address := get_entity_component(world, entity_idx, Position);
-	random_pos : Vector3 = .{0, cast,no_check(float)entity_idx.index*70, 0};
+	random_pos : Vector3 = .{0, cast,no_check(float)entity_idx.index*140, 0};
 	location_address.pos = random_pos;
 }
 

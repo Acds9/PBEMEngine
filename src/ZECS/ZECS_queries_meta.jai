@@ -46,12 +46,13 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 		print_to_builder(*builder, "\t`iteration_idx : u32;\n");
 
 		print_to_builder(*builder, "\n");
-		print_to_builder(*builder, "\tif context.thread_index == 0 {\n");
-			print_to_builder(*builder, "\t\tatomic_write(*query_counters[%], 0);\n", query.counter_index);
-		print_to_builder(*builder, "\t}\n");
-		print_to_builder(*builder, "\tbarrier_wait(context.lane_barrier);\n");
-		print_to_builder(*builder, "\n");
-
+		if query.options & cast(u32)Query_Flags.ATOMIC_COUNTER {
+			print_to_builder(*builder, "\tif context.thread_index == 0 {\n");
+				print_to_builder(*builder, "\t\tatomic_write(*query_counters[%], 0);\n", query.counter_index);
+			print_to_builder(*builder, "\t}\n");
+			print_to_builder(*builder, "\tbarrier_wait(context.lane_barrier);\n");
+			print_to_builder(*builder, "\n");
+		}
 		print_to_builder(*builder, "\t`query_counter : u32;\n");
 		print_to_builder(*builder, "\n");
 		print_to_builder(*builder, "\n");
@@ -99,7 +100,9 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 					print_to_builder(*builder, "\t\t\t\tif !entity_is_alive(idx, storage) {\n");
 					print_to_builder(*builder, "\t\t\t\t\t continue;\n");
 					print_to_builder(*builder, "\t\t\t\t}\n");
-					print_to_builder(*builder, "\t\t\t\tquery_counter = atomic_add(*query_counters[%], 1);\n", query.counter_index);
+					if query.options & cast(u32)Query_Flags.ATOMIC_COUNTER {
+						print_to_builder(*builder, "\t\t\t\tquery_counter = atomic_add(*query_counters[%], 1);\n", query.counter_index);
+					}
 					print_to_builder(*builder, "\t\t\t\tcurrent_entity = .{idx, %, generations[idx]};\n", arch_index);
 					for e_c: query.entity_components {
 						comp_type := get_entity_component_type(e_c);
@@ -109,6 +112,9 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 					print_to_builder(*builder, "\t\t\t}\n");
 				print_to_builder(*builder, "\t\t}\n");
 			print_to_builder(*builder, "\t}\n");
+		}
+		if query.options & cast(u32)Query_Flags.ATOMIC_COUNTER {
+			print_to_builder(*builder, "\tbarrier_wait(context.lane_barrier);\n");
 		}
 		print_to_builder(*builder, "}\n");
 	}

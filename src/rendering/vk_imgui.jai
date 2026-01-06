@@ -174,6 +174,14 @@ imgui_tick :: () {
 					Checkbox("Radius Sphere", *ZRENDERER.debug_system.light_radius_sphere);
 					TreePop();
 				}
+				if TreeNode("Meshes") {
+					Checkbox("AABB", *ZRENDERER.debug_system.mesh_aabb);
+					TreePop();
+				}
+				if TreeNode("Spatialization") {
+					Checkbox("BVH", *ZRENDERER.debug_system.bvh_bounds);
+					TreePop();
+				}
 				/* Example left here, need proper selection etc
 				if Button("Toggle Light 0") {
 					GAME_INSTANCE.scene.point_lights.set_visibility_idx(*GAME_INSTANCE.scene.point_lights, 0, false);

@@ -325,6 +325,12 @@ Debug_Point_Push_Constants :: struct {
 	bda_camera			: VkDeviceAddress;
 }
 
+Debug_Line_Push_Constants :: struct {
+	render_globals		: VkDeviceAddress;
+	bda_vertex			: VkDeviceAddress;
+	bda_camera			: VkDeviceAddress;
+}
+
 Debug_Mesh_Push_Constants :: struct {
 	render_globals		: VkDeviceAddress;
 	bda_draw			: VkDeviceAddress;

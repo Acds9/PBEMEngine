@@ -55,7 +55,7 @@ trace_ray :: (using system: *LBVH_System, ray_origin: Vector3, ray_dir: Vector3)
 		hit : bool;
 		hit_data : Ray_Intersection_Data;
         hit, hit_data = ray_box_intersect_fast(ray_origin, ray_dir, ray_inv_dir, *node.bounds);
-        if hit_data.t < 0 || hit_data.t >= closest_t continue;  // Miss or further than current hit
+        if !hit || hit_data.t < 0 || hit_data.t >= closest_t continue;  // Miss or further than current hit
         
         // Check children
         for child: u32.[node.left_child, node.right_child] {
@@ -77,22 +77,18 @@ trace_ray :: (using system: *LBVH_System, ray_origin: Vector3, ray_dir: Vector3)
     return closest_entity;
 }
 
-screen_to_ray :: (pos_x: s32, pos_y: s32, screen_width: s32, screen_height: s32, view: *Matrix4, projection: *Matrix4) -> (origin: Vector3, direction: Vector3) {
-    // Normalized device coordinates
+screen_to_ray :: (pos_x: s32, pos_y: s32, screen_width: s32, screen_height: s32, view_proj: *Matrix4) -> (origin: Vector3, direction: Vector3) {
     ndc_x := (2.0 * cast,no_check(float32)pos_x / cast,no_check(float32)screen_width) - 1.0;
-    ndc_y := 1.0 - (2.0 * cast,no_check(float32)pos_y / cast,no_check(float32)screen_height);  // Y flip
+	ndc_y := (2.0 * cast,no_check(float32)pos_y / cast,no_check(float32)screen_height) - 1.0;    
+
+    near_clip := Vector4.{ndc_x, ndc_y, 1.0, 1.0}; 
+	far_clip  := Vector4.{ndc_x, ndc_y, 0.0, 1.0};  
     
-    // Clip space points on near and far plane
-    near_clip := Vector4.{ndc_x, ndc_y, 0.0, 1.0};
-    far_clip  := Vector4.{ndc_x, ndc_y, 1.0, 1.0};
-    
-    // Unproject to world space
-    inv_vp := inverse(<<projection * <<view);
+    inv_vp := inverse(transpose(<<view_proj));
     
     near_world := inv_vp * near_clip;
     far_world  := inv_vp * far_clip;
     
-    // Perspective divide
     near_world /= near_world.w;
     far_world  /= far_world.w;
     
