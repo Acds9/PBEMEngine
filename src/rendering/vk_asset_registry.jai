@@ -99,7 +99,7 @@ load_meshes :: (zr: *ZRenderer, mesh_names: []string) {
 				if idx == U32_MAX {
 					panic(sprint("Could not find material to load. Mesh: %, Material: %", loaded_mesh.name, material));
 				}
-				surface : *Geo_Surface = get_mesh_geo_surface(zr, loaded_mesh, xx,no_check it_index);
+				surface : *Geo_Surface = get_mesh_geo_surface(loaded_mesh, xx,no_check it_index);
 				surface.default_material_instance = idx;
 			}
 			table_add(*zr.mesh_map, loaded_mesh.name, loaded_mesh);
@@ -123,7 +123,7 @@ load_all_meshes :: (zr: *ZRenderer) {
 			if idx == U32_MAX {
 				panic(sprint("Could not find material to load. Mesh: %, Material: %", loaded_mesh.name, material));
 			}
-			surface : *Geo_Surface = get_mesh_geo_surface(zr, loaded_mesh, xx,no_check it_index);
+			surface : *Geo_Surface = get_mesh_geo_surface(loaded_mesh, xx,no_check it_index);
 			surface.default_material_instance = idx;
 		}
 		table_add(*zr.mesh_map, loaded_mesh.name, loaded_mesh);

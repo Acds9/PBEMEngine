@@ -103,7 +103,7 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 					if query.options & cast(u32)Query_Flags.ATOMIC_COUNTER {
 						print_to_builder(*builder, "\t\t\t\tquery_counter = atomic_add(*query_counters[%], 1);\n", query.counter_index);
 					}
-					print_to_builder(*builder, "\t\t\t\tcurrent_entity = .{idx, %, generations[idx]};\n", arch_index);
+					print_to_builder(*builder, "\t\t\t\tcurrent_entity = .{idx, generations[idx], %};\n", arch_index);
 					for e_c: query.entity_components {
 						comp_type := get_entity_component_type(e_c);
 						print_to_builder(*builder, "\t\t\t\t% = *%_array[idx];\n", to_lower_copy(e_c), to_lower_copy(e_c)); 

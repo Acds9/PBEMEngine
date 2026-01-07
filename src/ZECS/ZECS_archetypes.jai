@@ -18,9 +18,9 @@ Archetype_Ship :: struct{
 	CHUNK_SIZE				: u32 : 32;
 }; 
 
-init_archetype_Archetype_Ship :: (world: *ZWorld, allocator: *Allocator) {
+init_archetype_Archetype_Ship :: (world: *ZWorld) {
 	storage := get_archetype_storage(world, Archetype_Ship);
-	<<storage = initialize_archetype_storage(Archetype_Ship, allocator);
+	<<storage = initialize_archetype_storage(Archetype_Ship, world.allocator);
 	mesh_rep_component := get_archetype_component(world, Archetype_Ship, Mesh_Rep);
 	mesh_rep_component.mesh_name = "ion_frigate";
 	storage.initialized = true;
@@ -36,8 +36,8 @@ Archetype_Point_Light :: struct{
 	CHUNK_SIZE				: u32 : 32;
 }; 
 
-init_archetype_Archetype_Point_Light :: (world: *ZWorld, allocator: *Allocator) {
-	storage := get_archetype_storage(world, Archetype_Ship);
-	<<storage = initialize_archetype_storage(Archetype_Ship, allocator);
+init_archetype_Archetype_Point_Light :: (world: *ZWorld) {
+	storage := get_archetype_storage(world, Archetype_Point_Light);
+	<<storage = initialize_archetype_storage(Archetype_Point_Light, world.allocator);
 	storage.initialized = true;
 }

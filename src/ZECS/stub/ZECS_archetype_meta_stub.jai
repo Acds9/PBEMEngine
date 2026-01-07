@@ -5,7 +5,7 @@ ZWorld :: struct {
 
 	// Memory
 	world_pool			: Flat_Pool;
-
+	allocator			: Allocator;
 }
 
 MAX_ENTITIES_PER_ARCHETYPE :: 2048;
@@ -38,5 +38,5 @@ Archetype_Storage :: struct {
 }
 
 get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage {return null;}
-initialize_archetype_storage :: (archetype: Type, allocator: *Allocator) -> Archetype_Storage {return .{};}
+initialize_archetype_storage :: (archetype: Type, allocator: Allocator) -> Archetype_Storage {return .{};}
 get_archetype_component :: (world: *ZWorld, archetype: Type, $T: Type) -> *T {return null;};

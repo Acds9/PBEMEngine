@@ -57,15 +57,15 @@ ZWorld :: struct {
 
 	// Memory
 	world_pool			: fp.Flat_Pool;
-
+	allocator			: Allocator;
 }
 
 init_zworld :: (world: *ZWorld, pool_size: s64 = DEFAULT_POOL_SIZE) {
 	fp.init(*world.world_pool, pool_size);
-	allocator := Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
-	world.world_entities.allocator = allocator;
+	world.allocator = Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
+	world.world_entities.allocator = world.allocator;
 
-	initialize_archetypes(world, *allocator);
+	initialize_archetypes(world);
     register_observers(world);
 }
 
@@ -344,7 +344,7 @@ Archetype_Storage :: struct {
 	num_entities			: u32;
 	free_indices			: [..]u32; // Free-list for indices
 	generations				: [..]u16; // Generations for each index
-	alive_mask				: Bit_Field(MAX_ENTITIES_PER_ARCHETYPE); //TODO: this should start small and be built out as needed, even 8192 entities will be a full kb of data
+	alive_mask				: Bit_Field(MAX_ENTITIES_PER_ARCHETYPE);
 
 	// Autogenerate this from archetype data later
 	chunk_size				: u32 = DEFAULT_ENTITY_CHUNK_SIZE;
@@ -354,16 +354,18 @@ get_entity_component_storage :: (world: *ZWorld, archetype_idx: u16, $T: Type) -
 	return get_EC_storage_ptr(world, archetype_idx, T);
 }
 
-// TODO: add some bool returns to these
-get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T {
+get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T, bool {
 	storage := get_EC_storage_ptr(world, get_archetype(entity.archetype), T);
+	if !storage {
+		return null, false;
+	}
 	offset := entity.index * storage.stride;
-	return cast(*T) *storage.data[offset];
+	return cast,no_check(*T) *storage.data[offset], true;
 }
 
 get_entity_component :: (storage: *Entity_Component_Storage, idx: u32,  $T: Type) -> *T {
 	offset := idx * storage.stride;
-	return cast(*T) *storage.data[offset];
+	return cast,no_check(*T) *storage.data[offset];
 } 
 
 ensure_component_capacity :: (world: *ZWorld, storage: *Archetype_Storage, needed_count: u32) {

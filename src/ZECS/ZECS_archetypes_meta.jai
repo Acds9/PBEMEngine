@@ -384,7 +384,7 @@ generate_archetype_component_index_getters :: (metadata: []Archetype_Build_Metad
 	print_to_builder(*builder, "get_archetype_component_storage :: (world: *ZWorld, archetype: Type) -> *[..]u8 {\n");
 	print_to_builder(*builder, "\tif archetype == {\n");
 	for archetype: metadata {
-		print_to_builder(*builder, "\t\tcase %; return *world.world_archetypes[get_archetype_storage_index(Archetype_Ship)].archetype_components;\n", archetype.name);
+		print_to_builder(*builder, "\t\tcase %; return *world.world_archetypes[get_archetype_storage_index(%)].archetype_components;\n", archetype.name, archetype.name);
 	}
 		print_to_builder(*builder, "\t\tcase; return null;\n");
 		print_to_builder(*builder, "\t}\n");
@@ -416,9 +416,9 @@ generate_archetype_initialization :: (metadata: []Archetype_Build_Metadata) -> s
 	builder: String_Builder;
 	
 	print_to_builder(*builder, "\n// Archetype Master Initialization Function\n");
-	print_to_builder(*builder, "initialize_archetypes :: (world: *ZWorld, allocator: *Allocator) {\n");
+	print_to_builder(*builder, "initialize_archetypes :: (world: *ZWorld) {\n");
 	for archetype: metadata {
-		print_to_builder(*builder, "\tinit_archetype_%(world, allocator);\n", archetype.name);
+		print_to_builder(*builder, "\tinit_archetype_%(world);\n", archetype.name);
 	}
 	print_to_builder(*builder, "}\n");
 

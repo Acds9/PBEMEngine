@@ -213,9 +213,14 @@ game_loop :: () {
 				origin, dir := screen_to_ray(x, y, xx,no_check ZRENDERER.resolution.width, xx,no_check ZRENDERER.resolution.height, *ZRENDERER.camera.gpu_data.view_proj);
 				debug_draw_line(*ZRENDERER, origin, origin + dir*50000, .{1,0,0,1}, 500);
 				entity := trace_ray(*GAME_INSTANCE.scene.bvh_system, origin, dir);
-				print("origin: %, dir: %\n", origin, dir);
-				print("camera pos: %\n", ZRENDERER.camera.position);
-				print("Entity: %\n", entity);
+				
+				mesh_comp, has_mesh := get_entity_component(*GAME_INSTANCE.world, entity, Mesh_Render_Proxy_EC);
+				if has_mesh {
+					mesh_data 		:= cast(*Mesh_Instance) GAME_INSTANCE.scene.mesh_instances.staging_buffer.info.pMappedData;
+					mesh_instance 	:= *mesh_data[mesh_comp.idx_mesh_instance];
+					material_instance := get_mesh_material_instance(mesh_instance, 0);
+					material_instance.color_factors = .{10,10,0,1};
+				}
 			}
 			tick_input_commands(*GAME_INSTANCE.input_system, xx,no_check GAME_INSTANCE.delta_time);
 

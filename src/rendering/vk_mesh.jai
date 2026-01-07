@@ -86,10 +86,25 @@ Mesh_Asset :: struct {
 	geo_surface_count		: u8;
 }
 
-get_mesh_geo_surface :: (zr: *ZRenderer, mesh: *Mesh_Asset, surface_idx: u32) -> *Geo_Surface {
-	surface_buffer := *zr.geometry_pool.geo_surface_buffer;
+get_mesh_geo_surface :: (mesh: *Mesh_Asset, surface_idx: u32) -> *Geo_Surface {
+	surface_buffer := *ZRENDERER.geometry_pool.geo_surface_buffer;
 	surfaces := cast,no_check(*Geo_Surface)surface_buffer.staging_buffer.info.pMappedData;
 	return *surfaces[mesh.idx_geo_surface + surface_idx];
+}
+
+get_mesh_geo_surface :: (mesh_instance: *Mesh_Instance, surface_idx: u32) -> *Geo_Surface {
+	mesh_asset := *ZRENDERER.meshes[mesh_instance.idx_mesh_asset];
+	return get_mesh_geo_surface(mesh_asset, surface_idx);
+}
+
+get_mesh_material_instance :: (mesh_instance: *Mesh_Instance, surface_idx: u32) -> *Material_Instance {
+	material_index := mesh_instance.material_overrides[surface_idx];
+	if material_index == U32_MAX {
+		surface := get_mesh_geo_surface(mesh_instance, surface_idx);
+		material_index = surface.default_material_instance;
+	}
+	material_instances := cast,no_check(*Material_Instance) ZRENDERER.material_instances.staging_buffer.info.pMappedData;
+	return *material_instances[material_index];
 }
 
 load_glt_mesh :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
