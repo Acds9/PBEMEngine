@@ -96,7 +96,6 @@ flush_observers :: (world: *ZWorld) {
 	if context.thread_index == 0 {
 		world.observer_buffer.reset(*world.observer_buffer);
 	}
-	
 }
 
 // Entities

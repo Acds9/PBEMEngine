@@ -43,21 +43,7 @@ generate_entity_component_switches :: (comp_names: []string) -> string {
 	print_to_builder(*builder, "\t\tcase; return 0;\n");
 	print_to_builder(*builder, "\t}\n");
 	print_to_builder(*builder, "}\n");
-	
-	print_to_builder(*builder, "\n");
-	print_to_builder(*builder, "// Get the entity component Type for the given bit index\n");
-	print_to_builder(*builder, "get_entity_component_bit_type :: (idx: u32) -> Type {\n");
-	print_to_builder(*builder, "\tif idx == {\n");
-	
-	for comp_names {
-		print_to_builder(*builder, "\t\tcase %; return %;\n", it_index, it);
-	}
 
-	print_to_builder(*builder, "\t\tcase; return Type;\n");
-	print_to_builder(*builder, "\t}\n");
-	print_to_builder(*builder, "}\n");
-
-	
 	print_to_builder(*builder, "\n");
 	print_to_builder(*builder, "// Get the entity component size \n");
 	print_to_builder(*builder, "get_entity_component_size :: (T: Type) -> u32 {\n");
@@ -77,20 +63,6 @@ generate_entity_component_switches :: (comp_names: []string) -> string {
 
 generate_archetype_component_switches :: (comp_names: []string) -> string {
 	builder: String_Builder;
-
-	print_to_builder(*builder, "\n");
-	print_to_builder(*builder, "// Get the archetype component Type for the given bit index\n");
-	print_to_builder(*builder, "get_archetype_component_bit_type :: (idx: u32) -> Type {\n");
-	print_to_builder(*builder, "\tif idx == {\n");
-	
-	for comp_names {
-		print_to_builder(*builder, "\t\tcase %; return %;\n", it_index, it);
-	}
-
-	print_to_builder(*builder, "\t\tcase; return Type;\n");
-	print_to_builder(*builder, "\t}\n");
-	print_to_builder(*builder, "}\n");
-
 
 	print_to_builder(*builder, "\n");
 	print_to_builder(*builder, "// Get the archetype component index for the given type\n");
