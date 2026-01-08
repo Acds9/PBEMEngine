@@ -7,7 +7,7 @@ generate_file_loads :: () -> string {
    	
 	files := string.[
 		"H:/PBEMJai/src/zmath.jai",
-		"ZECS/ZECS_types.jai",
+		"bit_field.jai",
 		"ZECS/generated/ZECS_constants_gen.jai",
 	];
    
@@ -425,7 +425,7 @@ generate_archetype_initialization :: (metadata: []Archetype_Build_Metadata) -> s
 	return builder_to_string(*builder);
 }
 
-#load "ZECS_types.jai";
+#load "H:/PBEMJai/src/bit_field.jai";
 #load "H:/PBEMJai/src/zmath.jai";
 #load "generated/ZECS_constants_gen.jai";
 #load "ZECS_components.jai";

@@ -2,23 +2,14 @@
 fp :: #import "Flat_Pool";
 
 DEFAULT_ENTITY_CHUNK_SIZE 	:: 64;
-HOT_ARCHETYPE_CHUNK_SIZE 	:: 256;
-COLD_ARCHETYPE_CHUNK_SIZE 	:: 32;
 
 DEFAULT_POOL_SIZE 			:: 40 * 1024;  // 40KB per archetype pool
 MAX_ENTITIES_PER_ARCHETYPE	:: 2048;
-CACHE_LINE_SIZE				: u32 : 64;
 
-
-ZEntity :: struct
-{
+ZEntity :: struct {
 	index 		: u32;
 	gen			: u16;
 	archetype	: u16;
-}
-
-entity_is_valid :: (e: *ZEntity) -> bool {
-	return e.index != 0;
 }
 
 entity_is_alive :: (world: *ZWorld, entity: ZEntity) -> bool {
@@ -30,23 +21,6 @@ entity_is_alive :: (world: *ZWorld, entity: ZEntity) -> bool {
 entity_is_alive :: (entity_idx: u32, storage: *Archetype_Storage ) -> bool {
 	return bit_test(storage.alive_mask, entity_idx);
 }
-
-entity_to_u64 :: (e: *ZEntity) -> u64 {
-	return cast, no_check(u64)e.archetype << 48 | cast, no_check(u64)e.gen << 32 | cast, no_check(u64)e.index;
-}
-
-u64_to_entity :: (n: u64) -> ZEntity {
-	return ZEntity.{
-		index = cast(u32)(n & 0xFFFFFFFF),
-		gen = cast(u16)((n >> 32) & 0xFFFF),
-		archetype = cast(u16)((n >> 48) & 0xFFFF)
-	};
-}
-
-entity_equals :: (lhs: *ZEntity, rhs: *ZEntity)->bool {
-	return lhs.archetype == rhs.archetype && lhs.index == rhs.index && lhs.gen == rhs.gen;
-}
-
 
 ZWorld :: struct {
 	world_archetypes 	: [MAX_ARCHETYPES]Archetype_Storage;
@@ -94,7 +68,7 @@ observer_add_created_entities :: (world: *ZWorld, archetype: u16, entity: ZEntit
 	array_add(*world.observer_buffer.created[archetype], entity);
 }
 observer_add_created_entities :: (world: *ZWorld, archetype: u16, entities: [..]ZEntity) { 
-	array_append(*world.observer_buffer.created[archetype], entities);
+	array_add(*world.observer_buffer.created[archetype], ..entities);
 }
 
 flush_observers :: (world: *ZWorld) {
@@ -267,7 +241,6 @@ destroy_entity :: (world: *ZWorld, entity: ZEntity) {
 	array_add(*arch_storage.free_indices, entity.index);
 }
 
-
 initialize_archetype_storage :: (archetype: u16, allocator: Allocator) -> Archetype_Storage {
 	storage: Archetype_Storage;
 	data := get_archetype_data(archetype);
@@ -310,10 +283,6 @@ Entity_Component_Storage :: struct {
 	stride			: u32;			// Size of one component in bytes
 }
 
-get_storage_capacity :: (storage: *Entity_Component_Storage) -> u32 {
-	return cast(u32)(storage.data.count/storage.stride);
-}
-
 array_view :: ($T: Type, storage: *Entity_Component_Storage, count: u32) -> []T {
     result: []T = ---;
     result.data = cast,no_check(*T) storage.data.data;
@@ -321,15 +290,7 @@ array_view :: ($T: Type, storage: *Entity_Component_Storage, count: u32) -> []T 
     return result;
 }
 
-array_view_dynamic :: (arr: [..]$T, count: int) -> []T {
-	result: []T = ---;
-    result.data = arr.data;
-    result.count = count;
-    return result;
-}
-
 // Archetypes
-Arch_Storage_Initializer :: #type (alloc: Allocator) -> Archetype_Storage;
 Archetype_Storage :: struct {
 	initialized					: bool;
 	entity_components 			: [..]Entity_Component_Storage;
@@ -350,10 +311,6 @@ Archetype_Storage :: struct {
 	chunk_size				: u32 = DEFAULT_ENTITY_CHUNK_SIZE;
 }
 
-get_entity_component_storage :: (world: *ZWorld, archetype_idx: u16, $T: Type) -> *Entity_Component_Storage {
-	return get_EC_storage_ptr(world, archetype_idx, T);
-}
-
 get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T, bool {
 	storage := get_EC_storage_ptr(world, get_archetype(entity.archetype), T);
 	if !storage {
@@ -369,7 +326,6 @@ get_entity_component :: (storage: *Entity_Component_Storage, idx: u32,  $T: Type
 } 
 
 ensure_component_capacity :: (world: *ZWorld, storage: *Archetype_Storage, needed_count: u32) {
-	
 	allocator := Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
     
 	for *comp_storage: storage.entity_components {
@@ -382,20 +338,4 @@ ensure_component_capacity :: (world: *ZWorld, storage: *Archetype_Storage, neede
 		// We reset the entire pool between turns anyway, but worth keeping in mind
 	}
     
-}
-
-// TODO: move to its own file
-
-array_append :: (array: *[..] $T, to_append: [..]T) { 
-    old_count := array.count;
-    array_reserve(cast(*Resizable_Array) array, old_count + to_append.count, size_of(T));
-    memcpy(array.data + old_count, to_append.data, to_append.count * size_of(T));
-    array.count += to_append.count;
-}
-
-array_append :: (array: *[..] $T, to_append: []T) {  // Fixed array/slice
-    old_count := array.count;
-    array_reserve(cast(*Resizable_Array) array, old_count + to_append.count, size_of(T));
-    memcpy(array.data + old_count, to_append.data, to_append.count * size_of(T));
-    array.count += to_append.count;
 }
