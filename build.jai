@@ -36,6 +36,7 @@ build :: () {
     }
     // vulkan memory allocator depends on this
     array_add(*linker_args, "libcpmt.lib");
+	array_add(*linker_args, "advapi32.lib");
     final_options.additional_linker_arguments = linker_args;
 
     set_build_options(final_options, w_final);

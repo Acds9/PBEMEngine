@@ -4,6 +4,7 @@
 #import "GL";
 #import "SDL";
 #import "Input";
+#import "mimalloc";
 
 Game_Instance :: struct {
     world: ZWorld;
@@ -35,6 +36,20 @@ GLOBAL_DELETION_QUEUE 	: Deletion_Queue;
 
 MOUSELOOK_SENSITIVITY	: float = 1;
 CAMERA_MOVESPEED		: float = 25;
+
+
+mi_allocator :: Allocator.{
+    proc = (mode: Allocator_Mode, size: s64, old_size: s64, old_ptr: *void, data: *void) -> *void {
+        if mode == {
+            case .ALLOCATE;   return mi_malloc(cast(u64)size);
+            case .RESIZE;     return mi_realloc(old_ptr, cast(u64)size);
+            case .FREE;       mi_free(old_ptr); return null;
+        }
+        return null;
+    },
+    data = null
+};
+
 
 game_init :: () -> bool {
 	using GAME_INSTANCE;
@@ -242,6 +257,8 @@ game_loop :: () {
 }
 
 main :: () {
+	context.allocator = mi_allocator;
+
 	GAME_INSTANCE.lane_system.init(*GAME_INSTANCE.lane_system);
 	// Lanes enter into game_loop, so this sets up lane 0 which is default (thread_index is already 0)
 	context.lane_count = GAME_INSTANCE.lane_system.lane_count;

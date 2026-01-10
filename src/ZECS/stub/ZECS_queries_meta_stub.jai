@@ -66,7 +66,7 @@ Observer_Entry :: struct {
 
 get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T {return null;}
 get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage {return null;}
-initialize_archetype_storage :: (archetype: Type, allocator: Allocator) -> Archetype_Storage {return .{};}
+initialize_archetype_storage :: (archetype: Type) -> Archetype_Storage {return .{};}
 //get_archetype_component :: (world: *ZWorld, archetype: Type, $T: Type) -> *T {return null;};
 
 Game_Instance :: struct {

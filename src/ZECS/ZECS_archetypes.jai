@@ -20,7 +20,7 @@ Archetype_Ship :: struct{
 
 init_archetype_Archetype_Ship :: (world: *ZWorld) {
 	storage := get_archetype_storage(world, Archetype_Ship);
-	<<storage = initialize_archetype_storage(Archetype_Ship, world.allocator);
+	<<storage = initialize_archetype_storage(Archetype_Ship);
 	mesh_rep_component := get_archetype_component(world, Archetype_Ship, Mesh_Rep);
 	mesh_rep_component.mesh_name = "ion_frigate";
 	storage.initialized = true;
@@ -38,6 +38,6 @@ Archetype_Point_Light :: struct{
 
 init_archetype_Archetype_Point_Light :: (world: *ZWorld) {
 	storage := get_archetype_storage(world, Archetype_Point_Light);
-	<<storage = initialize_archetype_storage(Archetype_Point_Light, world.allocator);
+	<<storage = initialize_archetype_storage(Archetype_Point_Light);
 	storage.initialized = true;
 }

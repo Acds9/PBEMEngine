@@ -3,7 +3,6 @@ fp :: #import "Flat_Pool";
 
 DEFAULT_ENTITY_CHUNK_SIZE 	:: 64;
 
-DEFAULT_POOL_SIZE 			:: 40 * 1024;  // 40KB per archetype pool
 MAX_ENTITIES_PER_ARCHETYPE	:: 2048;
 
 ZEntity :: struct {
@@ -28,30 +27,20 @@ ZWorld :: struct {
 
 	observer_registry	: Observer_Registry;
 	observer_buffer		: Observer_Buffer;
-
-	// Memory
-	world_pool			: fp.Flat_Pool;
-	allocator			: Allocator;
 }
 
-init_zworld :: (world: *ZWorld, pool_size: s64 = DEFAULT_POOL_SIZE) {
-	fp.init(*world.world_pool, pool_size);
-	world.allocator = Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
-	world.world_entities.allocator = world.allocator;
-
+init_zworld :: (world: *ZWorld) {
 	initialize_archetypes(world);
     register_observers(world);
 }
 
 reset_world :: (world: *ZWorld) {
-    fp.reset(*world.world_pool);
-    // All allocations are now invalid, arrays need to be reinitialized next turn
+   
 }
 
 init_archetype :: (world: *ZWorld, archetype: Type) {
-    allocator := Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
 	storage := get_archetype_storage(world, archetype);
-	<<storage = initialize_archetype_storage(archetype, allocator);
+	<<storage = initialize_archetype_storage(archetype);
 	
 	storage.initialized = true;
 }
@@ -240,14 +229,10 @@ destroy_entity :: (world: *ZWorld, entity: ZEntity) {
 	array_add(*arch_storage.free_indices, entity.index);
 }
 
-initialize_archetype_storage :: (archetype: u16, allocator: Allocator) -> Archetype_Storage {
+// Allocator has to be set in context before calling this
+initialize_archetype_storage :: (archetype: u16) -> Archetype_Storage {
 	storage: Archetype_Storage;
 	data := get_archetype_data(archetype);
-	
-	storage.entity_components.allocator = allocator;
-	storage.archetype_components.allocator = allocator;
-	storage.free_indices.allocator = allocator;
-	storage.generations.allocator = allocator;
 
 	storage.entity_component_mask = data.entity_component_mask;
 	storage.archetype_component_mask = data.archetype_component_mask;
@@ -270,8 +255,8 @@ initialize_archetype_storage :: (archetype: u16, allocator: Allocator) -> Archet
 	return storage;
 }
 
-initialize_archetype_storage :: (archetype: Type, allocator: Allocator) -> Archetype_Storage {
-	return initialize_archetype_storage(get_archetype_storage_index(archetype), allocator);
+initialize_archetype_storage :: (archetype: Type) -> Archetype_Storage {
+	return initialize_archetype_storage(get_archetype_storage_index(archetype));
 }
 
 // Components
@@ -324,11 +309,8 @@ get_entity_component :: (storage: *Entity_Component_Storage, idx: u32,  $T: Type
 	return cast,no_check(*T) *storage.data[offset];
 } 
 
-ensure_component_capacity :: (world: *ZWorld, storage: *Archetype_Storage, needed_count: u32) {
-	allocator := Allocator.{fp.flat_pool_allocator_proc, *world.world_pool};
-    
+ensure_component_capacity :: (world: *ZWorld, storage: *Archetype_Storage, needed_count: u32) {    
 	for *comp_storage: storage.entity_components {
-		comp_storage.data.allocator = allocator;
 		needed_bytes := needed_count * comp_storage.stride;
 		if comp_storage.data.count < needed_bytes {
 			array_resize(*comp_storage.data, needed_bytes);
@@ -336,5 +318,4 @@ ensure_component_capacity :: (world: *ZWorld, storage: *Archetype_Storage, neede
 		// This might "leak" the old allocation in the pool, but who cares?
 		// We reset the entire pool between turns anyway, but worth keeping in mind
 	}
-    
 }
