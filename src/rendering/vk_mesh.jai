@@ -130,6 +130,8 @@ load_glt_mesh :: (zr: *ZRenderer, file_path: string) -> *Mesh_Asset {
 
 	indices		: [..]u32;
 	vertices	: [..]Vertex;
+	defer array_free(indices);
+	defer array_free(vertices);
 
 	mesh_count := data.meshes_count;
 	if mesh_count > 1 {

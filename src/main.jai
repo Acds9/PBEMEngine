@@ -37,13 +37,37 @@ GLOBAL_DELETION_QUEUE 	: Deletion_Queue;
 MOUSELOOK_SENSITIVITY	: float = 1;
 CAMERA_MOVESPEED		: float = 25;
 
-
+/*
 mi_allocator :: Allocator.{
     proc = (mode: Allocator_Mode, size: s64, old_size: s64, old_ptr: *void, data: *void) -> *void {
         if mode == {
             case .ALLOCATE;   return mi_malloc(cast(u64)size);
             case .RESIZE;     return mi_realloc(old_ptr, cast(u64)size);
             case .FREE;       mi_free(old_ptr); return null;
+        }
+        return null;
+    },
+    data = null
+};*/
+
+alloc_count: s64 #align 64;
+free_count: s64 #align 64;
+total_allocated: s64 #align 64;
+
+mi_allocator :: Allocator.{
+    proc = (mode: Allocator_Mode, size: s64, old_size: s64, old_ptr: *void, data: *void) -> *void {
+        if mode == {
+            case .ALLOCATE;   
+                atomic_add(*alloc_count, 1);
+                atomic_add(*total_allocated, size);
+                return mi_malloc(cast(u64)size);
+            case .RESIZE;     
+                atomic_add(*total_allocated, size - old_size);
+                return mi_realloc(old_ptr, cast(u64)size);
+            case .FREE;       
+                atomic_add(*free_count, 1);
+                mi_free(old_ptr); 
+                return null;
         }
         return null;
     },
@@ -258,6 +282,8 @@ game_loop :: () {
 
 main :: () {
 	context.allocator = mi_allocator;
+	mi_option_enable(.SHOW_STATS);   // Stats on exit
+    mi_option_enable(.VERBOSE);       // Detailed logging
 
 	GAME_INSTANCE.lane_system.init(*GAME_INSTANCE.lane_system);
 	// Lanes enter into game_loop, so this sets up lane 0 which is default (thread_index is already 0)

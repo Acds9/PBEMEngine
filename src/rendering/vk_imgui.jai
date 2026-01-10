@@ -182,13 +182,6 @@ imgui_tick :: () {
 					Checkbox("BVH", *ZRENDERER.debug_system.bvh_bounds);
 					TreePop();
 				}
-				/* Example left here, need proper selection etc
-				if Button("Toggle Light 0") {
-					GAME_INSTANCE.scene.point_lights.set_visibility_idx(*GAME_INSTANCE.scene.point_lights, 0, false);
-				}
-				if Button("Toggle Mesh 1") {
-					GAME_INSTANCE.scene.mesh_instances.set_visibility_idx(*GAME_INSTANCE.scene.mesh_instances, 1, false);
-				}*/
 				TreePop();
 			}
 		}
@@ -200,6 +193,9 @@ imgui_tick :: () {
 			Text(sprint("FPS: %", GAME_INSTANCE.fps));
 			Text(tprint("%", GAME_INSTANCE.delta_time));
 			Text(sprint("CurrentFrame: %", GAME_INSTANCE.current_frame));
+			Text(sprint("Alloc Count: %", alloc_count));
+			Text(tprint("Free Count: %", free_count));
+			Text(sprint("Total Allocated: %", total_allocated));
 		}
 		End();
 	} 

@@ -25,6 +25,8 @@ LBVH_System :: struct {
 		bounds	: Volume_Bounds;
 	}
 	morton_codes 	: [..]Morton_Entity;
+	morton_src		: [..]Morton_Entity;
+	morton_dst 		: [..]Morton_Entity;
 
 	internal_nodes : [..]BVH_Node;  
     leaf_parents   : [..]u32;       // parent index for each leaf
@@ -134,16 +136,16 @@ generate_morton_array :: (using system: *LBVH_System) {
 
 	// TODO: maybe this can be parallelized if needed, cache contention/invalidation might negate. Test?
 	if context.thread_index == 0 {
-		src, dst : [..]Morton_Entity;
-		array_resize(*src, morton_codes.count);
-		array_resize(*dst, morton_codes.count);
-		memcpy(src.data, morton_codes.data, morton_codes.count * size_of(Morton_Entity));
+		array_resize(*morton_src, morton_codes.count);
+		array_resize(*morton_dst, morton_codes.count);
+		
+		memcpy(morton_src.data, morton_codes.data, morton_codes.count * size_of(Morton_Entity));
 
 		for pass: 0..2 {
 			histogram: [1024]u32;  // zero initialized
     
 			// Count
-			for pair: src {
+			for pair: morton_src {
 				bucket := (pair.code >> (pass * 10)) & 0x3FF;
 				histogram[bucket] += 1;
 			}
@@ -157,16 +159,16 @@ generate_morton_array :: (using system: *LBVH_System) {
 			}
     
 			// Scatter
-			for pair: src {
+			for pair: morton_src {
 				bucket := (pair.code >> (pass * 10)) & 0x3FF;
-				dst[offsets[bucket]] = pair;
+				morton_dst[offsets[bucket]] = pair;
 				offsets[bucket] += 1;
 			}
     
 			// Swap
-			src, dst = dst, src;
+			morton_src, morton_dst = morton_dst, morton_src;
 		}
-		memcpy(morton_codes.data, src.data, morton_codes.count * size_of(Morton_Entity));
+		memcpy(morton_codes.data, morton_src.data, morton_codes.count * size_of(Morton_Entity));
 	}
 	barrier_wait(context.lane_barrier);
 }

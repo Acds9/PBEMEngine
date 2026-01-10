@@ -57,17 +57,16 @@ create_shader_module :: (zr: *ZRenderer, code: [..]u8) -> bool, VkShaderModule {
 create_framebuffers :: (zr: *ZRenderer) -> bool, string {
     array_resize(*zr.swapchain_framebuffers, zr.swapchain_imageviews.count);
     for zr.swapchain_imageviews {
-        attachments : [..]VkImageView;
-        array_add(*attachments, zr.swapchain_imageviews[it_index]);
-        
-        framebuffer_create_info := vkinit_framebuffer_create_info(
-            zr.render_pass, 1, attachments.data, zr.swapchain_extent.width, zr.swapchain_extent.height
-        );
-        
-        result := vkCreateFramebuffer(zr.device, *framebuffer_create_info, null, *zr.swapchain_framebuffers[it_index]);
-        if result != .VK_SUCCESS
-            return false, sprint("%\n", result);
-    }
+		attachment := zr.swapchain_imageviews[it_index];
+    
+		framebuffer_create_info := vkinit_framebuffer_create_info(
+			zr.render_pass, 1, *attachment, zr.swapchain_extent.width, zr.swapchain_extent.height
+		);
+    
+		result := vkCreateFramebuffer(zr.device, *framebuffer_create_info, null, *zr.swapchain_framebuffers[it_index]);
+		if result != .VK_SUCCESS
+			return false, sprint("%\n", result);
+	}
     return true, "";
 }
 
