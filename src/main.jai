@@ -37,7 +37,6 @@ GLOBAL_DELETION_QUEUE 	: Deletion_Queue;
 MOUSELOOK_SENSITIVITY	: float = 1;
 CAMERA_MOVESPEED		: float = 25;
 
-/*
 mi_allocator :: Allocator.{
     proc = (mode: Allocator_Mode, size: s64, old_size: s64, old_ptr: *void, data: *void) -> *void {
         if mode == {
@@ -48,32 +47,7 @@ mi_allocator :: Allocator.{
         return null;
     },
     data = null
-};*/
-
-alloc_count: s64 #align 64;
-free_count: s64 #align 64;
-total_allocated: s64 #align 64;
-
-mi_allocator :: Allocator.{
-    proc = (mode: Allocator_Mode, size: s64, old_size: s64, old_ptr: *void, data: *void) -> *void {
-        if mode == {
-            case .ALLOCATE;   
-                atomic_add(*alloc_count, 1);
-                atomic_add(*total_allocated, size);
-                return mi_malloc(cast(u64)size);
-            case .RESIZE;     
-                atomic_add(*total_allocated, size - old_size);
-                return mi_realloc(old_ptr, cast(u64)size);
-            case .FREE;       
-                atomic_add(*free_count, 1);
-                mi_free(old_ptr); 
-                return null;
-        }
-        return null;
-    },
-    data = null
 };
-
 
 game_init :: () -> bool {
 	using GAME_INSTANCE;

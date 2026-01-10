@@ -78,6 +78,7 @@ import_KTX2 :: (zr: *ZRenderer, file_path: string) -> Allocated_Image {
 	cursor += 32;
 
 	levels	: [..]KTX2.Level_Index;
+	defer array_free(levels);
 	array_resize(*levels, header.level_count);
 	for 0..header.level_count-1 {
 		levels[it] = <<cast(*KTX2.Level_Index)cursor;

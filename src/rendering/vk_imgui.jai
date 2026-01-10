@@ -193,9 +193,6 @@ imgui_tick :: () {
 			Text(sprint("FPS: %", GAME_INSTANCE.fps));
 			Text(tprint("%", GAME_INSTANCE.delta_time));
 			Text(sprint("CurrentFrame: %", GAME_INSTANCE.current_frame));
-			Text(sprint("Alloc Count: %", alloc_count));
-			Text(tprint("Free Count: %", free_count));
-			Text(sprint("Total Allocated: %", total_allocated));
 		}
 		End();
 	} 

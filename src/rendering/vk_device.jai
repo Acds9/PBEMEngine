@@ -39,6 +39,7 @@ init_instance :: (zr: *ZRenderer) -> bool, string {
 
 	num_extensions 			: u32;
 	required_extensions		: [..]*u8;
+	defer array_free(required_extensions);
 	
 	SDL_Vulkan_GetInstanceExtensions(zr.window, *num_extensions, null);
 	array_resize(*required_extensions, num_extensions);
@@ -59,6 +60,7 @@ init_instance :: (zr: *ZRenderer) -> bool, string {
 	vkEnumerateInstanceExtensionProperties(null, *num_extensions, supported_extensions.data);
 
 	unsupported_extensions : [..]string;
+	defer array_free(unsupported_extensions);
 	for req: required_extensions {
 		supported : bool;
 		for supp: supported_extensions {
@@ -76,11 +78,13 @@ init_instance :: (zr: *ZRenderer) -> bool, string {
 	vkEnumerateInstanceLayerProperties(*layer_count, null);
 
 	supported_layers : [..]VkLayerProperties;
+	defer array_free(supported_layers);
 	array_resize(*supported_layers, layer_count);
 
 	vkEnumerateInstanceLayerProperties(*layer_count, supported_layers.data);
 
 	unsupported_layers : [..]string;
+	defer array_free(unsupported_layers);
 	for des: Desired_Validation_Layers {
 		supported : bool;
 		for supp: supported_layers {
@@ -183,6 +187,7 @@ select_physical_device :: (zr: *ZRenderer) -> bool, string {
 	if !device_count return false, "ERROR: Failed to find physical devices with Vulkan support.";
 	
 	physical_devices : [..]VkPhysicalDevice;
+	defer array_free(physical_devices);
 	array_resize(*physical_devices, device_count);
 	vkEnumeratePhysicalDevices(zr.instance, *device_count, physical_devices.data);
 	
@@ -206,6 +211,7 @@ select_physical_device :: (zr: *ZRenderer) -> bool, string {
 	queue_family_count : u32;
 	vkGetPhysicalDeviceQueueFamilyProperties(selected_physical_device, *queue_family_count, null);
 	queue_families : [..]VkQueueFamilyProperties;
+	defer array_free(queue_families);
 	array_resize(*queue_families, queue_family_count);
 	vkGetPhysicalDeviceQueueFamilyProperties(selected_physical_device, *queue_family_count, queue_families.data);
 	
@@ -233,6 +239,7 @@ select_physical_device :: (zr: *ZRenderer) -> bool, string {
 
 query_extension_support :: (zr: *ZRenderer) -> bool {
 	device_extensions : [..]*u8;
+	defer array_free(device_extensions);
 	for Required_Device_Extensions {
 		array_add(*device_extensions, it);
 	}
@@ -241,6 +248,7 @@ query_extension_support :: (zr: *ZRenderer) -> bool {
 	vkEnumerateDeviceExtensionProperties(zr.physical_device, null, *extension_count, null);
 
 	available_extensions : [..]VkExtensionProperties;
+	defer array_free(available_extensions);
 	array_resize(*available_extensions, extension_count);
 	vkEnumerateDeviceExtensionProperties(zr.physical_device, null, *extension_count, available_extensions.data);
 
@@ -262,6 +270,8 @@ query_extension_support :: (zr: *ZRenderer) -> bool {
 create_logical_device :: (zr: *ZRenderer) -> bool, string {
 	queue_create_infos 	: [..]VkDeviceQueueCreateInfo;
 	queue_families		: [..]s32;
+	defer array_free(queue_create_infos);
+	defer array_free(queue_families);
 	array_add_unique(*queue_families, zr.queue_indices.graphics);
 	array_add_unique(*queue_families, zr.queue_indices.present);
 	

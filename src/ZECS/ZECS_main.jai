@@ -158,6 +158,7 @@ create_entity_batch :: (world: *ZWorld, $arch_type: Type, count: u32) -> []ZEnti
 	}
     
     entities: [..]ZEntity;
+	defer array_free(entities);
     array_reserve(*entities, count);
     
     // Pre-allocate all storage at once

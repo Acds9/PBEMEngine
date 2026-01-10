@@ -136,7 +136,7 @@ generate_string_to_entity_comp_type :: (comp_names: []string) -> string {
 	print_to_builder(*builder, "\n");
 	print_to_builder(*builder, "// Get the archetype component strings from a Type array\n");
 	print_to_builder(*builder, "get_archetype_component_strings :: (t: []Type) -> [..]string {\n");
-
+	
 		print_to_builder(*builder, "\tstrings : [..]string;\n");
 		print_to_builder(*builder, "\tfor t {\n");
 
