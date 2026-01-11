@@ -10,6 +10,8 @@ Game_Instance :: struct {
     world: ZWorld;
     scene: ZScene;
     quit: bool;
+
+	player_controller : Player_Controller;
     
     // Timing
     frequency: u64;
@@ -68,9 +70,9 @@ game_init :: () -> bool {
 
 	light_entity := create_entity(*world, Archetype_Point_Light); 
 	position := get_entity_component(*world, light_entity, Position);
-	position.pos = .{1,1,20};
+	position.pos = .{1,150,20};
 	light_component := get_entity_component(*world, light_entity, Point_Light_Component);
-    light_component.radius = 16;
+    light_component.radius = 64;
     light_component.color = .{.3,.3,1,1};
 
 	light_entity_2 := create_entity(*world, Archetype_Point_Light); 
@@ -225,14 +227,13 @@ game_loop :: () {
 				SDL_GetMouseState(*x, *y);
 				origin, dir := screen_to_ray(x, y, xx,no_check ZRENDERER.resolution.width, xx,no_check ZRENDERER.resolution.height, *ZRENDERER.camera.gpu_data.view_proj);
 				debug_draw_line(*ZRENDERER, origin, origin + dir*50000, .{1,0,0,1}, 500);
-				entity := trace_ray(*GAME_INSTANCE.scene.bvh_system, origin, dir);
+				hit, entity := trace_ray(*GAME_INSTANCE.scene.bvh_system, origin, dir);
 				
-				mesh_comp, has_mesh := get_entity_component(*GAME_INSTANCE.world, entity, Mesh_Render_Proxy_EC);
-				if has_mesh {
-					mesh_data 		:= cast(*Mesh_Instance) GAME_INSTANCE.scene.mesh_instances.staging_buffer.info.pMappedData;
-					mesh_instance 	:= *mesh_data[mesh_comp.idx_mesh_instance];
-					material_instance := get_mesh_material_instance(mesh_instance, 0);
-					material_instance.color_factors = .{10,10,0,1};
+				if hit {
+					print("Hit: %\n", entity);
+					player_controller_set_selection(*GAME_INSTANCE.player_controller, entity);
+				} else {
+					player_controller_clear_selection(*GAME_INSTANCE.player_controller);
 				}
 			}
 			tick_input_commands(*GAME_INSTANCE.input_system, xx,no_check GAME_INSTANCE.delta_time);
@@ -241,12 +242,13 @@ game_loop :: () {
        		game_update_camera();
 		}
        	barrier_wait(context.lane_barrier);
-       
+       	
 		scene_tick(*GAME_INSTANCE.scene);
         game_tick();
 		barrier_wait(context.lane_barrier);
 
 		if context.thread_index == 0 {
+			player_controller_tick(*GAME_INSTANCE.player_controller);
 			imgui_tick();
 			game_render();
 		}
@@ -256,8 +258,8 @@ game_loop :: () {
 
 main :: () {
 	context.allocator = mi_allocator;
-	mi_option_enable(.SHOW_STATS);   // Stats on exit
-    mi_option_enable(.VERBOSE);       // Detailed logging
+//	mi_option_enable(.SHOW_STATS);   // Stats on exit
+//  mi_option_enable(.VERBOSE);      // Detailed logging
 
 	GAME_INSTANCE.lane_system.init(*GAME_INSTANCE.lane_system);
 	// Lanes enter into game_loop, so this sets up lane 0 which is default (thread_index is already 0)

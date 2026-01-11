@@ -32,7 +32,7 @@ ray_box_intersect_fast :: (ray_origin: Vector3, ray_dir: Vector3, inv_dir: Vecto
     };
 }
 
-trace_ray :: (using system: *LBVH_System, ray_origin: Vector3, ray_dir: Vector3) -> ZEntity {
+trace_ray :: (using system: *LBVH_System, ray_origin: Vector3, ray_dir: Vector3) -> bool, ZEntity {
     leaf_count := cast(u32) morton_codes.count;
     
     // Stack traversal
@@ -42,7 +42,7 @@ trace_ray :: (using system: *LBVH_System, ray_origin: Vector3, ray_dir: Vector3)
     stack_ptr += 1;
     
     closest_t := FLOAT32_MAX;
-    closest_entity: ZEntity;
+    closest_entity: ZEntity = .{U32_MAX, U16_MAX, U16_MAX};
 
 	ray_inv_dir := Vector3.{1.0 / ray_dir.x, 1.0 / ray_dir.y, 1.0 / ray_dir.z};
     
@@ -74,7 +74,7 @@ trace_ray :: (using system: *LBVH_System, ray_origin: Vector3, ray_dir: Vector3)
         }
     }
     
-    return closest_entity;
+    return closest_entity.index != U32_MAX, closest_entity;
 }
 
 screen_to_ray :: (pos_x: s32, pos_y: s32, screen_width: s32, screen_height: s32, view_proj: *Matrix4) -> (origin: Vector3, direction: Vector3) {
