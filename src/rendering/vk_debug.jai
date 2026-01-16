@@ -149,18 +149,18 @@ debug_tick :: () {
 
 	if light_radius_sphere {
 		execute_Query_Debug_Draw_Point_Light(*GAME_INSTANCE.world, #code {
-			debug_draw_point(*ZRENDERER, position.pos, 5, point_light_component.color); 
-			debug_draw_mesh(*ZRENDERER, position.pos, ROTOR_IDENTITY, VECTOR_ONE * point_light_component.radius, .SPHERE, point_light_component.color);
+			debug_draw_point(*ZRENDERER, position.value, 5, point_light_component.color); 
+			debug_draw_mesh(*ZRENDERER, position.value, ROTOR_IDENTITY, VECTOR_ONE * point_light_component.radius, .SPHERE, point_light_component.color);
 		});
 	}
 	if mesh_aabb {
 		execute_Query_Debug_Draw_AABB(*GAME_INSTANCE.world, #code {
 			mesh_data 		:= cast,no_check(*Mesh_Instance) GAME_INSTANCE.scene.mesh_instances.staging_buffer.info.pMappedData;
-			mesh_instance 	:= *mesh_data[mesh_render_proxy_ec.idx_mesh_instance];
+			mesh_instance 	:= *mesh_data[mesh_render_proxy_ec.value];
 			aabb_data 		:= cast,no_check(*AABB) ZRENDERER.geometry_pool.default_aabb_buffer.staging_buffer.info.pMappedData;
 			aabb			:= *aabb_data[mesh_instance.idx_aabb];
 
-			debug_draw_mesh(*ZRENDERER, position.pos + aabb.center, rotation.rot, aabb.half_extents, .BOX, .{1,1,1,1});
+			debug_draw_mesh(*ZRENDERER, position.value + aabb.center, rotation.value, aabb.half_extents, .BOX, .{1,1,1,1});
 		});
 	}
 	volume :: (b: Volume_Bounds) -> float {

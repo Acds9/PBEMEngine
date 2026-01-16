@@ -45,24 +45,24 @@ compute_scene_bounds :: (using system: *LBVH_System) {
 	lane_entity_counts[context.thread_index] = 0;  // Reset before counting
 
 	execute_Query_Spatialize_Entities(*GAME_INSTANCE.world, #code {
-			if position.pos.x < scene_min.x {
-				scene_min.x = position.pos.x;
+			if position.value.x < scene_min.x {
+				scene_min.x = position.value.x;
 			}
-			if position.pos.y < scene_min.y {
-				scene_min.y = position.pos.y;
+			if position.value.y < scene_min.y {
+				scene_min.y = position.value.y;
 			}
-			if position.pos.z < scene_min.z {
-				scene_min.z = position.pos.z;
+			if position.value.z < scene_min.z {
+				scene_min.z = position.value.z;
 			}
 
-			if position.pos.x > scene_max.x {
-				scene_max.x = position.pos.x;
+			if position.value.x > scene_max.x {
+				scene_max.x = position.value.x;
 			}
-			if position.pos.y > scene_max.y {
-				scene_max.y = position.pos.y;
+			if position.value.y > scene_max.y {
+				scene_max.y = position.value.y;
 			}
-			if position.pos.z > scene_max.z {
-				scene_max.z = position.pos.z;
+			if position.value.z > scene_max.z {
+				scene_max.z = position.value.z;
 			}
 			lane_entity_counts[context.thread_index] += 1;
 	});
@@ -123,15 +123,15 @@ expand_bits :: (v: u32) -> u32 {
 generate_morton_array :: (using system: *LBVH_System) {
 	execute_Query_Spatialize_Entities(*GAME_INSTANCE.world, #code {
 		mesh_data 		:= cast,no_check(*Mesh_Instance) GAME_INSTANCE.scene.mesh_instances.staging_buffer.info.pMappedData;
-		mesh_instance 	:= *mesh_data[mesh_render_proxy_ec.idx_mesh_instance];
+		mesh_instance 	:= *mesh_data[mesh_render_proxy_ec.value];
 		aabb_data 		:= cast,no_check(*AABB) ZRENDERER.geometry_pool.default_aabb_buffer.staging_buffer.info.pMappedData;
 		aabb			:= *aabb_data[mesh_instance.idx_aabb];
 		local_bounds := aabb_to_volume_bounds(aabb);
 		world_bounds := Volume_Bounds.{
-			local_bounds.min + position.pos,
-			local_bounds.max + position.pos
+			local_bounds.min + position.value,
+			local_bounds.max + position.value
 		};
-		morton_codes[query_counter] = .{compute_morton(*position.pos, *scene_bounds, *scene_extents), current_entity, world_bounds};
+		morton_codes[query_counter] = .{compute_morton(*position.value, *scene_bounds, *scene_extents), current_entity, world_bounds};
 	});
 
 	// TODO: maybe this can be parallelized if needed, cache contention/invalidation might negate. Test?

@@ -44,6 +44,7 @@ code_generation :: (w: Workspace) -> bool {
 	generated := false;
 	add_build_file("src/bit_field.jai", w);
 	add_build_file("H:/PBEMJai/src/zmath.jai", w);
+	add_build_file("H:/PBEMJai/src/rotor.jai", w);
 	add_build_file("src/ZECS/ZECS_build_types.jai", w);
 	add_build_file("src/ZECS/ZECS_components.jai", w);
 	add_build_file("src/types.jai", w);

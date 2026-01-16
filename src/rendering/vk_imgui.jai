@@ -139,11 +139,31 @@ imgui_begin_frame :: (extents: Vector2) {
 
 imgui_tick :: () {
 	using GAME_INSTANCE;
+	using ImGui;
+
 	if !imgui_active() {
 		return;
 	}
 
-	using ImGui;
+	if player_controller.current_selection.count != 0 {
+		if Begin("Ship", flags = .AlwaysAutoResize) {
+			entity := player_controller.current_selection[0];
+
+			pos := get_entity_component(*world, entity, Position).value;
+			Text(sprint("Position: %", pos));
+			rot := get_entity_component(*world, entity, Rotation).value;
+			Text(tprint("Rotation: %", rot));
+			scale := get_entity_component(*world, entity, Scale).value;
+			Text(sprint("Scale: %", scale));
+
+			thrust := get_entity_component(*world, entity, Thrust);
+			VSliderFloat("Thrust", .{40,150}, *thrust.value, 0, 10);
+			SameLine();
+			rot_velocity := get_entity_component(*world, entity, Rotational_Velocity);
+			VSliderFloat("Torque", .{40,150}, *rot_velocity.value.z, -1, 1);
+		}
+		End();
+	}
 
 	if ZRENDERER.imgui_system.show_rendering {
 		if Begin("Rendering", flags = .AlwaysAutoResize){

@@ -7,23 +7,24 @@
 #import "mimalloc";
 
 Game_Instance :: struct {
-    world: ZWorld;
-    scene: ZScene;
-    quit: bool;
+    world				: ZWorld;
+    scene				: ZScene;
+    quit				: bool;
 
-	player_controller : Player_Controller;
+	player_controller 	: Player_Controller;
     
     // Timing
-    frequency: u64;
-    last_counter: u64;
-    delta_time: float64;
-    fps: u32;
-	current_frame : u64;
+    frequency			: u64;
+    last_counter		: u64;
+	delta_time 			: float32;
+    delta_time_precise	: float64;
+    fps					: u32;
+	current_frame 		: u64;
 
-	input_system : Input_System;
-	mouse_mode : bool;
+	input_system 		: Input_System;
+	mouse_mode 			: bool;
 
-	lane_system : Lane_System;
+	lane_system 		: Lane_System;
 }
 
 GAME_INSTANCE : Game_Instance;
@@ -70,14 +71,14 @@ game_init :: () -> bool {
 
 	light_entity := create_entity(*world, Archetype_Point_Light); 
 	position := get_entity_component(*world, light_entity, Position);
-	position.pos = .{1,150,20};
+	position.value = .{1,150,20};
 	light_component := get_entity_component(*world, light_entity, Point_Light_Component);
     light_component.radius = 64;
     light_component.color = .{.3,.3,1,1};
 
 	light_entity_2 := create_entity(*world, Archetype_Point_Light); 
 	position_2 := get_entity_component(*world, light_entity_2, Position);
-	position_2.pos = .{1,1,32};
+	position_2.value = .{1,1,32};
 	light_component_2 := get_entity_component(*world, light_entity_2, Point_Light_Component);
     light_component_2.radius = 64;
     light_component_2.color = .{.3,1,.3,1};
@@ -150,14 +151,25 @@ game_update_camera :: () {
 game_tick :: () {
 	using GAME_INSTANCE;
 	{
-		execute_Query_Update_Render_Proxy(*GAME_INSTANCE.world, #code {
-			transform := Transform.{position.pos, rotation.rot, scale.scale};
-			matrix := transform_to_matrix4(transform);
-			idx := mesh_render_proxy_ec.idx_mesh_instance;
+		{
+			execute_Query_Update_Render_Proxy(*GAME_INSTANCE.world, #code {
+				transform := Transform.{position.value, rotation.value, scale.value};
+				matrix := transform_to_matrix4(transform);
+				idx := mesh_render_proxy_ec.value;
 				
-			mesh_instance := render_get_mesh_instance(*GAME_INSTANCE.scene, idx);
-			render_set_transform(*GAME_INSTANCE.scene, idx, *matrix);
-		});
+				mesh_instance := render_get_mesh_instance(*GAME_INSTANCE.scene, idx);
+				render_set_transform(*GAME_INSTANCE.scene, idx, *matrix);
+			});
+		}
+		{
+			execute_Query_Update_Physics(*world, #code {
+				local_thrust := rotate(.{1,0,0}, rotation.value) * thrust.value*delta_time;
+				linear_velocity.value =  linear_velocity.value + local_thrust;
+				linear_velocity.value *= exp(-1 * delta_time);
+				position.value += linear_velocity.value*delta_time;
+				rotation.value = add_angular_delta(rotation.value, rotational_velocity.value, delta_time);
+			});
+		}
 	}
 	if context.thread_index == 0 {
 		debug_tick();
@@ -195,8 +207,9 @@ game_loop :: () {
 		if context.thread_index == 0 {
 			// Update timing
 			current_counter := SDL_GetPerformanceCounter();
-			GAME_INSTANCE.delta_time = cast,no_check(float64)(current_counter - GAME_INSTANCE.last_counter) / 
+			GAME_INSTANCE.delta_time_precise = cast,no_check(float64)(current_counter - GAME_INSTANCE.last_counter) / 
 							cast,no_check(float64)GAME_INSTANCE.frequency;
+			GAME_INSTANCE.delta_time = cast,no_check(float32) GAME_INSTANCE.delta_time_precise;
 			GAME_INSTANCE.fps = cast,no_check(u32)(1 / GAME_INSTANCE.delta_time);
 			GAME_INSTANCE.last_counter = current_counter;
 			GAME_INSTANCE.current_frame += 1;
@@ -223,6 +236,9 @@ game_loop :: () {
 				ZRENDERER.imgui_system.show_rendering = !ZRENDERER.imgui_system.show_rendering;
 			}
 			if get_command(*GAME_INSTANCE.input_system, .MOUSE_BUTTON_LEFT).key_down {
+				if !imgui_active() {
+					
+				
 				x, y : s32;
 				SDL_GetMouseState(*x, *y);
 				origin, dir := screen_to_ray(x, y, xx,no_check ZRENDERER.resolution.width, xx,no_check ZRENDERER.resolution.height, *ZRENDERER.camera.gpu_data.view_proj);
@@ -230,10 +246,10 @@ game_loop :: () {
 				hit, entity := trace_ray(*GAME_INSTANCE.scene.bvh_system, origin, dir);
 				
 				if hit {
-					print("Hit: %\n", entity);
 					player_controller_set_selection(*GAME_INSTANCE.player_controller, entity);
 				} else {
 					player_controller_clear_selection(*GAME_INSTANCE.player_controller);
+				}
 				}
 			}
 			tick_input_commands(*GAME_INSTANCE.input_system, xx,no_check GAME_INSTANCE.delta_time);

@@ -445,21 +445,6 @@ vkinit_imageview_create_info :: (format : VkFormat, image : VkImage, aspectFlags
     return create_info;
 }
 
-vkinit_attachment_info :: (view: VkImageView, clear: *VkClearValue, layout: VkImageLayout) -> VkRenderingAttachmentInfo {
-	color_attachment : VkRenderingAttachmentInfo;
-    color_attachment.sType = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-
-    color_attachment.imageView = view;
-    color_attachment.imageLayout = layout;
-    color_attachment.loadOp = ifx clear then .VK_ATTACHMENT_LOAD_OP_CLEAR else .VK_ATTACHMENT_LOAD_OP_LOAD;
-    color_attachment.storeOp = .VK_ATTACHMENT_STORE_OP_STORE;
-    if clear {
-        color_attachment.clearValue = <<clear;
-    }
-
-    return color_attachment;
-}
-
 vkinit_rendering_info :: (render_extent: VkExtent2D, color_attachment: *VkRenderingAttachmentInfo, depth_attachment: *VkRenderingAttachmentInfo) -> VkRenderingInfo {
     render_info : VkRenderingInfo;
     render_info.sType = .VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -535,17 +520,4 @@ vkutil_transition_image :: (command_buffer: VkCommandBuffer, image: VkImage, cur
     dep_info.pImageMemoryBarriers = *image_barrier;
 
     vkCmdPipelineBarrier2(command_buffer, *dep_info);
-}
-
-vkinit_depth_attachment_info :: (view: VkImageView, layout: VkImageLayout) -> VkRenderingAttachmentInfo {
-    depth_attachment : VkRenderingAttachmentInfo;
-    depth_attachment.sType = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-
-    depth_attachment.imageView = view;
-    depth_attachment.imageLayout = layout;
-    depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth_attachment.storeOp = .VK_ATTACHMENT_STORE_OP_STORE;
-    depth_attachment.clearValue.depthStencil.depth = 0;
-
-    return depth_attachment;
 }

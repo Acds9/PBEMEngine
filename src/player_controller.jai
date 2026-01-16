@@ -11,11 +11,16 @@ player_controller_on_selection_change :: (using pc: *Player_Controller) {
 }
 
 player_controller_tick :: (using pc: *Player_Controller) {
-	if selection_dirty {
+	if current_selection.count != 0 {
+		entity := current_selection[0];
+		pos := get_entity_component(*GAME_INSTANCE.world, entity, Position);
+		debug_draw_mesh(zr = *ZRENDERER, position = pos.value, scale = .{32,32,32});
+	}
+	/*if selection_dirty {
 		disable_selection_highlight(previous_selection);
 		enable_selection_highlight(current_selection);
 		selection_dirty = false;
-	}
+	}*/
 }
 
 player_controller_set_selection :: (using pc: *Player_Controller, entities: [..]ZEntity) {
@@ -67,7 +72,7 @@ player_controller_clear_selection :: (using pc: *Player_Controller) {
 	player_controller_on_selection_change(pc);
 	array_reset(*current_selection);
 }
-
+/*
 enable_selection_highlight :: (selection: []ZEntity) {
 	for entity: selection {
 		mesh_comp, has_mesh := get_entity_component(*GAME_INSTANCE.world, entity, Mesh_Render_Proxy_EC);
@@ -90,4 +95,4 @@ disable_selection_highlight :: (selection: []ZEntity) {
 			material_instance.color_factors = .{1,1,1,1}; // TODO: We'll have to do this differently later, what if something else modifies color factors?
 		}
 	}
-}
+}*/

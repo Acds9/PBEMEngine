@@ -45,3 +45,13 @@ Query_Spatialize_Entities :: struct {
 
 	QUERY_FLAGS				:: Query_Flags.ATOMIC_COUNTER;
 }
+
+Query_Update_Physics :: struct {
+	using #as query: Query;
+	
+	ENTITY_COMPONENTS 		:: Type.[Position, Rotation, Thrust, Linear_Velocity, Rotational_Velocity];
+	ARCHETYPE_COMPONENTS 	:: Type.[];
+	TAGS					:: ZTags.SHIP;
+
+	QUERY_FLAGS				:: 0;
+}

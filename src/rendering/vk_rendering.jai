@@ -62,10 +62,12 @@ ZRenderer :: struct {
     swapchain_framebuffers	: [..]VkFramebuffer;
     
     // Render targets
-	render_target_format 	: VkFormat;
     draw_image            	: Allocated_Image; // This is what we actually draw to, we then blit it onto the swapchain image
     draw_extent           	: VkExtent2D;
     depth_image           	: Allocated_Image;
+
+	// Selection Render Target
+	selection_image			: Allocated_Image; // R8_UINT will do
     
     // Render pass & pipelines
     render_pass           	: VkRenderPass;
@@ -604,15 +606,38 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 
 		clear_value : VkClearValue;
 		clear_value.color._float32 = DEFAULT_CLEARVALUE;
-		color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.draw_image.image_view, *clear_value, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		color_attachment : [2]VkRenderingAttachmentInfo = .[
+			.{
+				sType = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+				imageView = zr.draw_image.image_view,
+				imageLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR,
+				storeOp = .VK_ATTACHMENT_STORE_OP_STORE,
+				clearValue = clear_value,
+			},
+			.{
+				sType = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+				imageView = zr.selection_image.image_view,
+				imageLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR,
+				storeOp = .VK_ATTACHMENT_STORE_OP_STORE,
+				clearValue = .{color.int32 = .[0, 0, 0, 0]},  // 0 = unselected
+			}
+		];
 
 		depth_clear : VkClearValue;
 		depth_clear.depthStencil.depth = 0.0;
-		depth_attachment : VkRenderingAttachmentInfo = vkinit_depth_attachment_info(zr.depth_image.image_view, .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-		depth_attachment.loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depth_attachment.clearValue = depth_clear;
+	
+		depth_attachment := VkRenderingAttachmentInfo.{
+			sType = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+			imageView = zr.depth_image.image_view,
+			imageLayout = .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+			loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR,
+			storeOp = .VK_ATTACHMENT_STORE_OP_STORE,
+			clearValue = depth_clear,
+		};
 
-		render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *color_attachment, *depth_attachment);
+		render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, color_attachment.data, *depth_attachment);
 		
 		vkCmdBeginRendering(cmd, *render_info);
 		{
@@ -628,7 +653,14 @@ draw_frame :: (zr: *ZRenderer, scene: *ZScene) {
 		// And the panini image to color attachment from the transfer src last frame
 		vkutil_transition_image(cmd, zr.panini_image.image, .VK_IMAGE_LAYOUT_UNDEFINED, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, .VK_IMAGE_ASPECT_COLOR_BIT);
 
-		panini_color_attachment : VkRenderingAttachmentInfo = vkinit_attachment_info(zr.panini_image.image_view, *clear_value, .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		panini_color_attachment := VkRenderingAttachmentInfo.{
+			sType = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+				imageView = zr.panini_image.image_view,
+				imageLayout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				loadOp = .VK_ATTACHMENT_LOAD_OP_CLEAR,
+				storeOp = .VK_ATTACHMENT_STORE_OP_STORE,
+				clearValue = clear_value,
+		};
 		panini_render_info : VkRenderingInfo = vkinit_rendering_info(zr.draw_extent, *panini_color_attachment, null);
 
 		// Post process rendering

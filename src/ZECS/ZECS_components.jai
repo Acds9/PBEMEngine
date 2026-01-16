@@ -2,23 +2,39 @@
 
 Entity_Component :: struct{}
 
-Position :: struct{
+Position :: struct {
 	using #as entity_component: Entity_Component;
-	pos : Vector3;
+	value : Vector3;
 }
 
-Rotation :: struct{
+Rotation :: struct {
 	using #as entity_component: Entity_Component;
-	rot : Rotor = .{1,0,0,0};
+	value : Rotor = .{1,0,0,0};
 
 	default :: (using self: *Rotation) {
-		rot = ROTOR_IDENTITY;
+		value = ROTOR_IDENTITY;
 	}
 }
 
-Scale :: struct{
+Scale :: struct {
 	using #as entity_component: Entity_Component;
-	scale : Vector3 = .{1,1,1}; 
+	value : Vector3 = .{1,1,1}; 
+}
+
+Linear_Velocity :: struct{
+	using #as entity_component: Entity_Component;
+
+	value : Vector3;
+}
+
+Rotational_Velocity :: struct {
+	using #as entity_component: Entity_Component;
+	value : Vector3;
+}
+
+Thrust :: struct {
+	using #as entity_component: Entity_Component;
+	value : float;
 }
 
 Representation_Flags :: enum_flags u8 {
@@ -32,7 +48,7 @@ Entity_Representation_Flags :: struct {
 
 Mesh_Render_Proxy_EC :: struct {
 	using #as entity_component: Entity_Component;
-	idx_mesh_instance	: u32;
+	value	: u32;
 }
 
 Point_Light_Component :: struct {
@@ -48,7 +64,7 @@ Archetype_Component :: struct{}
 Mesh_Rep :: struct {
 	using #as archetype_component: Archetype_Component;
 
-	mesh_name		: string; // String for now, maybe should be an autogenned enum?
+	value		: string; // String for now, maybe should be an autogenned enum?
 }
 
 Tag_Component :: struct{} // Maybe this should just be an enum
