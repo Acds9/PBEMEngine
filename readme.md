@@ -2,6 +2,10 @@
 
 ZEngine (placeholder name) is a custom game engine built in [Jai](https://en.wikipedia.org/wiki/Jai_(programming_language)) developed for a [WeGo turn-based](https://en.wikipedia.org/wiki/Timekeeping_in_games#Simultaneously_executed_and_clock-based_turns) space strategy game.
 
+<p align="center">
+  <img src="docs/assets/basic.png" width="600">
+</p>
+
 ## Overview
 
 ZEngine is built around a custom Entity Component System called ZECS (also placeholder) and a GPU-driven Vulkan renderer. 
