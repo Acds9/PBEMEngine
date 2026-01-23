@@ -9,7 +9,7 @@ ZEngine (placeholder name) is a custom game engine built in [Jai](https://en.wik
 
 ## Overview
 
-ZEngine is built around a custom Entity Component System called ZECS (also placeholder) and a GPU-driven Vulkan renderer. 
+ZEngine is built around a custom Entity Component System called ZECS and a GPU-driven Vulkan renderer. 
 The engine targets Homeworld 2-era visual complexity with modern rendering techniques with the goal of achieving higher scene complexity and playercounts. 
 
 The engine and game are intended to be tightly knit, with as few generalizations as possible and avoiding features or capabilities that will not be strictly necessary for the game itself. 
