@@ -41,6 +41,11 @@ The system includes many common features such as archetype components (one compo
 ## Rendering
 The renderer uses a Forward+/Clustered Forward rendering pattern [similar to Doom 2016](https://www.adriancourreges.com/blog/2016/09/09/doom-2016-graphics-study/). The scene is divided along all 3 axes into clusters and light influence is calculated on each cluster, greatly reducing lighting cost and allowing for much greater light counts in a scene.
 
+<p align="left">
+  <img src="docs/assets/depth_slice.PNG" width="600">
+  <img src="docs/assets/heatmap.PNG" width="600">
+</p>
+
 ## Other Features
 - **Textured static meshes**
 - **Debug shape/mesh rendering (wireframe)**
