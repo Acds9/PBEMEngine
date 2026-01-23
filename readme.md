@@ -1,6 +1,6 @@
 # ZEngine
 
-ZEngine (placeholder name) is a custom game engine built in [Jai](https://en.wikipedia.org/wiki/Jai_(programming_language)) developed for a [WeGo](https://en.wikipedia.org/wiki/Timekeeping_in_games#Simultaneously_executed_and_clock-based_turns) turn-based space strategy game.
+ZEngine (placeholder name) is a custom game engine built in [Jai](https://en.wikipedia.org/wiki/Jai_(programming_language)) developed for a [WeGo turn-based](https://en.wikipedia.org/wiki/Timekeeping_in_games#Simultaneously_executed_and_clock-based_turns) space strategy game.
 
 ## Overview
 
@@ -9,12 +9,20 @@ ZEngine is built around a custom Entity Component System called ZECS (also place
 The engine and game are intended to be tightly knit, with as few generalizations as possible and avoiding features or capabilities that will not be strictly necessary for the game itself. The goal is to keep complexity low and development speed high.
 As such, many features common to more generalized engines (such as an editor window) are not planned at all. 
 
-The engine began development mid-2025 as a part time project and is heavily WIP.
+The engine began development mid-2025 as a part-time project and is heavily WIP.
 
 ## Technical Highlights
 
+- **[OpenMPI-threading/Wide-By-Default](#Threading)** — Code is executed wide (across multiple threads) by default, only going single-threaded when necessary. 
 - **ZECS** — Archetype-based ECS with heavy compile-time focus to leverage Jai's strong metaprogramming features. The composition of archetypes is known at compile time allowing the compiler to generate highly optimized queries.
-- **Rendering** — A modern Vulkan renderer with a Clustered Forward/Forward+ system, a focus on bindless (multi-draw indirect, device buffer adresses, etc.), and GPU mesh and light culling.
+- **Shader-like queries** — ZECS queries are shader-like executing the same chunk of code across all relevant entities, leveraging the wide-by-default threading.
+- **Vulkan 1.3+** — A modern Vulkan renderer with a focus on bindless. Multi-draw indirect, device buffer adresses, etc.
+- **Clustered Rendering** — Lighting uses a Clustered Forward/Forward+ system, greatly improving performance while avoiding some of the pitfalls of deferred rendering. 
+- **GPU Compute Focus** — Focus on shifting compute to the GPU, such as light and mesh culling
+- **More to come**
+
+## Threading
+The threading model follows a wide-by-default design similar to OpenMPI. Code is executed across all threads
 
 ## Status
 
