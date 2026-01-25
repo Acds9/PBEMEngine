@@ -31,7 +31,7 @@ The engine began development mid-2025 as a part-time project and is heavily WIP.
 ## Threading
 The threading model follows a [wide-by-default design similar to OpenMPI](https://www.rfleury.com/p/multi-core-by-default). 
 Code is executed across all threads, sometimes allowing for duplicated execution, and synchronized using barriers. When duplicated execution is not possible, code will go narrow for that block.
-The principle is that despite some duplicated execution and sporadically going narrow, the lion's share of the work in the game happens in systems such as ECS queries, linear BVH creation, etc. which are extremely parallelizeable, offsetting performance losses from barriers etc.
+The principle is that despite some duplicated execution and sporadically going narrow, the lion's share of the work in the game happens in systems such as ECS queries, linear BVH creation, etc. which are extremely parallelizable, offsetting performance losses from barriers etc.
 
 ## ZECS
 ZECS is a custom archetype-based ECS with heavy focus on compile-time code generation. 
