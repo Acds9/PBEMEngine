@@ -17,9 +17,13 @@ examples/*
 modules/*
 content/*
 .vscode/*
+games/*
 
 # IDE
 *.10x
 
 # Generated files
 *_gen.*
+
+# Claude Code
+CLAUDE.md
