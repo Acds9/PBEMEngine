@@ -56,10 +56,7 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 }
 
 scene_tick :: (using scene: *ZScene) {
-	compute_scene_bounds(*bvh_system);
-	generate_morton_array(*bvh_system);
-	build_tree_topology(*bvh_system);
-	compute_bounding_boxes(*bvh_system);
+	build_bvh(*bvh_system);
 }
 
 add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, idx_ptr: *u32, visible: bool = true, parent_transform: u32 = U32_MAX, material_overrides: *[8]u32 = null) {
@@ -152,9 +149,9 @@ process_scene_arrays :: (using scene: *ZScene) {
 		}
 	}
 	if context.thread_index == 0 {
-		array_reset(*mesh_add_queue);
-		array_reset(*mesh_remove_queue);
-		array_reset(*light_add_queue);
-		array_reset(*light_remove_queue);
-	}
+      for *lane: mesh_add_queue     array_reset(lane);
+      for *lane: mesh_remove_queue  array_reset(lane);
+      for *lane: light_add_queue    array_reset(lane);
+      for *lane: light_remove_queue array_reset(lane);
+  }
 }

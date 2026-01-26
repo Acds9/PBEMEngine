@@ -2,6 +2,7 @@ Player_Controller :: struct {
 	previous_selection	: [..]ZEntity;
 	current_selection	: [..]ZEntity;
 	selection_dirty		: bool;
+
 }
 
 player_controller_on_selection_change :: (using pc: *Player_Controller) {

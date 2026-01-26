@@ -39,7 +39,6 @@ Query_Build_Metadata :: struct {
 	counter_index			: u32; // For ATOMIC_COUNTER query option
 }
 
-
 Observer_Build_Metadata :: struct {
 	name					: string;
     entity_components		: [..]string;
@@ -49,13 +48,13 @@ Observer_Build_Metadata :: struct {
 	priority				: u8;
 }
 
-gather_component_types :: (typechecked: *Message_Typechecked, entity_comps: *[..]string, arch_comps: *[..]string, tags: *[..]string) -> bool {
+gather_component_types :: (typechecked: *Message_Typechecked, entity_comps: *[..]*Type_Info_Struct, arch_comps: *[..]string, tags: *[..]string) -> bool {
 	x := typechecked.declarations;
     for typechecked.structs{
-		info := it.expression.defined_type;
-        
+		info : *Type_Info_Struct = xx,no_check it.expression.defined_type;
+
         if is_subclass_of(info, "Entity_Component") {
-            array_add(entity_comps, info.name);
+            array_add(entity_comps, info);
         } else if is_subclass_of(info, "Archetype_Component") {
             array_add(arch_comps, info.name);
         } else if is_subclass_of(info, "Tag") {

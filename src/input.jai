@@ -39,7 +39,7 @@ Input_Binding	:: struct {
 	ctrl			: bool;
 	alt				: bool;
 }
-
+// TODO: should somehow merge this and player controller?
 Input_System	:: struct {
 	mouse_position	: Vector2;
 	mouse_delta		: Vector2;

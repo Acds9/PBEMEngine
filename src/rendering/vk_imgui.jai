@@ -92,7 +92,7 @@ ImGui_System :: struct {
 
 imgui_active :: () -> bool {
 	using ZRENDERER.imgui_system;
-	return show_metrics || show_rendering;
+	return show_metrics || show_rendering || GAME_INSTANCE.menu_state != .NONE; // TODO: remove these when proper UI is in
 }
 
 initialize_imgui :: (using self: *ImGui_System, zr: *ZRenderer) {

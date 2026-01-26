@@ -49,7 +49,7 @@ get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage
 	return *world.world_archetypes[get_archetype_storage_index(archetype)];
 }
 
-tick_world :: (world: *ZWorld, delta_time: float64) {
+tick_world :: (world: *ZWorld, delta_time: float32) {
 	flush_observers(world);
 }
 
@@ -70,6 +70,7 @@ flush_observers :: (world: *ZWorld) {
 		for bound_observers {
 			it.proc(*GAME_INSTANCE, <<entities);
 		}
+		barrier_wait(context.lane_barrier);
 	}
 	for *world.observer_buffer.destroyed {
 		if it.count == 0 continue;
@@ -80,6 +81,7 @@ flush_observers :: (world: *ZWorld) {
 		for bound_observers {
 			it.proc(*GAME_INSTANCE, <<entities);
 		}
+		barrier_wait(context.lane_barrier);
 	}
 	barrier_wait(context.lane_barrier); // Don't want thread 0 to reset before all threads are done 
 	if context.thread_index == 0 {

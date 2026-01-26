@@ -49,7 +49,7 @@ code_generation :: (w: Workspace) -> bool {
 	add_build_file("src/ZECS/ZECS_components.jai", w);
 	add_build_file("src/types.jai", w);
 
-	build_entity_components		: [..]string;
+	build_entity_components		: [..]*Type_Info_Struct;
 	build_archetype_components	: [..]string;
 	build_tags					: [..]string;
 	
@@ -79,7 +79,7 @@ code_generation :: (w: Workspace) -> bool {
 	return false;
 }
 
-generate_component_code :: (w: Workspace, entity_comps: []string, arch_comps: []string, tags: []string){
+generate_component_code :: (w: Workspace, entity_comps: []*Type_Info_Struct, arch_comps: []string, tags: []string){
 	constants_file_builder: String_Builder;
 
 	append(*constants_file_builder, generate_ZECS_constants(entity_comps.count, arch_comps.count, tags.count));
@@ -88,13 +88,14 @@ generate_component_code :: (w: Workspace, entity_comps: []string, arch_comps: []
 	print("Generated ZECS constants file: %\n", ZECS_CONSTANTS_GEN_PATH);
 	array_add(*generated_constants_files, ZECS_CONSTANTS_GEN_PATH);
 
-	quick_sort(entity_comps, compare_strings);
+	quick_sort(entity_comps, compare_type_info_structs);
 	quick_sort(arch_comps, compare_strings);
 	quick_sort(tags, compare_strings);
 
     components_file_builder: String_Builder;
 	
 	append(*components_file_builder, generate_file_loads());
+	append(*components_file_builder, generate_entity_component_serializers(entity_comps));
 	append(*components_file_builder, generate_entity_component_switches(entity_comps));
 	append(*components_file_builder, generate_archetype_component_switches(arch_comps));
 	append(*components_file_builder, generate_string_to_entity_comp_type(entity_comps));
@@ -104,6 +105,19 @@ generate_component_code :: (w: Workspace, entity_comps: []string, arch_comps: []
 	add_build_file(ZECS_COMPONENTS_GEN_PATH, w);
 	print("Generated ZECS components file: %\n", ZECS_COMPONENTS_GEN_PATH);
 	array_add(*generated_component_files, ZECS_COMPONENTS_GEN_PATH);
+}
+
+compare_type_info_structs :: (a_info: *Type_Info_Struct, b_info: *Type_Info_Struct) -> s64 {
+	a, b := a_info.name, b_info.name;
+    for 0..a.count-1 {
+        if it >= b.count return 1;
+        
+        delta := cast(s64) a[it] - cast(s64) b[it];
+        if delta return delta;
+    }
+
+    if b.count > a.count return -1;
+    return 0;
 }
 
 main :: () {}

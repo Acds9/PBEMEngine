@@ -6,23 +6,42 @@
 #import "Input";
 #import "mimalloc";
 
+GAME_VERSION :: "0.0.1";
+
+Simulation_Parameters :: struct {
+	duration			: u32;
+	frequency			: u32;
+	
+	step_count			: u32;
+	current_time		: float32;
+	current_step		: u32;
+
+	step_delta_time		: float32;
+}
+
+Turn_Simulation_Entry :: struct {
+	requested	: bool;
+	name		: string;
+}
+
 Game_Instance :: struct {
     world				: ZWorld;
     scene				: ZScene;
     quit				: bool;
 
 	player_controller 	: Player_Controller;
-    
+
+	menu_state			: MENU_STATE;
+
+	turn_simulation_request : Turn_Simulation_Entry;
     // Timing
     frequency			: u64;
     last_counter		: u64;
 	delta_time 			: float32;
-    delta_time_precise	: float64;
     fps					: u32;
 	current_frame 		: u64;
 
 	input_system 		: Input_System;
-	mouse_mode 			: bool;
 
 	lane_system 		: Lane_System;
 }
@@ -92,6 +111,8 @@ game_init :: () -> bool {
     frequency = SDL_GetPerformanceFrequency();
     last_counter = SDL_GetPerformanceCounter();
     
+	GAME_INSTANCE.menu_state = .MAIN;
+	toggle_mouse_input_mode(*GAME_INSTANCE.input_system);
     return true;
 }
 
@@ -201,75 +222,98 @@ game_shutdown :: () {
     // Add world cleanup later
 }
 
+process_input :: (event: *SDL_Event) {
+	input_begin_frame(*GAME_INSTANCE.input_system);   
+	// Process input
+	while SDL_PollEvent(event) {
+		if imgui_active() {
+			imgui_process_SDL_event(event);
+		}
+
+		input_handle_sdl_event(*GAME_INSTANCE.input_system, event);
+		window_handle_sdl_event(event);
+	}
+
+	if get_command(*GAME_INSTANCE.input_system, .TOGGLE_MOUSE_MODE).key_down {
+		toggle_mouse_input_mode(*GAME_INSTANCE.input_system);
+	}
+	if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_DEBUG_METRICS).key_down {
+		ZRENDERER.imgui_system.show_metrics = !ZRENDERER.imgui_system.show_metrics;
+	}
+	if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_DEBUG_RENDERING).key_down {
+		ZRENDERER.imgui_system.show_rendering = !ZRENDERER.imgui_system.show_rendering;
+	}
+	if get_command(*GAME_INSTANCE.input_system, .MOUSE_BUTTON_LEFT).key_down {
+		if GAME_INSTANCE.input_system.current_mode == .MOUSE_MODE && !imgui_active() {
+			x, y : s32;
+			SDL_GetMouseState(*x, *y);
+			origin, dir := screen_to_ray(x, y, xx,no_check ZRENDERER.resolution.width, xx,no_check ZRENDERER.resolution.height, *ZRENDERER.camera.gpu_data.view_proj);
+			debug_draw_line(*ZRENDERER, origin, origin + dir*50000, .{1,0,0,1}, 500);
+			hit, entity := trace_ray(*GAME_INSTANCE.scene.bvh_system, origin, dir);
+				
+			if hit {
+				player_controller_set_selection(*GAME_INSTANCE.player_controller, entity);
+			} else {
+				player_controller_clear_selection(*GAME_INSTANCE.player_controller);
+			}
+		}
+	}
+	tick_input_commands(*GAME_INSTANCE.input_system, xx,no_check GAME_INSTANCE.delta_time);
+}
+
 game_loop :: () {
 	event: SDL_Event;
 	while !GAME_INSTANCE.quit {
 		if context.thread_index == 0 {
 			// Update timing
 			current_counter := SDL_GetPerformanceCounter();
-			GAME_INSTANCE.delta_time_precise = cast,no_check(float64)(current_counter - GAME_INSTANCE.last_counter) / 
-							cast,no_check(float64)GAME_INSTANCE.frequency;
-			GAME_INSTANCE.delta_time = cast,no_check(float32) GAME_INSTANCE.delta_time_precise;
+			GAME_INSTANCE.delta_time = cast,no_check(float32)(current_counter - GAME_INSTANCE.last_counter) / 
+							GAME_INSTANCE.frequency;
 			GAME_INSTANCE.fps = cast,no_check(u32)(1 / GAME_INSTANCE.delta_time);
 			GAME_INSTANCE.last_counter = current_counter;
 			GAME_INSTANCE.current_frame += 1;
+
 			imgui_begin_frame(.{xx,no_check ZRENDERER.draw_extent.width, xx,no_check ZRENDERER.draw_extent.height});
-			input_begin_frame(*GAME_INSTANCE.input_system);
-        
-			// Process input
-			while SDL_PollEvent(*event) {
-				if imgui_active() {
-					imgui_process_SDL_event(*event);
-				}
-
-				input_handle_sdl_event(*GAME_INSTANCE.input_system, *event);
-				window_handle_sdl_event(*event);
-			}
-
-			if get_command(*GAME_INSTANCE.input_system, .TOGGLE_MOUSE_MODE).key_down {
-				toggle_mouse_input_mode(*GAME_INSTANCE.input_system);
-			}
-			if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_DEBUG_METRICS).key_down {
-				ZRENDERER.imgui_system.show_metrics = !ZRENDERER.imgui_system.show_metrics;
-			}
-			if get_command(*GAME_INSTANCE.input_system, .TOGGLE_IMGUI_DEBUG_RENDERING).key_down {
-				ZRENDERER.imgui_system.show_rendering = !ZRENDERER.imgui_system.show_rendering;
-			}
-			if get_command(*GAME_INSTANCE.input_system, .MOUSE_BUTTON_LEFT).key_down {
-				if !imgui_active() {
-					
-				
-				x, y : s32;
-				SDL_GetMouseState(*x, *y);
-				origin, dir := screen_to_ray(x, y, xx,no_check ZRENDERER.resolution.width, xx,no_check ZRENDERER.resolution.height, *ZRENDERER.camera.gpu_data.view_proj);
-				debug_draw_line(*ZRENDERER, origin, origin + dir*50000, .{1,0,0,1}, 500);
-				hit, entity := trace_ray(*GAME_INSTANCE.scene.bvh_system, origin, dir);
-				
-				if hit {
-					player_controller_set_selection(*GAME_INSTANCE.player_controller, entity);
-				} else {
-					player_controller_clear_selection(*GAME_INSTANCE.player_controller);
-				}
-				}
-			}
-			tick_input_commands(*GAME_INSTANCE.input_system, xx,no_check GAME_INSTANCE.delta_time);
-
-			 // Update camera from input
+			
+			process_input(*event);
        		game_update_camera();
-		}
-       	barrier_wait(context.lane_barrier);
-       	
-		scene_tick(*GAME_INSTANCE.scene);
-        game_tick();
-		barrier_wait(context.lane_barrier);
-
-		if context.thread_index == 0 {
+ 
 			player_controller_tick(*GAME_INSTANCE.player_controller);
+
+			if GAME_INSTANCE.menu_state != .NONE {
+				draw_main_menu();
+			}
 			imgui_tick();
+
 			game_render();
 		}
 		barrier_wait(context.lane_barrier);
+
+		if GAME_INSTANCE.turn_simulation_request.requested {
+			simulate(GAME_INSTANCE.turn_simulation_request.name, 0);
+			GAME_INSTANCE.turn_simulation_request.requested = false;
+		}
     }
+}
+
+simulate :: (game: string, turn: u32) {
+	manifest := read_manifest_name(game);
+	using simulation_parameters : Simulation_Parameters;
+	duration 	= xx manifest.duration;
+	frequency 	= xx manifest.tick_rate; 
+
+	step_count 	= duration * frequency;
+	step_delta_time = 1.0/frequency;
+
+	while current_step < step_count {
+		scene_tick(*GAME_INSTANCE.scene);
+		barrier_wait(context.lane_barrier);
+        game_tick();
+		barrier_wait(context.lane_barrier);
+
+		current_step += 1;
+		current_time += step_delta_time;
+	}
 }
 
 main :: () {

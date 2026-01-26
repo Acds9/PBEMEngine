@@ -38,6 +38,13 @@ LBVH_System :: struct {
 	}
 }
 
+build_bvh :: (using system: *LBVH_System) {
+	compute_scene_bounds(system);
+	generate_morton_array(system);
+	build_tree_topology(system);
+	compute_bounding_boxes(system);
+}
+
 compute_scene_bounds :: (using system: *LBVH_System) {
 	scene_min := Vector3.{FLOAT32_MAX, FLOAT32_MAX, FLOAT32_MAX};
 	scene_max := Vector3.{-FLOAT32_MAX, -FLOAT32_MAX, -FLOAT32_MAX};
@@ -90,6 +97,7 @@ compute_scene_bounds :: (using system: *LBVH_System) {
 		scene_extents = scene_bounds.max - scene_bounds.min;
 		array_resize(*morton_codes, total_entity_count);
 	}
+
 	barrier_wait(context.lane_barrier); 
 }
 
@@ -198,7 +206,7 @@ clz :: (v: u32) -> u32 {
 
 build_tree_topology :: (using system: *LBVH_System) {
     leaf_count := cast(s32) morton_codes.count;
-	if leaf_count == 0 {
+	if leaf_count <= 0 {
 		return;
 	}
 	if context.thread_index == 0 {
@@ -260,7 +268,7 @@ process_internal_node :: (using system: *LBVH_System, i: s32, leaf_count: s32) {
     
     left_idx  : u32;
     right_idx : u32;
-    
+
     // Left child
     if min(split, split + 1) == range_min {
         // Left child is a leaf
