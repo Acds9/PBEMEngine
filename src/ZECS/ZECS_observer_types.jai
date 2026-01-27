@@ -17,3 +17,4 @@ Observer_Entry :: struct {
 	priority	: u8;
 	proc		: (game_instance: *Game_Instance, entity_indices: []ZEntity);
 }
+

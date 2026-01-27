@@ -1,4 +1,7 @@
 #import "Basic";
+#load "ZECS_observers.jai";
+
+
 
 generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 	builder: String_Builder;
@@ -21,6 +24,14 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 
 		print_to_builder(*builder, "\n// Observer Executor for %\n", observer.name);
 		print_to_builder(*builder, "execute_% :: (game_instance: *Game_Instance, entities: []ZEntity) {\n", observer.name);
+			
+			if observer.flags & cast(u32)Observer_Flags.VISUAL {
+				print_to_builder(*builder, "\tif context.headless {\n");
+					print_to_builder(*builder, "\t\treturn;\n");
+				print_to_builder(*builder, "\t}\n");
+				print_to_builder(*builder, "\n");
+			}
+
 			print_to_builder(*builder, "\tworld := *game_instance.world;\n");
 			print_to_builder(*builder, "\tarchetype := entities[0].archetype;\n");
 			print_to_builder(*builder, "\tarch_storage := *world.world_archetypes[entities[0].archetype];\n");

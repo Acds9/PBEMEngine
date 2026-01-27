@@ -305,6 +305,9 @@ simulate :: (game: string, turn: u32) {
 	step_count 	= duration * frequency;
 	step_delta_time = 1.0/frequency;
 
+	time_start := seconds_since_init();
+
+	context.headless = true;
 	while current_step < step_count {
 		scene_tick(*GAME_INSTANCE.scene);
 		barrier_wait(context.lane_barrier);
@@ -314,6 +317,12 @@ simulate :: (game: string, turn: u32) {
 		current_step += 1;
 		current_time += step_delta_time;
 	}
+	context.headless = false;
+	if context.thread_index == 0 {
+		time_end := seconds_since_init();
+		print("Finished simulation of game: %, time: % seconds\n", game, time_end-time_start);
+	}
+	
 }
 
 main :: () {

@@ -37,6 +37,14 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 
 		print_to_builder(*builder, "\n// Query Executor for %\n", query.name);
 		print_to_builder(*builder, "execute_% :: (world: *ZWorld, $body: Code) #expand {\n", query.name); 
+
+		if query.options & cast(u32)Query_Flags.VISUAL {
+			print_to_builder(*builder, "\tif context.headless {\n");
+				print_to_builder(*builder, "\t\treturn;\n");
+			print_to_builder(*builder, "\t}\n");
+			print_to_builder(*builder, "\n");
+		}
+
 		print_to_builder(*builder, "\tstorage 			: *Archetype_Storage;\n");
 		print_to_builder(*builder, "\tgenerations 		: []u16;\n"); // TODO: maybe prefix all query data with query_?
 		print_to_builder(*builder, "\t`query_entity_count : u32;\n");

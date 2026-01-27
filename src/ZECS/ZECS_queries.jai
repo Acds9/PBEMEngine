@@ -1,6 +1,7 @@
 Query_Flags		:: enum_flags u32 {
 	NON_PARALLEL;
 	ATOMIC_COUNTER;
+	VISUAL;
 }
 
 Query :: struct {
@@ -13,7 +14,7 @@ Query_Update_Render_Proxy :: struct {
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.SHIP;
 
-	QUERY_FLAGS				:: 0;
+	QUERY_FLAGS				:: Query_Flags.VISUAL;
 }
 
 Query_Debug_Draw_Point_Light :: struct {
@@ -23,7 +24,7 @@ Query_Debug_Draw_Point_Light :: struct {
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.LIGHT;
 
-	QUERY_FLAGS				:: Query_Flags.NON_PARALLEL;
+	QUERY_FLAGS				:: Query_Flags.NON_PARALLEL | .VISUAL;
 }
 
 Query_Debug_Draw_AABB :: struct {
@@ -33,7 +34,7 @@ Query_Debug_Draw_AABB :: struct {
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.SHIP;
 
-	QUERY_FLAGS				:: Query_Flags.NON_PARALLEL;
+	QUERY_FLAGS				:: Query_Flags.NON_PARALLEL | .VISUAL;
 }
 
 Query_Spatialize_Entities :: struct {

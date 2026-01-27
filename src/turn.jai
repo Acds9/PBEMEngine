@@ -9,6 +9,8 @@ GAME_FOLDER_PATH :: #run -> string {
 	return sprint("%/%", cwd, GAME_FOLDER_NAME);
 }
 
+#add_context headless	: bool;
+
 GAME_STATE :: enum u8 {
 	SIMULATION;
 	REPLAY;
