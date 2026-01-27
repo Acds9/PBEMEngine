@@ -44,6 +44,8 @@ Game_Instance :: struct {
 	input_system 		: Input_System;
 
 	lane_system 		: Lane_System;
+
+	simulation_scene 	: ZScene;
 }
 
 GAME_INSTANCE : Game_Instance;
@@ -307,9 +309,15 @@ simulate :: (game: string, turn: u32) {
 
 	time_start := seconds_since_init();
 
+	if context.thread_index == 0 {
+		// TODO: this needs to actually set up the scene from the game data, this is where we load in meshes, entities, whatever
+		GAME_INSTANCE.simulation_scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device);
+	}
+	barrier_wait(context.lane_barrier);
+
 	context.headless = true;
 	while current_step < step_count {
-		scene_tick(*GAME_INSTANCE.scene);
+		scene_tick(*GAME_INSTANCE.simulation_scene);
 		barrier_wait(context.lane_barrier);
         game_tick();
 		barrier_wait(context.lane_barrier);
