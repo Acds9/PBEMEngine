@@ -40,6 +40,9 @@ LBVH_System :: struct {
 
 build_bvh :: (using system: *LBVH_System) {
 	compute_scene_bounds(system);
+	if morton_codes.count <= 1 {
+		return;
+	}
 	generate_morton_array(system);
 	build_tree_topology(system);
 	compute_bounding_boxes(system);
@@ -206,7 +209,7 @@ clz :: (v: u32) -> u32 {
 
 build_tree_topology :: (using system: *LBVH_System) {
     leaf_count := cast(s32) morton_codes.count;
-	if leaf_count <= 0 {
+	if leaf_count <= 1 {
 		return;
 	}
 	if context.thread_index == 0 {

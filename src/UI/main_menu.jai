@@ -12,6 +12,7 @@ MENU_STATE :: enum u8 {
 UI_New_Game_Data :: struct {
 	name		: [16]u8;
 	tick_rate	: s32 = 60;
+	turn_duration : s32 = 15;
 	duration	: s32 = 300;
 	max_players	: s32 = 2;
 }
@@ -55,10 +56,11 @@ draw_main_menu :: () {
 			if Begin("New Game", null, flags) {
 				InputText("Name", new_game_data.name.data, 16);
 				SliderInt("Tick Rate", *new_game_data.tick_rate, 30, 360);
+				SliderInt("Turn Duration (s)", *new_game_data.turn_duration, 1, 60);
 				SliderInt("Duration (s)", *new_game_data.duration, 5, 600);
 				SliderInt("Max Players", *new_game_data.max_players, 2, 8);
 				if Button("Create") {
-					create_game(to_string(new_game_data.name.data), new_game_data.tick_rate, new_game_data.duration, 8);
+					create_game(to_string(new_game_data.name.data), xx new_game_data.tick_rate, xx new_game_data.turn_duration, xx new_game_data.duration, 8);
 					GAME_INSTANCE.menu_state = .MAIN;
 				}
 				if Button("Back") {
@@ -70,34 +72,28 @@ draw_main_menu :: () {
 		case .JOIN_GAME; {
 			if Begin("Join Game", null, flags) {
 				if TreeNode("Games") {
-					manifests := read_all_manifests(GAME_FOLDER_PATH);
+					manifests : [..]Game_Manifest;
+					read_all_manifests(GAME_FOLDER_PATH, *manifests);
 					
 					for manifest: manifests {
 						name := to_c_string(manifest.name);
 						if TreeNode(name) {
-							game_id := sprint("Game ID: %", manifest.game_id);
-							tick_rate := sprint("Tick Rate: %", manifest.tick_rate);
-							duration := sprint("Duration: %", manifest.duration);
-							player_count := sprint("Player Count: %", manifest.player_count);
-							max_players := sprint("Max Players: %", manifest.max_players);
-							current_turn := sprint("Current Turn: %", manifest.current_turn);
-							defer free(game_id);
-							defer free(tick_rate);
-							defer free(duration);
-							defer free(player_count);
-							defer free(max_players);
-							defer free(current_turn);
+							game_id := tprint("Game ID: %", manifest.game_id);
+							default_step_resolution := tprint("Default Step Resolution: %", manifest.default_step_resolution);
+							time_limit := tprint("Total Steps: %", manifest.total_steps);
+							player_count := tprint("Player Count: %", manifest.player_count);
+							max_players := tprint("Max Players: %", manifest.max_players);
+							current_turn := tprint("Current Turn: %", manifest.current_turn);
 
 							Text(game_id);
-							Text(tick_rate);
-							Text(duration);
+							Text(default_step_resolution);
+							Text(time_limit);
 							Text(player_count);
 							Text(max_players);
 							Text(current_turn);
 							if TreeNode("Player List") {
 								for manifest.player_list {
-									player_id := sprint("%", it);
-									defer free(player_id);
+									player_id := tprint("%", it);
 									Text(player_id);
 								}
 								TreePop();
@@ -117,13 +113,19 @@ draw_main_menu :: () {
 			}
 		}
 		case .SIMULATE_TURN; {
-			manifests := read_all_manifests(GAME_FOLDER_PATH);
-
-			for manifest: manifests {
+			manifests : [..]Game_Manifest;
+			read_all_manifests(GAME_FOLDER_PATH, *manifests);
+			
+			for *manifest: manifests {
 				Text(manifest.name);
 				SameLine();
 				if Button("Simulate") {
-					GAME_INSTANCE.turn_simulation_request = .{true, manifest.name};
+					data : s64 = 50;
+					create_order(*current_orders, 64, .{0,0,0}, .SET_THRUST, 5, *data);
+					save_orders(manifest);
+					//load_orders_to_timeline(manifest.name, )
+					queue_simulation(manifest.name);
+					simulate_pending_sims();
 					break manifest;
 				}
 			}

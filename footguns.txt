@@ -3,3 +3,5 @@ Assorted list of footguns and other quirks its best to keep in mind:
 - Can do Struct.Member when Struct is the TYPE, not an instance. E.g. ZRenderer.geometry_pool works (but returns trash data) just like ZRENDERER.geometry_pool, no warning just crashes
 - sprint() and copy_string() allocate strings, must free manually
 - SomeStruct :: struct {mystring : string;} then free(*SomeStruct) will NOT free mystring, must do free(*SomeStruct.mystring) first (no deep free)
+- x : [..]u8, y : [..]u8, y = x does NOT copy the data, just the header (pointer to start, length, whatever), use memcpy
+- sprint allocates with the context allocator and need to be free()d, tprint with a temporary allocator

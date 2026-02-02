@@ -8,32 +8,16 @@
 
 GAME_VERSION :: "0.0.1";
 
-Simulation_Parameters :: struct {
-	duration			: u32;
-	frequency			: u32;
-	
-	step_count			: u32;
-	current_time		: float32;
-	current_step		: u32;
-
-	step_delta_time		: float32;
-}
-
-Turn_Simulation_Entry :: struct {
-	requested	: bool;
-	name		: string;
-}
-
 Game_Instance :: struct {
-    world				: ZWorld;
-    scene				: ZScene;
+    world			: ZWorld;
+    scene			: ZScene;
     quit				: bool;
 
 	player_controller 	: Player_Controller;
 
 	menu_state			: MENU_STATE;
 
-	turn_simulation_request : Turn_Simulation_Entry;
+	simulation_system	: Simulation_System;
     // Timing
     frequency			: u64;
     last_counter		: u64;
@@ -290,47 +274,12 @@ game_loop :: () {
 			game_render();
 		}
 		barrier_wait(context.lane_barrier);
-
+		/*
 		if GAME_INSTANCE.turn_simulation_request.requested {
 			simulate(GAME_INSTANCE.turn_simulation_request.name, 0);
 			GAME_INSTANCE.turn_simulation_request.requested = false;
-		}
+		}*/
     }
-}
-
-simulate :: (game: string, turn: u32) {
-	manifest := read_manifest_name(game);
-	using simulation_parameters : Simulation_Parameters;
-	duration 	= xx manifest.duration;
-	frequency 	= xx manifest.tick_rate; 
-
-	step_count 	= duration * frequency;
-	step_delta_time = 1.0/frequency;
-
-	time_start := seconds_since_init();
-
-	if context.thread_index == 0 {
-		// TODO: this needs to actually set up the scene from the game data, this is where we load in meshes, entities, whatever
-		GAME_INSTANCE.simulation_scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device);
-	}
-	barrier_wait(context.lane_barrier);
-
-	context.headless = true;
-	while current_step < step_count {
-		scene_tick(*GAME_INSTANCE.simulation_scene);
-		barrier_wait(context.lane_barrier);
-        game_tick();
-		barrier_wait(context.lane_barrier);
-
-		current_step += 1;
-		current_time += step_delta_time;
-	}
-	context.headless = false;
-	if context.thread_index == 0 {
-		time_end := seconds_since_init();
-		print("Finished simulation of game: %, time: % seconds\n", game, time_end-time_start);
-	}
-	
 }
 
 main :: () {
