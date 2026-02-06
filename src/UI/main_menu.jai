@@ -60,7 +60,7 @@ draw_main_menu :: () {
 				SliderInt("Duration (s)", *new_game_data.duration, 5, 600);
 				SliderInt("Max Players", *new_game_data.max_players, 2, 8);
 				if Button("Create") {
-					create_game(to_string(new_game_data.name.data), xx new_game_data.tick_rate, xx new_game_data.turn_duration, xx new_game_data.duration, 8);
+					create_game(to_string(new_game_data.name.data), xx new_game_data.tick_rate, xx new_game_data.turn_duration, xx new_game_data.duration, xx new_game_data.max_players);
 					GAME_INSTANCE.menu_state = .MAIN;
 				}
 				if Button("Back") {
@@ -123,11 +123,30 @@ draw_main_menu :: () {
 					data : s64 = 50;
 					create_order(*current_orders, 64, .{0,0,0}, .SET_THRUST, 5, *data);
 					save_orders(manifest);
-					//load_orders_to_timeline(manifest.name, )
 					queue_simulation(manifest.name);
 					simulate_pending_sims();
 					break manifest;
 				}
+			}
+		}
+		case .LOAD_REPLAY; {
+			if Begin("Join Game", null, flags) {
+				if TreeNode("Games") {
+					manifests : [..]Game_Manifest;
+					read_all_manifests(GAME_FOLDER_PATH, *manifests);
+					
+					for manifest: manifests {
+						name := to_c_string(manifest.name);
+						if Button(name) {
+							
+						}
+					}
+					TreePop();
+				}
+				if Button("Back") {
+					GAME_INSTANCE.menu_state = .MAIN;
+				}
+				End();
 			}
 		}
 	}

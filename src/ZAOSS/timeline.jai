@@ -13,7 +13,7 @@ Turn_Timeline :: struct {
 	current_step	: u32;
 	current_time	: float32;
 }
-/*
-initialize_timeline :: (using self: *Turn_Timeline, step_start: u32, step_end: u32) {
-	array_resize(*timeline, step_end-step_start);
-}*/
+
+initialize_timeline :: (timeline: *Turn_Timeline, step_start: u32, step_end: u32) {
+	array_resize(*timeline.timeline, step_end-step_start);
+}

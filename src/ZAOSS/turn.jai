@@ -56,6 +56,10 @@ serialize_frame :: (frame: *Frame_Data) {
 	}
 }
 
+setup_game_world :: (world: *ZWorld) {
+	create_entity_batch(world, Archetype_Ship, 3); 
+}
+
 create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, time_limit_seconds: u32, max_players: u32) {
 	manifest_buffer : [..]u8;
 	defer free(manifest_buffer.data);
@@ -82,8 +86,8 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 
 	path := tprint("%/%/%", cwd, GAME_FOLDER_NAME, name);
 	if ensure_directory_exists(path) {
-		mft_path := tprint("%/%.mft", path, name);
-		game_path := tprint("%/%.game", path, name);
+		mft_path := tprint("%/%.%", path, name, MANIFEST_EXT);
+		game_path := tprint("%/%.%", path, name, GAME_EXT);
 		
 		write_entire_file(mft_path, manifest_buffer.data, manifest_buffer.count);
 		write_entire_file(game_path, game_buffer.data, game_buffer.count);
@@ -94,6 +98,16 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 		order_path := tprint("%/%", path, ORDER_FOLDER_NAME);
 		ensure_directory_exists(order_path);
 	}
+
+	game_world : ZWorld;
+	init_zworld(*game_world);
+	setup_game_world(*game_world);
+	init_state : Snapshot;
+	take_snapshot(*init_state, 0, *game_world);
+	state_path := tprint("%/%/%_0.%", path, TURN_FOLDER_NAME, name, TURN_EXT);
+	snapshot_buffer : [..]u8;
+	serialize_snapshot(*snapshot_buffer, *init_state);
+	write_entire_file(state_path, snapshot_buffer.data, snapshot_buffer.count);
 }
 
 serialize_game_manifest :: (manifest: Game_Manifest, dest: *[..]u8) {

@@ -7,6 +7,11 @@ GAME_FOLDER_PATH :: #run -> string {
 	return sprint("%/%", cwd, GAME_FOLDER_NAME);
 }
 
+MANIFEST_EXT 	:: "mft";
+GAME_EXT		:: "game";
+TURN_EXT		:: "turn";
+ORDER_EXT		:: "order";
+
 // DIRECTORY
 
 does_game_exist :: (game: string) -> bool {
@@ -94,6 +99,14 @@ read_manifest :: (path: string, manifest: *Game_Manifest) -> bool {
     <<manifest = deserialize_game_manifest(xx contents);
     return true;
 }
+
+// TURN
+
+read_turn :: (path: string, turn: u32, dest: *Snapshot) {
+	
+}
+
+read_turn_game :: (game: string ){};
 
 // ORDERS
 

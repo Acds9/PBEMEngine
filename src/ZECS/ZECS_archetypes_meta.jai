@@ -211,7 +211,7 @@ generate_component_storage_getter :: (metadata: []Archetype_Build_Metadata) -> s
     builder: String_Builder;
     
     print_to_builder(*builder, "\n// Get component storage for archetype/component pair\n");
-    print_to_builder(*builder, "get_EC_storage_ptr :: (world: *ZWorld, arch: Type, $T: Type) -> *Entity_Component_Storage {\n");
+    print_to_builder(*builder, "get_EC_storage_ptr :: (world: *ZWorld, arch: Type, T: Type) -> *Entity_Component_Storage {\n");
     print_to_builder(*builder, "\tif arch == {\n");
     
     for arch: metadata {

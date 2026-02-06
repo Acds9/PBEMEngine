@@ -21,11 +21,17 @@ serialize_to_buffer :: (dest: *[..]u8, src: *void, offset: *s64, count: s64) {
 		array_resize(dest, <<offset + count);
 	}
     memcpy(dest.data + <<offset, src, count);
+    <<offset += count;
 }
 
 deserialize_from_buffer :: (dest: *void, src: []u8, offset: *s64, count: s64) {
 	memcpy(dest, src.data + <<offset, count);
     <<offset += count;
+}
+
+deserialize_from_buffer :: (dest: *$T, src: []u8, offset: *s64) {
+	memcpy(dest, src.data + <<offset, size_of(T));
+    <<offset += size_of(T);
 }
 
 deserialize_from_buffer_string :: (src: []u8, offset: *s64) -> string {
