@@ -148,14 +148,14 @@ debug_tick :: () {
 	reset(*ZRENDERER.debug_system);
 
 	if light_radius_sphere {
-		execute_Query_Debug_Draw_Point_Light(*GAME_INSTANCE.world, #code {
+		execute_Query_Debug_Draw_Point_Light(*get_active_game_world().world, #code {
 			debug_draw_point(*ZRENDERER, position.value, 5, point_light_component.color); 
 			debug_draw_mesh(*ZRENDERER, position.value, ROTOR_IDENTITY, VECTOR_ONE * point_light_component.radius, .SPHERE, point_light_component.color);
 		});
 	}
 	if mesh_aabb {
-		execute_Query_Debug_Draw_AABB(*GAME_INSTANCE.world, #code {
-			mesh_data 		:= cast,no_check(*Mesh_Instance) GAME_INSTANCE.scene.mesh_instances.staging_buffer.info.pMappedData;
+		execute_Query_Debug_Draw_AABB(*get_active_game_world().world, #code {
+			mesh_data 		:= cast,no_check(*Mesh_Instance) get_active_game_world().scene.mesh_instances.staging_buffer.info.pMappedData;
 			mesh_instance 	:= *mesh_data[mesh_render_proxy_ec.value];
 			aabb_data 		:= cast,no_check(*AABB) ZRENDERER.geometry_pool.default_aabb_buffer.staging_buffer.info.pMappedData;
 			aabb			:= *aabb_data[mesh_instance.idx_aabb];
@@ -168,17 +168,17 @@ debug_tick :: () {
 		return e.x * e.y * e.z;
 	}
 	if bvh_bounds {
-		using GAME_INSTANCE.scene.bvh_system;
-		for *node: internal_nodes {
-			t := volume(node.bounds) / volume(scene_bounds); 
+		bvh := *get_active_game_world().scene.bvh_system;
+		for *node: bvh.internal_nodes {
+			t := volume(node.bounds) / volume(bvh.scene_bounds); 
    			color := Vector4.{1-t, 0, t, 1};  
 			center := node.bounds.min + ((node.bounds.max - node.bounds.min) / 2);
 			half_extents := node.bounds.max - center;
 			debug_draw_mesh(*ZRENDERER, center, ROTOR_IDENTITY, half_extents, .BOX, color);
 		}
-		for i: 0..morton_codes.count-1 {
-			center := morton_codes[i].bounds.min + ((morton_codes[i].bounds.max - morton_codes[i].bounds.min) / 2);
-			half_extents := morton_codes[i].bounds.max - center;
+		for i: 0..bvh.morton_codes.count-1 {
+			center := bvh.morton_codes[i].bounds.min + ((bvh.morton_codes[i].bounds.max - bvh.morton_codes[i].bounds.min) / 2);
+			half_extents := bvh.morton_codes[i].bounds.max - center;
 			debug_draw_mesh(*ZRENDERER, center, ROTOR_IDENTITY, half_extents, .BOX, .{0,1,0,1});
 		}
 	}

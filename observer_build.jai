@@ -52,6 +52,7 @@ code_generation :: (w: Workspace) -> bool {
 	add_build_file("src/ZECS/stub/ZECS_queries_meta_stub.jai", w);
 	add_build_file("src/ZECS/stub/ZECS_observer_meta_stub.jai", w);
 	add_build_file("src/types.jai", w);
+	add_build_file("src/game_world.jai", w);
 
 	while true {                     
         message := compiler_wait_for_message();  
@@ -94,6 +95,7 @@ generate_observer_code :: (w: Workspace, observer_metadata: []Observer_Build_Met
 	#load "src/ZECS/stub/ZECS_queries_meta_stub.jai";
 	#load "src/ZECS/ZECS_observers_meta.jai";
 	#load "src/types.jai";
+	#load "src/game_world.jai";
 	append(*observers_file_builder, generate_observers(observer_metadata));
     
 	write_entire_file(ZECS_OBSERVER_GEN_PATH, builder_to_string(*observers_file_builder));

@@ -61,7 +61,7 @@ Observer_Buffer :: struct {
 
 Observer_Entry :: struct {
 	priority	: u8;
-	proc		: (game_instance: *Game_Instance, entity_indices: []ZEntity);
+	proc		: (game_world: *Game_World, entity_indices: []ZEntity);
 }
 
 get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T {return null;}
@@ -92,5 +92,5 @@ ZScene :: struct {
 	device_debug_transforms		: *void;
 }
 
-Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_instance: *Game_Instance) {};
-Observer_Point_Light_Spawn_Event :: (entity_idx: ZEntity, game_instance: *Game_Instance) {};
+Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_world: *Game_World) {};
+Observer_Point_Light_Spawn_Event :: (entity_idx: ZEntity, game_world: *Game_World) {};

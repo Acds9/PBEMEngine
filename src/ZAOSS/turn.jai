@@ -42,7 +42,7 @@ Entity_Data :: struct {
 	intel_level		: u8;
 	component_data	: [..]u8;
 }
-
+/*
 serialize_frame :: (frame: *Frame_Data) {
 	world := *GAME_INSTANCE.world;
 	array_resize(*frame.entity_data, world.world_entities.count);
@@ -54,7 +54,7 @@ serialize_frame :: (frame: *Frame_Data) {
 		position_component := get_entity_component(world, entity, Position);
 		serialize_component(position_component, *entity_data.component_data);
 	}
-}
+}*/
 
 setup_game_world :: (world: *ZWorld) {
 	create_entity_batch(world, Archetype_Ship, 3); 
@@ -100,7 +100,7 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 	}
 
 	game_world : ZWorld;
-	init_zworld(*game_world);
+	initialize_zworld(*game_world);
 	setup_game_world(*game_world);
 	init_state : Snapshot;
 	take_snapshot(*init_state, 0, *game_world);

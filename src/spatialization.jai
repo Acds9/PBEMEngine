@@ -38,23 +38,25 @@ LBVH_System :: struct {
 	}
 }
 
-build_bvh :: (using system: *LBVH_System) {
-	compute_scene_bounds(system);
-	if morton_codes.count <= 1 {
+build_bvh :: (game_world: *Game_World) {
+	system := *game_world.scene.bvh_system;
+	compute_scene_bounds(game_world);
+	if system.morton_codes.count <= 1 {
 		return;
 	}
-	generate_morton_array(system);
-	build_tree_topology(system);
-	compute_bounding_boxes(system);
+	generate_morton_array(game_world);
+	build_tree_topology(game_world);
+	compute_bounding_boxes(game_world);
 }
 
-compute_scene_bounds :: (using system: *LBVH_System) {
+compute_scene_bounds :: (game_world: *Game_World) {
+	using system := *game_world.scene.bvh_system;
 	scene_min := Vector3.{FLOAT32_MAX, FLOAT32_MAX, FLOAT32_MAX};
 	scene_max := Vector3.{-FLOAT32_MAX, -FLOAT32_MAX, -FLOAT32_MAX};
 
 	lane_entity_counts[context.thread_index] = 0;  // Reset before counting
 
-	execute_Query_Spatialize_Entities(*GAME_INSTANCE.world, #code {
+	execute_Query_Spatialize_Entities(*game_world.world, #code {
 			if position.value.x < scene_min.x {
 				scene_min.x = position.value.x;
 			}
@@ -131,9 +133,10 @@ expand_bits :: (v: u32) -> u32 {
     return x;
 }
 
-generate_morton_array :: (using system: *LBVH_System) {
-	execute_Query_Spatialize_Entities(*GAME_INSTANCE.world, #code {
-		mesh_data 		:= cast,no_check(*Mesh_Instance) GAME_INSTANCE.scene.mesh_instances.staging_buffer.info.pMappedData;
+generate_morton_array :: (game_world: *Game_World) {
+	using system := *game_world.scene.bvh_system;
+	execute_Query_Spatialize_Entities(*game_world.world, #code {
+		mesh_data 		:= cast,no_check(*Mesh_Instance) game_world.scene.mesh_instances.staging_buffer.info.pMappedData;
 		mesh_instance 	:= *mesh_data[mesh_render_proxy_ec.value];
 		aabb_data 		:= cast,no_check(*AABB) ZRENDERER.geometry_pool.default_aabb_buffer.staging_buffer.info.pMappedData;
 		aabb			:= *aabb_data[mesh_instance.idx_aabb];
@@ -207,7 +210,8 @@ clz :: (v: u32) -> u32 {
     return n;
 }
 
-build_tree_topology :: (using system: *LBVH_System) {
+build_tree_topology :: (game_world: *Game_World) {
+	using system := *game_world.scene.bvh_system;
     leaf_count := cast(s32) morton_codes.count;
 	if leaf_count <= 1 {
 		return;
@@ -220,11 +224,12 @@ build_tree_topology :: (using system: *LBVH_System) {
     // Each internal node can be processed independently
 	min, max := lane_range(xx,no_check(leaf_count - 1));
     for i: min..max {
-        process_internal_node(system, cast(s32) i, leaf_count);
+        process_internal_node(game_world, cast(s32) i, leaf_count);
     }
 }
 
-process_internal_node :: (using system: *LBVH_System, i: s32, leaf_count: s32) {
+process_internal_node :: (game_world: *Game_World, i: s32, leaf_count: s32) {
+	using system := *game_world.scene.bvh_system;
     codes := morton_codes;
     
     // 1. Determine direction
@@ -298,7 +303,8 @@ process_internal_node :: (using system: *LBVH_System, i: s32, leaf_count: s32) {
     internal_nodes[i].right_child = right_idx;
 }
 
-get_child_bounds :: (using system: *LBVH_System, child_idx: u32, leaf_count: u32) -> *Volume_Bounds {
+get_child_bounds :: (game_world: *Game_World, child_idx: u32, leaf_count: u32) -> *Volume_Bounds {
+	using system := *game_world.scene.bvh_system;
     if child_idx < leaf_count {
         // Leaf
         return *morton_codes[child_idx].bounds;
@@ -308,7 +314,8 @@ get_child_bounds :: (using system: *LBVH_System, child_idx: u32, leaf_count: u32
     }
 }
 
-compute_bounding_boxes :: (using system: *LBVH_System) {
+compute_bounding_boxes :: (game_world: *Game_World) {
+	using system := *game_world.scene.bvh_system;
     leaf_count : u32 = xx,no_check morton_codes.count;
   
     if context.thread_index == 0 {
@@ -336,8 +343,8 @@ compute_bounding_boxes :: (using system: *LBVH_System) {
             
             // Second child, both children done compute merged bounds
             node := *internal_nodes[parent_idx];
-            left_bounds  := get_child_bounds(system, node.left_child, leaf_count);
-            right_bounds := get_child_bounds(system, node.right_child, leaf_count);
+            left_bounds  := get_child_bounds(game_world, node.left_child, leaf_count);
+            right_bounds := get_child_bounds(game_world, node.right_child, leaf_count);
             
             node.bounds.min = Math.min(left_bounds.min, right_bounds.min);
             node.bounds.max = Math.max(left_bounds.max, right_bounds.max);

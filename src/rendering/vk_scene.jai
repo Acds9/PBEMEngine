@@ -32,9 +32,7 @@ ZScene :: struct {
 	bvh_system 			: LBVH_System;
 }
 
-create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
-	scene : ZScene;
-
+initialize_zscene :: (scene: *ZScene, allocator: VmaAllocator, device: VkDevice) {
 	scene.mesh_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MESH_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, true, device, "mesh_instances buffer");
 	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.mesh_instances);
 
@@ -51,12 +49,10 @@ create_zscene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene {
 	array_resize(*scene.light_remove_queue, lane_count);
 	
 	scene.bvh_system.init(*scene.bvh_system);
-
-	return scene;
 }
 
-scene_tick :: (using scene: *ZScene) {
-	build_bvh(*bvh_system);
+scene_tick :: (game_world: *Game_World, delta_time: float32) {
+	build_bvh(game_world);
 }
 
 add_scene_mesh :: (scene: *ZScene, mesh: *Mesh_Asset, local_transform: Matrix4, idx_ptr: *u32, visible: bool = true, parent_transform: u32 = U32_MAX, material_overrides: *[8]u32 = null) {

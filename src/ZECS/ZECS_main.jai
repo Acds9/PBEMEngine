@@ -29,7 +29,7 @@ ZWorld :: struct {
 	observer_buffer		: Observer_Buffer;
 }
 
-init_zworld :: (world: *ZWorld) {
+initialize_zworld :: (world: *ZWorld) {
 	initialize_archetypes(world);
     register_observers(world);
 }
@@ -68,7 +68,7 @@ flush_observers :: (world: *ZWorld) {
 		arch_idx := cast,no_check(u16)it_index;
 		bound_observers := world.observer_registry.on_created[arch_idx];
 		for bound_observers {
-			it.proc(*GAME_INSTANCE, <<entities);
+			it.proc(get_active_game_world(), <<entities);
 		}
 	}
 	for *world.observer_buffer.destroyed {
@@ -78,7 +78,7 @@ flush_observers :: (world: *ZWorld) {
 		arch_idx := cast,no_check(u16)it_index;
 		bound_observers := world.observer_registry.on_destroyed[arch_idx];
 		for bound_observers {
-			it.proc(*GAME_INSTANCE, <<entities);
+			it.proc(get_active_game_world(), <<entities);
 		}
 	}
 	barrier_wait(context.lane_barrier); // Don't want thread 0 to reset before all threads are done 

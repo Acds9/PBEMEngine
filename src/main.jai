@@ -8,9 +8,27 @@
 
 GAME_VERSION :: "0.0.1";
 
+GAME_WORLD_STATE :: enum u8 {
+	MAIN_MENU;
+	REPLAY;
+}
+
+get_active_game_world :: () -> *Game_World {
+	if GAME_INSTANCE.game_world_state == {
+		case .MAIN_MENU; {
+			return *GAME_INSTANCE.main_menu_world;
+		}
+		case .REPLAY; {
+			return *GAME_INSTANCE.active_replay_world;
+		}
+	}
+	return *GAME_INSTANCE.main_menu_world;
+}
+
 Game_Instance :: struct {
-    world			: ZWorld;
-    scene			: ZScene;
+	game_world_state	: GAME_WORLD_STATE;
+	main_menu_world		: Game_World;
+	active_replay_world	: Game_World;
     quit				: bool;
 
 	player_controller 	: Player_Controller;
@@ -59,7 +77,7 @@ mi_allocator :: Allocator.{
 
 game_init :: () -> bool {
 	using GAME_INSTANCE;
-	init_zworld(*world);
+	initialize_zworld(*main_menu_world.world);
 
     // Renderer setup
     init_success, init_error := init_zrenderer(*ZRENDERER);
@@ -70,21 +88,21 @@ game_init :: () -> bool {
 	load_all_meshes(*ZRENDERER); // TODO: this is temporary
     
     // Scene setup
-    scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device);
+    initialize_zscene(*main_menu_world.scene, VMA_ALLOCATOR, ZRENDERER.device);
 
-	create_entity_batch(*world, Archetype_Ship, 3); 
+	create_entity_batch(*main_menu_world.world, Archetype_Ship, 3); 
 
-	light_entity := create_entity(*world, Archetype_Point_Light); 
-	position := get_entity_component(*world, light_entity, Position);
+	light_entity := create_entity(*main_menu_world.world, Archetype_Point_Light); 
+	position := get_entity_component(*main_menu_world.world, light_entity, Position);
 	position.value = .{1,150,20};
-	light_component := get_entity_component(*world, light_entity, Point_Light_Component);
+	light_component := get_entity_component(*main_menu_world.world, light_entity, Point_Light_Component);
     light_component.radius = 64;
     light_component.color = .{.3,.3,1,1};
 
-	light_entity_2 := create_entity(*world, Archetype_Point_Light); 
-	position_2 := get_entity_component(*world, light_entity_2, Position);
+	light_entity_2 := create_entity(*main_menu_world.world, Archetype_Point_Light); 
+	position_2 := get_entity_component(*main_menu_world.world, light_entity_2, Position);
 	position_2.value = .{1,1,32};
-	light_component_2 := get_entity_component(*world, light_entity_2, Point_Light_Component);
+	light_component_2 := get_entity_component(*main_menu_world.world, light_entity_2, Point_Light_Component);
     light_component_2.radius = 64;
     light_component_2.color = .{.3,1,.3,1};
 	
@@ -155,17 +173,16 @@ game_update_camera :: () {
     }
 }
 
-game_tick :: () {
-	using GAME_INSTANCE;
+game_tick :: (using game_world: *Game_World, delta_time: float32) {
 	{
 		{
-			execute_Query_Update_Render_Proxy(*GAME_INSTANCE.world, #code {
+			execute_Query_Update_Render_Proxy(*world, #code {
 				transform := Transform.{position.value, rotation.value, scale.value};
 				matrix := transform_to_matrix4(transform);
 				idx := mesh_render_proxy_ec.value;
 				
-				mesh_instance := render_get_mesh_instance(*GAME_INSTANCE.scene, idx);
-				render_set_transform(*GAME_INSTANCE.scene, idx, *matrix);
+				mesh_instance := render_get_mesh_instance(*scene, idx);
+				render_set_transform(*game_world.scene, idx, *matrix);
 			});
 		}
 		{
@@ -186,8 +203,7 @@ game_tick :: () {
 	tick_world(*world, delta_time);
 }
 
-game_render :: () {
-	using GAME_INSTANCE;
+game_render :: (using game_world: *Game_World) {
     if !ZRENDERER.minimized {
         draw_frame(*ZRENDERER, *scene);
     }
@@ -235,7 +251,7 @@ process_input :: (event: *SDL_Event) {
 			SDL_GetMouseState(*x, *y);
 			origin, dir := screen_to_ray(x, y, xx,no_check ZRENDERER.resolution.width, xx,no_check ZRENDERER.resolution.height, *ZRENDERER.camera.gpu_data.view_proj);
 			debug_draw_line(*ZRENDERER, origin, origin + dir*50000, .{1,0,0,1}, 500);
-			hit, entity := trace_ray(*GAME_INSTANCE.scene.bvh_system, origin, dir);
+			hit, entity := trace_ray(*get_active_game_world().scene.bvh_system, origin, dir);
 				
 			if hit {
 				player_controller_set_selection(*GAME_INSTANCE.player_controller, entity);
@@ -264,14 +280,14 @@ game_loop :: () {
 			process_input(*event);
        		game_update_camera();
  
-			player_controller_tick(*GAME_INSTANCE.player_controller);
+			player_controller_tick(*GAME_INSTANCE.player_controller, get_active_game_world());
 
 			if GAME_INSTANCE.menu_state != .NONE {
 				draw_main_menu();
 			}
 			imgui_tick();
 
-			game_render();
+			game_render(get_active_game_world());
 		}
 		barrier_wait(context.lane_barrier);
 		/*

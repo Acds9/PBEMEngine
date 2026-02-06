@@ -20,8 +20,7 @@ Simulation_Instance :: struct {
 	game		: string;
 	parameters	: Simulation_Parameters;
 	sim_state	: Simulation_State;
-	scene		: ZScene;
-	world		: ZWorld;
+	game_world	: Game_World;
 }
 
 Simulation_System :: struct {
@@ -75,8 +74,8 @@ simulate :: (sim_entry: *Simulation_Instance) {
 
 	if context.thread_index == 0 {
 		// TODO: this needs to actually set up the scene from the game data, this is where we load in meshes, entities, whatever
-		sim_entry.scene = create_zscene(VMA_ALLOCATOR, ZRENDERER.device); // TODO: either this returns a ZScene or it follows the ZWorld method of passing a pointer, pick one
-		init_zworld(*sim_entry.world);
+		initialize_zscene(*sim_entry.game_world.scene, VMA_ALLOCATOR, ZRENDERER.device);
+		initialize_zworld(*sim_entry.game_world.world);
 	}
 	barrier_wait(context.lane_barrier);
 
@@ -88,9 +87,9 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	sim_entry.state = .SIMULATING;
 	sim_entry.sim_state.current_step = sim_entry.parameters.step_start;
 	while sim_entry.sim_state.current_step < sim_entry.parameters.step_end {
-		scene_tick(*sim_entry.scene);
+		scene_tick(*sim_entry.game_world, sim_entry.parameters.step_delta_time);
 		barrier_wait(context.lane_barrier);
-        game_tick();
+        game_tick(*sim_entry.game_world, sim_entry.parameters.step_delta_time);
 		barrier_wait(context.lane_barrier);
 
 		sim_entry.sim_state.current_step += 1;
@@ -163,7 +162,7 @@ take_snapshot :: (dest: *Snapshot, step: u32, world: *ZWorld) {
 }
 
 snapshot_simulation :: (dest: *Snapshot, simulation: *Simulation_Instance) {
-	world := *simulation.world;
+	world := *simulation.game_world.world;
 	take_snapshot(dest, simulation.sim_state.current_step, world);
 } 
 

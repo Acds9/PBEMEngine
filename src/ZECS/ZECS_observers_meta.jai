@@ -1,8 +1,6 @@
 #import "Basic";
 #load "ZECS_observers.jai";
 
-
-
 generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 	builder: String_Builder;
 	for observer: observers {
@@ -23,7 +21,7 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 		if !matching_archetypes continue observer;
 
 		print_to_builder(*builder, "\n// Observer Executor for %\n", observer.name);
-		print_to_builder(*builder, "execute_% :: (game_instance: *Game_Instance, entities: []ZEntity) {\n", observer.name);
+		print_to_builder(*builder, "execute_% :: (game_world: *Game_World, entities: []ZEntity) {\n", observer.name);
 			
 			if observer.flags & cast(u32)Observer_Flags.VISUAL {
 				print_to_builder(*builder, "\tif context.headless {\n");
@@ -32,7 +30,7 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 				print_to_builder(*builder, "\n");
 			}
 
-			print_to_builder(*builder, "\tworld := *game_instance.world;\n");
+			print_to_builder(*builder, "\tworld := *game_world.world;\n");
 			print_to_builder(*builder, "\tarchetype := entities[0].archetype;\n");
 			print_to_builder(*builder, "\tarch_storage := *world.world_archetypes[entities[0].archetype];\n");
 			print_to_builder(*builder, "\tmin, max := lane_range(xx,no_check entities.count);\n");
@@ -46,7 +44,7 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 					print_to_builder(*builder, "\t\t% := *get_archetype_component(world, get_archetype(archetype), %);\n", to_lower_copy(a_c), a_c);
 				}
 
-				print_to_builder(*builder, "\t\t%_Event(entity, game_instance);\n", observer.name);
+				print_to_builder(*builder, "\t\t%_Event(entity, game_world);\n", observer.name);
 
 			print_to_builder(*builder, "\t}\n");
 

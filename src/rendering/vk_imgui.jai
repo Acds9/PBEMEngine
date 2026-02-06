@@ -149,17 +149,17 @@ imgui_tick :: () {
 		if Begin("Ship", flags = .AlwaysAutoResize) {
 			entity := player_controller.current_selection[0];
 
-			pos := get_entity_component(*world, entity, Position).value;
+			pos := get_entity_component(*get_active_game_world().world, entity, Position).value;
 			Text(sprint("Position: %", pos));
-			rot := get_entity_component(*world, entity, Rotation).value;
+			rot := get_entity_component(*get_active_game_world().world, entity, Rotation).value;
 			Text(tprint("Rotation: %", rot));
-			scale := get_entity_component(*world, entity, Scale).value;
+			scale := get_entity_component(*get_active_game_world().world, entity, Scale).value;
 			Text(sprint("Scale: %", scale));
 
-			thrust := get_entity_component(*world, entity, Thrust);
+			thrust := get_entity_component(*get_active_game_world().world, entity, Thrust);
 			VSliderFloat("Thrust", .{40,150}, *thrust.value, 0, 10);
 			SameLine();
-			rot_velocity := get_entity_component(*world, entity, Rotational_Velocity);
+			rot_velocity := get_entity_component(*get_active_game_world().world, entity, Rotational_Velocity);
 			VSliderFloat("Torque", .{40,150}, *rot_velocity.value.z, -1, 1);
 		}
 		End();

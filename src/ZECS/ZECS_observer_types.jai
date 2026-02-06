@@ -15,6 +15,6 @@ Observer_Buffer :: struct {
 
 Observer_Entry :: struct {
 	priority	: u8;
-	proc		: (game_instance: *Game_Instance, entity_indices: []ZEntity);
+	proc		: (game_world: *Game_World, entity_indices: []ZEntity);
 }
 
