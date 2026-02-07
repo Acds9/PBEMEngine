@@ -4,6 +4,10 @@ fp :: #import "Flat_Pool";
 DEFAULT_ENTITY_CHUNK_SIZE 	:: 64;
 
 MAX_ENTITIES_PER_ARCHETYPE	:: 2048;
+ENTITY_INDEX_NONE			:: U32_MAX;
+ENTITY_GENERATION_NONE		:: U16_MAX;
+ENTITY_ARCHETYPE_NONE		:: U16_MAX;
+ENTITY_NONE					:: ZEntity.{ENTITY_INDEX_NONE, ENTITY_GENERATION_NONE, ENTITY_ARCHETYPE_NONE};
 
 ZEntity :: struct {
 	index 		: u32;
@@ -82,15 +86,15 @@ flush_observers :: (world: *ZWorld) {
 		}
 	}
 	barrier_wait(context.lane_barrier); // Don't want thread 0 to reset before all threads are done 
-	if context.thread_index == 0 {
+	narrow(#code{
 		world.observer_buffer.reset(*world.observer_buffer);
-	}
+	});
 }
 
 // Entities
 
 // idx and gen can be used to force a specific index and gen onto the entity for deserialization
-create_entity :: (world: *ZWorld, arch: Type, idx : u32 = 0, gen : u16 = 0) -> ZEntity {
+create_entity :: (world: *ZWorld, arch: Type, idx : u32 = ENTITY_INDEX_NONE, gen : u16 = ENTITY_GENERATION_NONE) -> ZEntity {
 	arch_storage := get_archetype_storage(world, arch);
 	if !arch_storage.initialized {
 		init_archetype(world, arch);
@@ -99,15 +103,21 @@ create_entity :: (world: *ZWorld, arch: Type, idx : u32 = 0, gen : u16 = 0) -> Z
 
 	if (arch_storage.num_entities - arch_storage.free_indices.count) >= MAX_ENTITIES_PER_ARCHETYPE {
 		assert(false, "ERROR: Attempted to spawn more entities than MAX_ENTITIES_PER_ARCHETYPE allows\n");
-		return .{};
+		return ENTITY_NONE;
 	}
 	entity_idx : u32;
 	entity_gen : u16;
 
-	if(idx != 0) {
+	if(idx != ENTITY_INDEX_NONE) {
 		// Assumes there are already allocated slots
 		entity_idx = idx;
 		entity_gen = gen;
+
+		arch_storage.num_entities = max(arch_storage.num_entities, entity_idx + 1);
+		if entity_idx >= arch_storage.generations.count {
+           	array_resize(*arch_storage.generations, entity_idx + arch_storage.chunk_size);
+        }
+		arch_storage.generations[entity_idx] = entity_gen;
 	} else {
 		if arch_storage.free_indices {
 			entity_idx = pop(*arch_storage.free_indices);
@@ -121,7 +131,7 @@ create_entity :: (world: *ZWorld, arch: Type, idx : u32 = 0, gen : u16 = 0) -> Z
         	}
 		}	
 	}
-
+	
 	bit_set(*arch_storage.alive_mask, entity_idx);
 
 	// Ensure component storage is allocated
@@ -154,7 +164,7 @@ create_entity_batch :: (world: *ZWorld, $arch_type: Type, count: u32) -> []ZEnti
 
 	if (arch_storage.num_entities - arch_storage.free_indices.count + count) >= MAX_ENTITIES_PER_ARCHETYPE {
 		assert(false, "ERROR: Attempted to spawn more entities than MAX_ENTITIES_PER_ARCHETYPE allows\n");
-		return .[.{}];
+		return .[ENTITY_NONE];
 	}
     
     entities: [..]ZEntity;

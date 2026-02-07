@@ -89,22 +89,6 @@ game_init :: () -> bool {
     
     // Scene setup
     initialize_zscene(*main_menu_world.scene, VMA_ALLOCATOR, ZRENDERER.device);
-
-	create_entity_batch(*main_menu_world.world, Archetype_Ship, 3); 
-
-	light_entity := create_entity(*main_menu_world.world, Archetype_Point_Light); 
-	position := get_entity_component(*main_menu_world.world, light_entity, Position);
-	position.value = .{1,150,20};
-	light_component := get_entity_component(*main_menu_world.world, light_entity, Point_Light_Component);
-    light_component.radius = 64;
-    light_component.color = .{.3,.3,1,1};
-
-	light_entity_2 := create_entity(*main_menu_world.world, Archetype_Point_Light); 
-	position_2 := get_entity_component(*main_menu_world.world, light_entity_2, Position);
-	position_2.value = .{1,1,32};
-	light_component_2 := get_entity_component(*main_menu_world.world, light_entity_2, Point_Light_Component);
-    light_component_2.radius = 64;
-    light_component_2.color = .{.3,1,.3,1};
 	
     // Input setup
     SDL_SetRelativeMouseMode(SDL_TRUE);
@@ -176,7 +160,7 @@ game_update_camera :: () {
 game_tick :: (using game_world: *Game_World, delta_time: float32) {
 	{
 		{
-			execute_Query_Update_Render_Proxy(*world, #code {
+			execute_Query_Update_Render_Proxy(*world, #code { // ERROR: Component are not default initialized, transform is 0
 				transform := Transform.{position.value, rotation.value, scale.value};
 				matrix := transform_to_matrix4(transform);
 				idx := mesh_render_proxy_ec.value;
@@ -195,9 +179,9 @@ game_tick :: (using game_world: *Game_World, delta_time: float32) {
 			});
 		}
 	}
-	if context.thread_index == 0 {
+	narrow(#code{
 		debug_tick();
-	}
+	});
 	barrier_wait(context.lane_barrier);
 
 	tick_world(*world, delta_time);
@@ -266,7 +250,7 @@ process_input :: (event: *SDL_Event) {
 game_loop :: () {
 	event: SDL_Event;
 	while !GAME_INSTANCE.quit {
-		if context.thread_index == 0 {
+		narrow(#code{
 			// Update timing
 			current_counter := SDL_GetPerformanceCounter();
 			GAME_INSTANCE.delta_time = cast,no_check(float32)(current_counter - GAME_INSTANCE.last_counter) / 
@@ -288,13 +272,11 @@ game_loop :: () {
 			imgui_tick();
 
 			game_render(get_active_game_world());
-		}
+		});
 		barrier_wait(context.lane_barrier);
-		/*
-		if GAME_INSTANCE.turn_simulation_request.requested {
-			simulate(GAME_INSTANCE.turn_simulation_request.name, 0);
-			GAME_INSTANCE.turn_simulation_request.requested = false;
-		}*/
+
+		scene_tick(get_active_game_world(), GAME_INSTANCE.delta_time);
+    	game_tick(get_active_game_world(), GAME_INSTANCE.delta_time);
     }
 }
 

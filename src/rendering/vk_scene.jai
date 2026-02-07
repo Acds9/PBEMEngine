@@ -144,10 +144,10 @@ process_scene_arrays :: (using scene: *ZScene) {
 			scene.point_lights.set_visibility_idx(*scene.point_lights, idx, false);
 		}
 	}
-	if context.thread_index == 0 {
+	narrow(#code{
       for *lane: mesh_add_queue     array_reset(lane);
       for *lane: mesh_remove_queue  array_reset(lane);
       for *lane: light_add_queue    array_reset(lane);
       for *lane: light_remove_queue array_reset(lane);
-  }
+  	});
 }

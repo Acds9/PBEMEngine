@@ -138,7 +138,7 @@ draw_main_menu :: () {
 					for manifest: manifests {
 						name := to_c_string(manifest.name);
 						if Button(name) {
-							
+							open_replay(manifest.name);
 						}
 					}
 					TreePop();

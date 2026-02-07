@@ -1,6 +1,7 @@
 #import "Thread";
 #import "Atomics";
 #import "System";
+#add_context lane_narrow		: bool;
 #add_context lane_count 		: u32;
 #add_context lane_barrier 		: *Lane_Barrier;
 #add_context lane_shared_buffer	: *[8]u8;
@@ -60,6 +61,7 @@ Lane_System :: struct {
 }
 
 barrier_wait :: (barrier: *Lane_Barrier) {
+	assert(!context.lane_narrow, "barrier_wait called from narrow context");
     EnterCriticalSection(*barrier.lock);
     
     gen := barrier.generation;
@@ -90,6 +92,7 @@ thread_entry :: (thread: *Thread) -> s64{
 }
 
 lane_range :: (num: u32) -> u32, u32 {
+	assert(!context.lane_narrow, "lane_range called from narrow context");
     lane_count: u32 = context.lane_count;
     thread_idx: u32 = context.thread_index;
 
@@ -108,4 +111,12 @@ lane_range :: (num: u32) -> u32, u32 {
     end : u32 = start + per_lane + xx,no_check(ifx has_leftover then 0 else -1);
     
     return start, end;
+}
+
+narrow :: (body: Code) #expand {
+	if context.thread_index == 0 {
+		context.lane_narrow = true;
+		#insert body;
+		context.lane_narrow = false;
+	}
 }

@@ -103,10 +103,15 @@ read_manifest :: (path: string, manifest: *Game_Manifest) -> bool {
 // TURN
 
 read_turn :: (path: string, turn: u32, dest: *Snapshot) {
-	
+	contents, success := read_entire_file(path);
+	offset : s64;
+   	deserialize_snapshot(dest, xx contents, *offset);
 }
 
-read_turn_game :: (game: string ){};
+read_turn_game :: (game: string, turn: u32, dest: *Snapshot) {
+	path := tprint("%/%_%.%", get_turn_directory(game), game, turn, TURN_EXT);
+	read_turn(path, turn, dest);
+};
 
 // ORDERS
 

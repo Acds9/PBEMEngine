@@ -72,11 +72,11 @@ simulate :: (sim_entry: *Simulation_Instance) {
 
 	time_start := seconds_since_init();
 
-	if context.thread_index == 0 {
+	narrow(#code{
 		// TODO: this needs to actually set up the scene from the game data, this is where we load in meshes, entities, whatever
 		initialize_zscene(*sim_entry.game_world.scene, VMA_ALLOCATOR, ZRENDERER.device);
 		initialize_zworld(*sim_entry.game_world.world);
-	}
+	});
 	barrier_wait(context.lane_barrier);
 
 	timeline : Turn_Timeline;
@@ -96,10 +96,10 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		// TODO: need to start serializing stuff that happens in the game, need orders first?
 	}
 	context.headless = false;
-	if context.thread_index == 0 {
+	narrow(#code{
 		time_end := seconds_since_init();
 		print("Finished simulation of game: %, time: % seconds\n", sim_entry.game, time_end-time_start);
-	}
+	});
 	
 }
 
@@ -114,14 +114,15 @@ serialize_snapshot :: (dest: *[..]u8, src: *Snapshot) {
 	serialize_to_buffer(dest, *src.step);
 	serialize_to_buffer(dest, *src.entity_count);
 	serialize_to_buffer(dest, *src.data_size);
-	serialize_to_buffer(dest, *src.entity_data.data);
+	serialize_to_buffer(dest, src.entity_data.data, src.entity_data.count);
 }
 
 deserialize_snapshot :: (dest: *Snapshot, src: []u8, offset: *s64) {
 	deserialize_from_buffer(*dest.step, src, offset);
 	deserialize_from_buffer(*dest.entity_count, src, offset);
 	deserialize_from_buffer(*dest.data_size, src, offset);
-	deserialize_from_buffer(*dest.entity_data, src, offset, dest.data_size);
+	array_resize(*dest.entity_data, dest.data_size);
+  	deserialize_from_buffer(dest.entity_data.data, src, offset, dest.data_size);
 }
 
 serialize_entity :: (dest: *[..]u8, world: *ZWorld, entity: ZEntity) {
@@ -132,7 +133,8 @@ serialize_entity :: (dest: *[..]u8, world: *ZWorld, entity: ZEntity) {
 	serialize_to_buffer(dest, *entity.gen);
 	// Don't need component count, archetypes are the same across client and server
 	for *archetype.entity_components {
-		serialize_to_buffer(dest, *it[entity.index].data, it.stride);
+		component_ptr := it.data.data + entity.index * it.stride;
+		serialize_to_buffer(dest, component_ptr, xx it.stride);
 	}
 }
 

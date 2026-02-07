@@ -97,11 +97,11 @@ compute_scene_bounds :: (game_world: *Game_World) {
         final_max.y = max(final_max.y, lane_bounds[i].max.y);
         final_max.z = max(final_max.z, lane_bounds[i].max.z);
     }
-	if context.thread_index == 0 {
+	narrow(#code{
 		scene_bounds = .{final_min, final_max};
 		scene_extents = scene_bounds.max - scene_bounds.min;
 		array_resize(*morton_codes, total_entity_count);
-	}
+	});
 
 	barrier_wait(context.lane_barrier); 
 }
@@ -149,7 +149,7 @@ generate_morton_array :: (game_world: *Game_World) {
 	});
 
 	// TODO: maybe this can be parallelized if needed, cache contention/invalidation might negate. Test?
-	if context.thread_index == 0 {
+	narrow(#code{
 		array_resize(*morton_src, morton_codes.count);
 		array_resize(*morton_dst, morton_codes.count);
 		
@@ -180,10 +180,13 @@ generate_morton_array :: (game_world: *Game_World) {
 			}
     
 			// Swap
-			morton_src, morton_dst = morton_dst, morton_src;
+			tmp := morton_src;
+			morton_src = morton_dst;
+			morton_dst = tmp;
+			//morton_src, morton_dst = morton_dst, morton_src;
 		}
 		memcpy(morton_codes.data, morton_src.data, morton_codes.count * size_of(Morton_Entity));
-	}
+	});
 	barrier_wait(context.lane_barrier);
 }
 
@@ -216,10 +219,10 @@ build_tree_topology :: (game_world: *Game_World) {
 	if leaf_count <= 1 {
 		return;
 	}
-	if context.thread_index == 0 {
+	narrow(#code{
 		array_resize(*internal_nodes, leaf_count - 1);
 		array_resize(*leaf_parents, leaf_count);
-    }
+    });
 	barrier_wait(context.lane_barrier);
     // Each internal node can be processed independently
 	min, max := lane_range(xx,no_check(leaf_count - 1));
@@ -318,10 +321,10 @@ compute_bounding_boxes :: (game_world: *Game_World) {
 	using system := *game_world.scene.bvh_system;
     leaf_count : u32 = xx,no_check morton_codes.count;
   
-    if context.thread_index == 0 {
+   	narrow(#code{
 		array_resize(*node_counters, internal_nodes.count);
    		memset(node_counters.data, 0, node_counters.count * size_of(u32));
-    }
+    });
 	barrier_wait(context.lane_barrier);
 
     // Start from each leaf and walk up
