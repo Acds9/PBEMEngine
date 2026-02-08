@@ -209,11 +209,22 @@ game_shutdown :: () {
 }
 
 process_input :: (event: *SDL_Event) {
-	input_begin_frame(*GAME_INSTANCE.input_system);   
-	// Process input
+	input_begin_frame(*GAME_INSTANCE.input_system);
+	io := ImGui.GetIO();
+
 	while SDL_PollEvent(event) {
-		if imgui_active() {
-			imgui_process_SDL_event(event);
+		// Always forward to ImGui so it can track hover/focus state
+		imgui_process_SDL_event(event);
+
+		is_mouse_event := event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN
+					   || event.type == SDL_MOUSEBUTTONUP || event.type == SDL_MOUSEWHEEL;
+		is_key_event   := event.type == SDL_KEYDOWN || event.type == SDL_KEYUP
+					   || event.type == SDL_TEXTINPUT;
+
+		// Skip game input when ImGui wants to consume the event
+		if (is_mouse_event && io.WantCaptureMouse) || (is_key_event && io.WantCaptureKeyboard) {
+			window_handle_sdl_event(event);
+			continue;
 		}
 
 		input_handle_sdl_event(*GAME_INSTANCE.input_system, event);
@@ -230,13 +241,13 @@ process_input :: (event: *SDL_Event) {
 		ZRENDERER.imgui_system.show_rendering = !ZRENDERER.imgui_system.show_rendering;
 	}
 	if get_command(*GAME_INSTANCE.input_system, .MOUSE_BUTTON_LEFT).key_down {
-		if GAME_INSTANCE.input_system.current_mode == .MOUSE_MODE && !imgui_active() {
+		if GAME_INSTANCE.input_system.current_mode == .MOUSE_MODE {
 			x, y : s32;
 			SDL_GetMouseState(*x, *y);
 			origin, dir := screen_to_ray(x, y, xx,no_check ZRENDERER.resolution.width, xx,no_check ZRENDERER.resolution.height, *ZRENDERER.camera.gpu_data.view_proj);
 			debug_draw_line(*ZRENDERER, origin, origin + dir*50000, .{1,0,0,1}, 500);
 			hit, entity := trace_ray(*get_active_game_world().scene.bvh_system, origin, dir);
-				
+
 			if hit {
 				player_controller_set_selection(*GAME_INSTANCE.player_controller, entity);
 			} else {

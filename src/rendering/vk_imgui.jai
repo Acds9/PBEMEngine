@@ -88,11 +88,12 @@ ImGui_System :: struct {
 
 	show_metrics		: bool;
 	show_rendering		: bool;
+	show_unit_selection	: bool;
 }
 
 imgui_active :: () -> bool {
 	using ZRENDERER.imgui_system;
-	return show_metrics || show_rendering || GAME_INSTANCE.menu_state != .NONE; // TODO: remove these when proper UI is in
+	return show_metrics || show_rendering || show_unit_selection || GAME_INSTANCE.menu_state != .NONE; // TODO: remove these when proper UI is in
 }
 
 initialize_imgui :: (using self: *ImGui_System, zr: *ZRenderer) {
@@ -148,13 +149,14 @@ imgui_tick :: () {
 	if player_controller.current_selection.count != 0 {
 		if Begin("Ship", flags = .AlwaysAutoResize) {
 			entity := player_controller.current_selection[0];
-
+			archetype_data := get_archetype_data(entity.archetype);
+			Text(tprint("Type: %", archetype_data.name));
 			pos := get_entity_component(*get_active_game_world().world, entity, Position).value;
-			Text(sprint("Position: %", pos));
+			Text(tprint("Position: %", pos));
 			rot := get_entity_component(*get_active_game_world().world, entity, Rotation).value;
 			Text(tprint("Rotation: %", rot));
 			scale := get_entity_component(*get_active_game_world().world, entity, Scale).value;
-			Text(sprint("Scale: %", scale));
+			Text(tprint("Scale: %", scale));
 
 			thrust := get_entity_component(*get_active_game_world().world, entity, Thrust);
 			VSliderFloat("Thrust", .{40,150}, *thrust.value, 0, 10);
