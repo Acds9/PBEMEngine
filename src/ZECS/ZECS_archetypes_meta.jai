@@ -46,7 +46,9 @@ generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string 
 		print_to_builder(*builder, "\tentity_components: []Type;\n");
 		print_to_builder(*builder, "\tentity_components_sizes: []u32;\n");
 		print_to_builder(*builder, "\tentity_components_strides: []u32;\n");
+		print_to_builder(*builder, "\tcomponent_data_size_intel: []u32;\n");
 
+		
 		print_to_builder(*builder, "\tarchetype_components: []Type;\n");
 
 		print_to_builder(*builder, "\ttags: ZTags;\n");
@@ -102,6 +104,17 @@ generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string 
 		print_to_builder(*builder, "\t\tentity_components			= .%,\n", e_c_array);
 		print_to_builder(*builder, "\t\tentity_components_sizes		= .%,\n", e_c_size_array);
 		print_to_builder(*builder, "\t\tentity_components_strides	= .%,\n", e_c_stride_array);
+
+		intel_sizes : [INTEL_LEVEL_COUNT]u32;
+		for 0..INTEL_LEVEL_COUNT-1 {
+			size : u32;
+			for comp: arch.entity_components {
+				size += size_of_component(get_entity_component_type(comp), it);
+			}
+			intel_sizes[it] = size;
+		}
+		print_to_builder(*builder, "\t\tcomponent_data_size_intel	= .%, // What size the entity component data blob will be at the given intel level\n", intel_sizes);
+
 		print_to_builder(*builder, "\n");
 
 		print_to_builder(*builder, "\t\tarchetype_components		= .%,\n", a_c_array);
@@ -132,7 +145,51 @@ generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string 
     return builder_to_string(*builder);
 }
 
+//
+// Code Generation - Serialization Functions
+//
 
+generate_archetype_serializers :: (metadata: []Archetype_Build_Metadata) -> string { 
+	builder: String_Builder;
+
+	print_to_builder(*builder, "\n// Serialize archetype component data given an entity\n");
+    print_to_builder(*builder, "serialize_entity_component_data :: (dest: *[..]u8, entity: ZEntity, world: *ZWorld, intel_level: u8, offset: *s64) {\n");
+		print_to_builder(*builder, "\tarchetype := get_archetype(entity.archetype);\n");
+		print_to_builder(*builder, "\tarchetype_data := get_archetype_data(archetype);\n");
+		print_to_builder(*builder, "\tarray_resize(dest, dest.count + archetype_data.component_data_size_intel[intel_level]); // Ensure we can fit the data\n");
+		print_to_builder(*builder, "\tif archetype == {;\n");
+			for archetype: metadata {
+				print_to_builder(*builder, "\t\tcase %; {\n", archetype.name);
+					for component: archetype.entity_components {
+						print_to_builder(*builder, "\t\t\t%_ptr, %_found := get_entity_component(world, entity, %);\n", component, component, component);
+						print_to_builder(*builder, "\t\t\tassert(%_found, \"Could not find component % in serialize_entity_component_data, this shouldn't happen\");\n", component, component);
+						print_to_builder(*builder, "\t\t\tserialize_component(dest, %_ptr, intel_level, offset);\n", component);
+					}
+					
+				print_to_builder(*builder, "\t\t}\n");
+			}
+   	print_to_builder(*builder, "\t}\n");
+	print_to_builder(*builder, "}\n");
+	print_to_builder(*builder, "\n// Deserialize archetype component data given an archetype\n");
+    print_to_builder(*builder, "deserialize_entity_component_data :: (entity: ZEntity, world: *ZWorld, src: []u8, intel_level: u8, offset: *s64) {\n");
+		print_to_builder(*builder, "\tarchetype := get_archetype(entity.archetype);\n");
+		print_to_builder(*builder, "\tarchetype_data := get_archetype_data(archetype);\n");
+		print_to_builder(*builder, "\tif archetype == {;\n");
+			for archetype: metadata {
+				print_to_builder(*builder, "\t\tcase %; {\n", archetype.name);
+					for component: archetype.entity_components {
+						print_to_builder(*builder, "\t\t\t%_ptr, %_found := get_entity_component(world, entity, %);\n", component, component, component);
+						print_to_builder(*builder, "\t\t\tassert(%_found, \"Could not find component % in deserialize_entity_component_data, this shouldn't happen\");\n", component, component);
+						print_to_builder(*builder, "\t\t\tdeserialize_component(%_ptr, src, offset, intel_level);\n", component);
+					}
+					
+				print_to_builder(*builder, "\t\t}\n");
+			}
+   	print_to_builder(*builder, "\t}\n");
+	print_to_builder(*builder, "}\n");
+
+	return builder_to_string(*builder);
+}
 
 //
 // Code Generation - Lookup Functions

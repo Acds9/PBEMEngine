@@ -27,7 +27,7 @@ get_active_game_world :: () -> *Game_World {
 
 Game_Instance :: struct {
 	game_world_state	: GAME_WORLD_STATE;
-	main_menu_world		: Game_World;
+	main_menu_world		: Game_World = .{"main_menu", .{}, .{}};
 	active_replay_world	: Game_World;
     quit				: bool;
 
@@ -77,8 +77,10 @@ mi_allocator :: Allocator.{
 
 game_init :: () -> bool {
 	using GAME_INSTANCE;
-	initialize_zworld(*main_menu_world.world);
 
+	main_menu_world.name = "main_menu";
+	initialize_zworld(*main_menu_world.world);
+	
     // Renderer setup
     init_success, init_error := init_zrenderer(*ZRENDERER);
     if !init_success {

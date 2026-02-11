@@ -63,7 +63,7 @@ ensure_directory_exists :: (path: string) -> bool {
 
 // MANIFEST
 
-read_manifest_name :: (game: string, manifest: *Game_Manifest) -> bool {
+read_manifest_name :: (game: string, manifest: *Manifest_File) -> bool {
 	manifest_paths := file_list_ext(GAME_FOLDER_PATH, ".mft", true);
 	for path: manifest_paths {
 		_, filename, _, _ := path_decomp(path);
@@ -74,7 +74,7 @@ read_manifest_name :: (game: string, manifest: *Game_Manifest) -> bool {
 	return false;
 }
 
-read_all_manifests :: (folder: string, manifests: *[..]Game_Manifest) { 
+read_all_manifests :: (folder: string, manifests: *[..]Manifest_File) { 
 	manifest_paths := file_list_ext(folder, ".mft", true);
 	defer free(manifest_paths.data);
 	
@@ -91,24 +91,25 @@ read_all_manifests :: (folder: string, manifests: *[..]Game_Manifest) {
 	}
 }
 
-read_manifest :: (path: string, manifest: *Game_Manifest) -> bool {
+read_manifest :: (path: string, manifest: *Manifest_File) -> bool {
 	contents, success := read_entire_file(path);
     if !success {
 		return false;
 	}
-    <<manifest = deserialize_game_manifest(xx contents);
+	offset : s64;
+    deserialize_manifest_file(manifest, xx contents, *offset);
     return true;
 }
 
 // TURN
 
-read_turn :: (path: string, turn: u32, dest: *Snapshot) {
+read_turn :: (path: string, turn: u32, dest: *Timeline_Checkpoint) {
 	contents, success := read_entire_file(path);
 	offset : s64;
-   	deserialize_snapshot(dest, xx contents, *offset);
+   	deserialize_timeline_checkpoint(dest, xx contents, *offset);
 }
 
-read_turn_game :: (game: string, turn: u32, dest: *Snapshot) {
+read_turn_game :: (game: string, turn: u32, dest: *Timeline_Checkpoint) {
 	path := tprint("%/%_%.%", get_turn_directory(game), game, turn, TURN_EXT);
 	read_turn(path, turn, dest);
 };

@@ -2,12 +2,16 @@
 
 #add_context headless	: bool;
 
+// TODO: move these out of here
+MAX_INTEL_LEVEL :: 9;
+DEBUG_INTEL_LEVEL :: 10;
+
 GAME_STATE :: enum u8 {
 	SIMULATION;
 	REPLAY;
 }
 
-Game_Manifest :: struct {
+Manifest_File :: struct {
 	name			: string;
 	game_id			: u64;
 	default_step_resolution	: u32;
@@ -15,33 +19,24 @@ Game_Manifest :: struct {
 	total_steps		: u32;
 	player_count	: u32;
 	max_players		: u32;
-
 	current_turn	: u32;
+}
 
+Game_File :: struct {
+	name	: string; //Duplicated with Manifest_File for ease of use
 	player_list		: [..]u64;
 }
 
-Turn_Header :: struct {
-	game_id			: u64;
+Turn_File :: struct {
+	game			: string;
 	turn			: u32;
-	step_resolution : u32;
-	turn_duration 	: float32;
+	start_step		: u32;
+	end_step		: u32;
+	step_resolution	: u32;
 
-	frame_data		: [..]Frame_Data;
+	timeline		: Turn_Timeline;
 }
 
-Frame_Data :: struct {
-	frame_num		: u32;
-	entity_count	: u32;
-	entity_data		: [..]Entity_Data;
-}
-
-Entity_Data :: struct {
-	entity			: ZEntity;
-	component_count : u16;
-	intel_level		: u8;
-	component_data	: [..]u8;
-}
 /*
 serialize_frame :: (frame: *Frame_Data) {
 	world := *GAME_INSTANCE.world;
@@ -64,7 +59,7 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 	manifest_buffer : [..]u8;
 	defer free(manifest_buffer.data);
 	game_id := random_get();
-	manifest := Game_Manifest.{
+	manifest := Manifest_File.{
 				name 			= name, 
 				game_id			= random_get(), 
 				default_step_resolution = step_resolution, 
@@ -73,17 +68,18 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 				player_count 	= 0, 
 				max_players 	= max_players, 
 				current_turn 	= 0};
-	array_resize(*manifest.player_list, max_players);
-
-	serialize_game_manifest(manifest, *manifest_buffer);
+	serialize_manifest_file(*manifest_buffer, *manifest);
 
 	game_buffer	: [..]u8;
 	defer free(game_buffer.data);
 	
+	player_list : [..]u64;
+	array_resize(*player_list, max_players);
+	serialize_to_buffer_string(*game_buffer, name);
+	serialize_to_buffer(*game_buffer, *max_players, size_of(u32));
+	serialize_to_buffer(*game_buffer, *player_list, player_list.count * size_of(u64));
+
 	cwd := get_working_directory();
-
-	serialize_to_buffer(*game_buffer, *game_id, size_of(u64));
-
 	path := tprint("%/%/%", cwd, GAME_FOLDER_NAME, name);
 	if ensure_directory_exists(path) {
 		mft_path := tprint("%/%.%", path, name, MANIFEST_EXT);
@@ -99,49 +95,65 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 		ensure_directory_exists(order_path);
 	}
 
+	start_turn : Turn_File;
+	start_turn.game = name;
+	start_turn.turn	= 0;
+	start_turn.start_step = 0;
+	start_turn.end_step = manifest.default_turn_steps;
+	start_turn.step_resolution = step_resolution;
+
 	game_world : ZWorld;
 	initialize_zworld(*game_world);
 	setup_game_world(*game_world);
-	init_state : Snapshot;
-	take_snapshot(*init_state, 0, *game_world);
+
+	initialize_timeline(*start_turn.timeline, 0, manifest.default_turn_steps);
+
+	checkpoint  := *start_turn.timeline.steps[0].step_data.checkpoint;
+	create_timeline_checkpoint(checkpoint, 0, *game_world);
+
 	state_path := tprint("%/%/%_0.%", path, TURN_FOLDER_NAME, name, TURN_EXT);
 	snapshot_buffer : [..]u8;
-	serialize_snapshot(*snapshot_buffer, *init_state);
+	offset : s64;
+	serialize_timeline_checkpoint(*snapshot_buffer, checkpoint);
 	write_entire_file(state_path, snapshot_buffer.data, snapshot_buffer.count);
 }
 
-serialize_game_manifest :: (manifest: Game_Manifest, dest: *[..]u8) {
-	serialize_to_buffer_string(dest, manifest.name);
-	serialize_to_buffer(dest, *manifest.game_id, size_of(u64));
-	serialize_to_buffer(dest, *manifest.default_step_resolution, size_of(u32));
-	serialize_to_buffer(dest, *manifest.default_turn_steps, size_of(u32));
-	serialize_to_buffer(dest, *manifest.total_steps, size_of(u32));
-	serialize_to_buffer(dest, *manifest.player_count, size_of(u32)); // Player Count
-	serialize_to_buffer(dest, *manifest.max_players, size_of(u32));
-	serialize_to_buffer(dest, *manifest.current_turn, size_of(u32)); // Current Turn
-	for manifest.player_list {
+serialize_manifest_file :: (dest: *[..]u8, src: *Manifest_File) {
+	serialize_to_buffer_string(dest, src.name);
+	serialize_to_buffer(dest, *src.game_id, size_of(u64));
+	serialize_to_buffer(dest, *src.default_step_resolution, size_of(u32));
+	serialize_to_buffer(dest, *src.default_turn_steps, size_of(u32));
+	serialize_to_buffer(dest, *src.total_steps, size_of(u32));
+	serialize_to_buffer(dest, *src.player_count, size_of(u32)); // Player Count
+	serialize_to_buffer(dest, *src.max_players, size_of(u32));
+	serialize_to_buffer(dest, *src.current_turn, size_of(u32)); // Current Turn
+}
+
+deserialize_manifest_file :: (dest: *Manifest_File, src: []u8, offset: *s64) {
+	dest.name = deserialize_from_buffer_string(src, offset);
+    deserialize_from_buffer(*dest.game_id, src, offset);
+    deserialize_from_buffer(*dest.default_step_resolution, src, offset);
+	deserialize_from_buffer(*dest.default_turn_steps, src, offset);
+    deserialize_from_buffer(*dest.total_steps, src, offset);
+    deserialize_from_buffer(*dest.player_count, src, offset);
+    deserialize_from_buffer(*dest.max_players, src, offset);
+    deserialize_from_buffer(*dest.current_turn, src, offset);
+}
+
+serialize_game_file :: (dest: *[..]u8, src: *Game_File) {
+	serialize_to_buffer_string(dest, src.name);
+	serialize_to_buffer(dest, *src.player_list.count, size_of(s64));
+	for src.player_list {
 		serialize_to_buffer(dest, *it, size_of(u64));
 	}
 }
 
-deserialize_game_manifest :: (data: []u8) -> Game_Manifest {
-	manifest : Game_Manifest;
-	offset : s64 = 0;
-
-	manifest.name = deserialize_from_buffer_string(data, *offset);
-    
-    deserialize_from_buffer(*manifest.game_id, data, *offset, size_of(u64));
-    deserialize_from_buffer(*manifest.default_step_resolution, data, *offset, size_of(u32));
-	deserialize_from_buffer(*manifest.default_turn_steps, data, *offset, size_of(u32));
-    deserialize_from_buffer(*manifest.total_steps, data, *offset, size_of(u32));
-    deserialize_from_buffer(*manifest.player_count, data, *offset, size_of(u32));
-    deserialize_from_buffer(*manifest.max_players, data, *offset, size_of(u32));
-    deserialize_from_buffer(*manifest.current_turn, data, *offset, size_of(u32));
-    
-    array_resize(*manifest.player_list, manifest.max_players);
-    for 0..manifest.max_players-1 {
-        deserialize_from_buffer(*manifest.player_list[it], data, *offset, size_of(u64));
-    }
-
-	return manifest;
+deserialize_game_file :: (dest: *Game_File, src: []u8, offset: *s64) {
+	dest.name = deserialize_from_buffer_string(src, offset);
+    count : s64;
+	deserialize_from_buffer(*count, src, offset);
+	array_resize(*dest.player_list, count);
+	for *dest.player_list {
+		deserialize_from_buffer(it, src, offset);
+	}
 }

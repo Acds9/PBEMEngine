@@ -5,3 +5,4 @@ Assorted list of footguns and other quirks its best to keep in mind:
 - SomeStruct :: struct {mystring : string;} then free(*SomeStruct) will NOT free mystring, must do free(*SomeStruct.mystring) first (no deep free)
 - x : [..]u8, y : [..]u8, y = x does NOT copy the data, just the header (pointer to start, length, whatever), use memcpy
 - sprint allocates with the context allocator and need to be free()d, tprint with a temporary allocator
+- defer free(*array) (and probably without defer too) will lock up with no error messages at least at compile time (e.g. code generation). Remember that it is free(array.data)

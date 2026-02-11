@@ -16,8 +16,11 @@ Entity_Component_Storage :: struct {
 	data			: [..]u8;		
 	stride			: u32;			
 }
-ZEntity :: struct {}
-
+ZEntity :: struct {
+	index 	: u32;
+	gen		: u16;
+	archetype : u16;
+}
 Archetype_Storage :: struct {
 	initialized					: bool;
 	entity_components 			: [..]Entity_Component_Storage;
@@ -40,3 +43,18 @@ Archetype_Storage :: struct {
 get_archetype_storage :: (world: *ZWorld, archetype: Type) -> *Archetype_Storage {return null;}
 initialize_archetype_storage :: (archetype: Type) -> Archetype_Storage {return .{};}
 get_archetype_component :: (world: *ZWorld, archetype: Type, $T: Type) -> *T {return null;};
+get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T, bool {return null, false;}
+
+serialize_to_buffer_string :: (dest: *[..]u8, src: string) {}
+
+serialize_to_buffer :: (dest: *[..]u8, src: *void, count: s64) {}
+
+serialize_to_buffer :: (dest: *[..]u8, src: *$T) {}
+
+serialize_to_buffer :: (dest: *[..]u8, src: *void, offset: *s64, count: s64) {}
+
+deserialize_from_buffer :: (dest: *void, src: []u8, offset: *s64, count: s64) {}
+
+deserialize_from_buffer :: (dest: *$T, src: []u8, offset: *s64) {}
+
+deserialize_from_buffer_string :: (src: []u8, offset: *s64) -> string {return "";}

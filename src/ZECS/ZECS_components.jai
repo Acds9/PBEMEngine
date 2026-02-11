@@ -24,12 +24,12 @@ Scale :: struct {
 Linear_Velocity :: struct{
 	using #as entity_component: Entity_Component;
 
-	value : Vector3;
+	value : Vector3; @required_intel_1
 }
 
 Rotational_Velocity :: struct {
 	using #as entity_component: Entity_Component;
-	value : Vector3;
+	value : Vector3; @test_note(5)
 }
 
 Thrust :: struct {
@@ -44,18 +44,18 @@ Representation_Flags :: enum_flags u8 {
 Entity_Representation_Flags :: struct {
 	using #as entity_component: Entity_Component;
 	flags : Representation_Flags;
-}
+} @no_ser
 
 Mesh_Render_Proxy_EC :: struct {
 	using #as entity_component: Entity_Component;
 	value	: u32;
-}
+} @no_ser
 
 Point_Light_Component :: struct {
 	using #as entity_component: Entity_Component;
 
 	color			: Vector4;
-	light_address	: u32;
+	light_address	: u32; 
 	radius			: float;
 }
 
@@ -65,6 +65,6 @@ Mesh_Rep :: struct {
 	using #as archetype_component: Archetype_Component;
 
 	value		: string; // String for now, maybe should be an autogenned enum?
-}
+} @no_ser
 
 Tag_Component :: struct{} // Maybe this should just be an enum

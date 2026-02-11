@@ -62,6 +62,7 @@ code_generation :: (w: Workspace) -> bool {
 	add_build_file("src/ZECS/generated/ZECS_constants_gen.jai", w);
 	add_build_file("src/ZECS/generated/ZECS_components_gen.jai", w);
 	add_build_file("src/types.jai", w);
+	add_build_file("src/intel.jai", w);
 	if arch_gen {
         add_build_string("arch_gen :: true;", w);
     } else {
@@ -109,6 +110,7 @@ generate_archetype_code :: (w: Workspace, archetypes: [..]Archetype_Build_Metada
 	append(*archetypes_file_builder, generate_entity_component_initializers(archetypes));
 	append(*archetypes_file_builder, generate_entity_initializer_dispatch(archetypes));
 	append(*archetypes_file_builder, generate_archetype_initialization(archetypes));
+	append(*archetypes_file_builder, generate_archetype_serializers(archetypes));
 
     
 	write_entire_file(ZECS_ARCHETYPES_GEN_PATH, builder_to_string(*archetypes_file_builder));
@@ -123,3 +125,4 @@ main :: () {}
 #load "src/ZECS/ZECS_build_types.jai";
 #load "src/ZECS/ZECS_archetypes_meta.jai";
 #load "src/types.jai";
+#load "src/intel.jai";

@@ -138,6 +138,9 @@ imgui_begin_frame :: (extents: Vector2) {
 	ImGui.NewFrame();
 }
 
+thrust : float32;
+torque : float32;
+
 imgui_tick :: () {
 	using GAME_INSTANCE;
 	using ImGui;
@@ -158,11 +161,17 @@ imgui_tick :: () {
 			scale := get_entity_component(*get_active_game_world().world, entity, Scale).value;
 			Text(tprint("Scale: %", scale));
 
-			thrust := get_entity_component(*get_active_game_world().world, entity, Thrust);
-			VSliderFloat("Thrust", .{40,150}, *thrust.value, 0, 10);
+			
+			VSliderFloat("Thrust", .{40,150}, *thrust, 0, 10);
 			SameLine();
-			rot_velocity := get_entity_component(*get_active_game_world().world, entity, Rotational_Velocity);
-			VSliderFloat("Torque", .{40,150}, *rot_velocity.value.z, -1, 1);
+			VSliderFloat("Torque", .{40,150}, *torque, -1, 1);
+			
+			if Button("Apply Order") {
+				create_order(*current_orders, 0, entity, .SET_THRUST, 0, *thrust);
+				create_order(*current_orders, 0, entity, .SET_TORQUE, 0, *torque);
+				save_orders(get_active_game_world().name, 0);
+			}
+			
 		}
 		End();
 	}

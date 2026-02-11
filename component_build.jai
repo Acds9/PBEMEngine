@@ -48,6 +48,7 @@ code_generation :: (w: Workspace) -> bool {
 	add_build_file("src/ZECS/ZECS_build_types.jai", w);
 	add_build_file("src/ZECS/ZECS_components.jai", w);
 	add_build_file("src/types.jai", w);
+	add_build_file("src/intel.jai", w);
 
 	build_entity_components		: [..]*Type_Info_Struct;
 	build_archetype_components	: [..]string;

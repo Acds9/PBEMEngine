@@ -2,6 +2,7 @@ current_orders : Turn_Orders;
 
 ORDER_TYPE :: enum u32 {
 	SET_THRUST;
+	SET_TORQUE;
 }
 
 Order :: struct {
@@ -87,12 +88,12 @@ deserialize_orders :: (data: []u8) -> Turn_Orders {
 	return orders;
 }
 
-save_orders :: (game: *Game_Manifest) {
+save_orders :: (game: string, turn: u32) {
 	cwd := get_working_directory();
 
-	path := tprint("%/%/%", GAME_FOLDER_PATH, game.name, ORDER_FOLDER_NAME);
+	path := tprint("%/%/%", GAME_FOLDER_PATH, game, ORDER_FOLDER_NAME);
 	if ensure_directory_exists(path) {
-		order_path := tprint("%/%_%.order", path, game.name, game.current_turn);
+		order_path := tprint("%/%_%.order", path, game, turn);
 		
 		data_buffer : [..]u8;
 		defer free(data_buffer.data);
@@ -104,13 +105,13 @@ save_orders :: (game: *Game_Manifest) {
 load_orders_to_timeline :: (game: string, turn_timeline: *Turn_Timeline) {
 	turn_orders	: [..]Turn_Orders;
 	read_all_orders(get_order_directory(game), *turn_orders);
-	step_bound_lower, step_bound_upper := turn_timeline.step_start, turn_timeline.step_start + turn_timeline.step_count; 
+	step_bound_lower, step_bound_upper := turn_timeline.step_start, turn_timeline.step_end; 
 	for *file: turn_orders {
 		for *order: file.orders {
 			if order.step < step_bound_lower || order.step > step_bound_upper {
 				continue; // Most basic filtering of invalid orders, will need more
 			}
-			timeline_step : *Timeline_Step = *turn_timeline.timeline[order.step];
+			timeline_step : *Timeline_Step = *turn_timeline.steps[order.step];
 			array_add(*timeline_step.orders, <<order);
 			print("Order % added to timeline step %\n", order.type, timeline_step.index);
 		}

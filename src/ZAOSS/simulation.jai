@@ -40,7 +40,7 @@ queue_simulation :: (game: string, step_start: u32, step_end: u32, step_resoluti
 }
 
 queue_simulation :: (game: string) {
-	manifest : Game_Manifest;
+	manifest : Manifest_File;
 	read_manifest_name(game, *manifest);
 	step_start := manifest.current_turn * manifest.default_turn_steps;
 	step_end := step_start + manifest.default_turn_steps;
@@ -102,69 +102,4 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	});
 	
 }
-
-Snapshot :: struct {
-	step			: u32;
-	entity_count 	: u32;
-	data_size		: u32;
-	entity_data		: [..]u8; // in format {ZEntity, component_data}
-}
-
-serialize_snapshot :: (dest: *[..]u8, src: *Snapshot) {
-	serialize_to_buffer(dest, *src.step);
-	serialize_to_buffer(dest, *src.entity_count);
-	serialize_to_buffer(dest, *src.data_size);
-	serialize_to_buffer(dest, src.entity_data.data, src.entity_data.count);
-}
-
-deserialize_snapshot :: (dest: *Snapshot, src: []u8, offset: *s64) {
-	deserialize_from_buffer(*dest.step, src, offset);
-	deserialize_from_buffer(*dest.entity_count, src, offset);
-	deserialize_from_buffer(*dest.data_size, src, offset);
-	array_resize(*dest.entity_data, dest.data_size);
-  	deserialize_from_buffer(dest.entity_data.data, src, offset, dest.data_size);
-}
-
-serialize_entity :: (dest: *[..]u8, world: *ZWorld, entity: ZEntity) {
-	archetype : *Archetype_Storage = *world.world_archetypes[entity.archetype];
-	// TODO: autogenerate this NOTE: do we even gain anything from autogenerating it?
-	serialize_to_buffer(dest, *entity.index);
-	serialize_to_buffer(dest, *entity.archetype);
-	serialize_to_buffer(dest, *entity.gen);
-	// Don't need component count, archetypes are the same across client and server
-	for *archetype.entity_components {
-		component_ptr := it.data.data + entity.index * it.stride;
-		serialize_to_buffer(dest, component_ptr, xx it.stride);
-	}
-}
-
-deserialize_entity :: (world: *ZWorld, src: []u8, offset: *s64) {
-	entity : ZEntity;
-	deserialize_from_buffer(*entity.index, src, offset); 
-	deserialize_from_buffer(*entity.archetype, src, offset); 
-	deserialize_from_buffer(*entity.gen, src, offset); 
-
-	create_entity(world, get_archetype(entity.archetype), entity.index, entity.gen);
-
-	archetype_data : *Archetype_Data = *ARCHETYPE_DATABASE[entity.archetype];
-	for archetype_data.entity_components {
-		component_storage : *Entity_Component_Storage = get_EC_storage_ptr(world, get_archetype(entity.archetype), it);
-		component_ptr := component_storage.data.data + entity.index * component_storage.stride;
-		deserialize_from_buffer(component_ptr, src, offset, component_storage.stride);
-	}
-}
-
-take_snapshot :: (dest: *Snapshot, step: u32, world: *ZWorld) {
-	dest.step = step;
-	dest.entity_count = xx world.world_entities.count;
-	for world.world_entities {
-		serialize_entity(*dest.entity_data, world, it);
-	}
-	dest.data_size = xx dest.entity_data.count;
-}
-
-snapshot_simulation :: (dest: *Snapshot, simulation: *Simulation_Instance) {
-	world := *simulation.game_world.world;
-	take_snapshot(dest, simulation.sim_state.current_step, world);
-} 
 

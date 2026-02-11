@@ -72,7 +72,7 @@ draw_main_menu :: () {
 		case .JOIN_GAME; {
 			if Begin("Join Game", null, flags) {
 				if TreeNode("Games") {
-					manifests : [..]Game_Manifest;
+					manifests : [..]Manifest_File;
 					read_all_manifests(GAME_FOLDER_PATH, *manifests);
 					
 					for manifest: manifests {
@@ -91,13 +91,6 @@ draw_main_menu :: () {
 							Text(player_count);
 							Text(max_players);
 							Text(current_turn);
-							if TreeNode("Player List") {
-								for manifest.player_list {
-									player_id := tprint("%", it);
-									Text(player_id);
-								}
-								TreePop();
-							}
 							if Button("Join") {
 								GAME_INSTANCE.menu_state = .MAIN;
 							}
@@ -113,16 +106,13 @@ draw_main_menu :: () {
 			}
 		}
 		case .SIMULATE_TURN; {
-			manifests : [..]Game_Manifest;
+			manifests : [..]Manifest_File;
 			read_all_manifests(GAME_FOLDER_PATH, *manifests);
 			
 			for *manifest: manifests {
 				Text(manifest.name);
 				SameLine();
 				if Button("Simulate") {
-					data : s64 = 50;
-					create_order(*current_orders, 64, .{0,0,0}, .SET_THRUST, 5, *data);
-					save_orders(manifest);
 					queue_simulation(manifest.name);
 					simulate_pending_sims();
 					break manifest;
@@ -132,7 +122,7 @@ draw_main_menu :: () {
 		case .LOAD_REPLAY; {
 			if Begin("Join Game", null, flags) {
 				if TreeNode("Games") {
-					manifests : [..]Game_Manifest;
+					manifests : [..]Manifest_File;
 					read_all_manifests(GAME_FOLDER_PATH, *manifests);
 					
 					for manifest: manifests {
