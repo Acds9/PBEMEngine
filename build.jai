@@ -10,9 +10,11 @@ JaiSymbols :: #import "Jai_Symbols";
 DEBUG_BUILD :: true;
 symbols: JaiSymbols.Symbols;
 
+ORDER_EXECUTORS_PATH :: "src/ZAOSS/generated/order_gen.jai";
+
 build :: () {
-	
 	file_delete("bin/PBEM.exe");
+	file_delete(ORDER_EXECUTORS_PATH);
 
     w_final := compiler_create_workspace("Final Workspace");  
     if !w_final {
@@ -20,6 +22,7 @@ build :: () {
         return;
     }
 
+	#load "src/ZAOSS/orders_meta.jai";
 	//  Build options
    	final_options := get_build_options(w_final);  
     final_options.backend = .X64;
@@ -41,9 +44,32 @@ build :: () {
 
     set_build_options(final_options, w_final);
     
+	order_executor_headers : [..]*Code_Procedure_Header;
     // Start compilation
     compiler_begin_intercept(w_final);  
     add_source_files(w_final);
+	generated : bool;
+	while true {                     
+        message := compiler_wait_for_message();  
+        if !message break; 
+        
+        if message.kind == {
+            case .TYPECHECKED;
+                typechecked := cast(*Message_Typechecked)message;
+                gather_order_executors(typechecked, *order_executor_headers);
+            case .PHASE;
+                phase := cast(*Message_Phase) message;
+                if phase.phase == .TYPECHECKED_ALL_WE_CAN && !generated {
+                    generate_order_code(w_final, *order_executor_headers);
+                    generated = true;
+                }
+            case .COMPLETE;          
+                print(" >> %\n", <<message);
+                message_complete := cast(*Message_Complete) message;  
+				compiler_end_intercept(w_final);
+                return;
+        }
+    }
 	compiler_end_intercept(w_final);
 
 	/* For when symbols need updating
@@ -61,6 +87,15 @@ build :: () {
         }
     }
 	*/
+}
+
+generate_order_code :: (w: Workspace, headers: *[..]*Code_Procedure_Header) {
+	orders_file_builder: String_Builder;
+	append(*orders_file_builder, generate_order_executors(<<headers));
+	
+	write_entire_file(ORDER_EXECUTORS_PATH, builder_to_string(*orders_file_builder));
+	add_build_file(ORDER_EXECUTORS_PATH, w);
+	print("Generated ZECS components file: %\n", ORDER_EXECUTORS_PATH);
 }
 
 add_source_files :: (w: Workspace) {

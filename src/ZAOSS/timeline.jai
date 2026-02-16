@@ -10,7 +10,7 @@ Timeline_Frame :: struct {
 	entity_data		: [..]Timeline_Entity_Data;
 }
 
-Timeline_Checkpoint :: struct {
+Timeline_Checkpoint :: struct { // TODO: right now Frame and Checkpoint are identical, if they still are in the future, merge them
 	step			: u32;
 	entity_count	: u32;
 	entity_data		: [..]Timeline_Entity_Data; 
@@ -19,6 +19,7 @@ Timeline_Checkpoint :: struct {
 Timeline_Step :: struct {
 	index	: u32;
 
+	is_checkpoint	: bool;
 	Timeline_Step_Data :: union {
 		checkpoint	: Timeline_Checkpoint;
 		frame		: Timeline_Frame;
@@ -28,26 +29,94 @@ Timeline_Step :: struct {
 }
 
 Turn_Timeline :: struct {
-	steps			: [..]Timeline_Step;
-
 	step_start		: u32;
 	step_end		: u32; 
 
-	current_step	: u32;
+	steps			: [..]Timeline_Step;
 }
 
 initialize_timeline :: (timeline: *Turn_Timeline, step_start: u32, step_end: u32) {
 	timeline.step_start = step_start;
 	timeline.step_end = step_end;
-	timeline.current_step = step_start;
-	array_resize(*timeline.steps, step_end-step_start);
+	array_resize(*timeline.steps, (step_end+1)-step_start); // Inclusive
+}
+
+serialize_turn_timeline :: (dest: *[..]u8, src: *Turn_Timeline) {
+	serialize_to_buffer(dest, *src.step_start);
+	serialize_to_buffer(dest, *src.step_end);
+	serialize_to_buffer(dest, *src.steps.count);
+	for *src.steps {
+		serialize_timeline_step(dest, it);
+	}
+}
+
+deserialize_turn_timeline :: (dest: *Turn_Timeline, src: []u8, offset: *s64) {
+	deserialize_from_buffer(*dest.step_start, src, offset);
+	deserialize_from_buffer(*dest.step_end, src, offset);
+	step_count : s64;
+	deserialize_from_buffer(*step_count, src, offset);
+	array_resize(*dest.steps, step_count);
+	for *dest.steps {
+		deserialize_timeline_step(it, src, offset);
+	}
+}
+
+serialize_timeline_step :: (dest: *[..]u8, src: *Timeline_Step) {
+	serialize_to_buffer(dest, *src.index);
+	serialize_to_buffer(dest, *src.is_checkpoint);
+	if src.is_checkpoint {
+		serialize_timeline_checkpoint(dest, *src.step_data.checkpoint);
+	} else {
+		serialize_timeline_frame(dest, *src.step_data.frame);
+	}
+	serialize_to_buffer(dest, *src.orders.count);
+	serialize_to_buffer(dest, *src.orders.data);
+}
+
+deserialize_timeline_step :: (dest: *Timeline_Step, src: []u8, offset: *s64) {
+	deserialize_from_buffer(*dest.index, src, offset);
+	deserialize_from_buffer(*dest.is_checkpoint, src, offset);
+	if dest.is_checkpoint {
+		deserialize_timeline_checkpoint(*dest.step_data.checkpoint, src, offset);
+	} else {
+		deserialize_timeline_frame(*dest.step_data.frame, src, offset);
+	}
+	data_size : s64;
+	deserialize_from_buffer(*data_size, src, offset);
+	array_resize(*dest.orders, data_size);
+  	deserialize_from_buffer(dest.orders.data, src, offset, data_size);
+}
+
+serialize_timeline_frame :: (dest: *[..]u8, src: *Timeline_Frame) {
+	serialize_to_buffer(dest, *src.step);
+	serialize_to_buffer(dest, *src.entity_count);
+	serialize_to_buffer(dest, *src.entity_data.count, size_of(s64));
+
+	for *src.entity_data {
+		serialize_timeline_entity_data(dest, it);
+	}
+}
+
+deserialize_timeline_frame :: (dest: *Timeline_Frame, src: []u8, offset: *s64) {
+	deserialize_from_buffer(*dest.step, src, offset);
+	deserialize_from_buffer(*dest.entity_count, src, offset);
+
+	data_size : s64;
+	deserialize_from_buffer(*data_size, src, offset);
+	array_resize(*dest.entity_data, data_size);
+	for *dest.entity_data {
+		deserialize_timeline_entity_data(it, src, offset);
+	}
 }
 
 serialize_timeline_checkpoint :: (dest: *[..]u8, src: *Timeline_Checkpoint) {
 	serialize_to_buffer(dest, *src.step);
 	serialize_to_buffer(dest, *src.entity_count);
 	serialize_to_buffer(dest, *src.entity_data.count, size_of(s64)); // Data size
-	serialize_to_buffer(dest, src.entity_data.data, src.entity_data.count);
+
+	for *src.entity_data {
+		serialize_timeline_entity_data(dest, it);
+	}
 }
 
 deserialize_timeline_checkpoint :: (dest: *Timeline_Checkpoint, src: []u8, offset: *s64) {
@@ -57,7 +126,9 @@ deserialize_timeline_checkpoint :: (dest: *Timeline_Checkpoint, src: []u8, offse
 	data_size : s64;
 	deserialize_from_buffer(*data_size, src, offset);
 	array_resize(*dest.entity_data, data_size);
-  	deserialize_from_buffer(dest.entity_data.data, src, offset, data_size);
+	for *dest.entity_data {
+		deserialize_timeline_entity_data(it, src, offset);
+	}
 }
 
 serialize_entity :: (dest: *[..]u8, world: *ZWorld, intel_level: u8, entity: ZEntity) {
@@ -85,23 +156,26 @@ spawn_from_timeline_entity_data :: (data: *Timeline_Entity_Data, world: *ZWorld)
 	deserialize_entity_component_data(entity, world, data.component_data, data.intel_level, *offset);
 }
 
-deserialize_entity :: (world: *ZWorld, src: []u8, offset: *s64) {
-	entity_data	: Timeline_Entity_Data;
+serialize_timeline_entity_data :: (dest: *[..]u8, src: *Timeline_Entity_Data) {
+	serialize_to_buffer(dest, *src.entity.index);
+	serialize_to_buffer(dest, *src.entity.archetype);
+	serialize_to_buffer(dest, *src.entity.gen);
+	serialize_to_buffer(dest, *src.intel_level);
+	serialize_to_buffer(dest, src.component_data.data, src.component_data.count);
+}
 
-	deserialize_from_buffer(*entity_data.entity.index, src, offset); 
-	deserialize_from_buffer(*entity_data.entity.archetype, src, offset); 
-	deserialize_from_buffer(*entity_data.entity.gen, src, offset); 
-	deserialize_from_buffer(*entity_data.intel_level, src, offset); 
-
-	archetype_data : *Archetype_Data = *ARCHETYPE_DATABASE[entity_data.entity.archetype];
-	component_data_size := archetype_data.component_data_size_intel[entity_data.intel_level];
-	array_resize(*entity_data.component_data, component_data_size);
-	deserialize_from_buffer(*entity_data.component_data, src, offset, component_data_size);
+deserialize_timeline_entity_data :: (dest: *Timeline_Entity_Data, src: []u8, offset: *s64) {
+	deserialize_from_buffer(*dest.entity.index, src, offset); 
+	deserialize_from_buffer(*dest.entity.archetype, src, offset); 
+	deserialize_from_buffer(*dest.entity.gen, src, offset); 
+	deserialize_from_buffer(*dest.intel_level, src, offset); 
+	deserialize_entity_component_data(*dest.component_data, src, dest.entity.archetype, dest.intel_level, offset);
 }
 
 create_timeline_checkpoint :: (dest: *Timeline_Checkpoint, step: u32, world: *ZWorld) {
 	dest.step = step;
 	dest.entity_count = xx world.world_entities.count;
+	array_resize(*dest.entity_data, dest.entity_count);
 	for world.world_entities {
 		create_timeline_entity_data(*dest.entity_data[it_index], world, it, 255);
 	}

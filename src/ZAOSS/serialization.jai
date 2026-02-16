@@ -12,7 +12,7 @@ serialize_to_buffer :: (dest: *[..]u8, src: *void, count: s64) {
 
 serialize_to_buffer :: (dest: *[..]u8, src: *$T) {
     offset := dest.count;
-    array_resize(dest, offset + size_of(T));
+    array_resize(dest, offset + size_of(T)); // TODO: we resize the array a lot this way, maybe should have a version that assumes the array already has room?
     memcpy(dest.data + offset, src, size_of(T));
 }
 

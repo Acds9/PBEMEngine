@@ -19,7 +19,7 @@ get_active_game_world :: () -> *Game_World {
 			return *GAME_INSTANCE.main_menu_world;
 		}
 		case .REPLAY; {
-			return *GAME_INSTANCE.active_replay_world;
+			return *GAME_INSTANCE.replay_system.replay_world;
 		}
 	}
 	return *GAME_INSTANCE.main_menu_world;
@@ -36,6 +36,7 @@ Game_Instance :: struct {
 	menu_state			: MENU_STATE;
 
 	simulation_system	: Simulation_System;
+	replay_system		: Replay_System;
     // Timing
     frequency			: u64;
     last_counter		: u64;
@@ -46,8 +47,6 @@ Game_Instance :: struct {
 	input_system 		: Input_System;
 
 	lane_system 		: Lane_System;
-
-	simulation_scene 	: ZScene;
 }
 
 GAME_INSTANCE : Game_Instance;

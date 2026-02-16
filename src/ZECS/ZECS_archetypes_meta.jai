@@ -141,6 +141,14 @@ generate_archetype_database :: (metadata: []Archetype_Build_Metadata) -> string 
     print_to_builder(*builder, "get_archetype_data :: (t: Type) -> *Archetype_Data{\n");
 	print_to_builder(*builder, "\treturn *ARCHETYPE_DATABASE[get_archetype_storage_index(t)];\n");
 	print_to_builder(*builder, "};\n");
+
+	print_to_builder(*builder, "get_archetype_data_size_intel :: (t: Type, intel_level: u8) -> u32{\n");
+	print_to_builder(*builder, "\tdata := *ARCHETYPE_DATABASE[get_archetype_storage_index(t)];\n");
+	print_to_builder(*builder, "\tif intel_level >= data.component_data_size_intel.count {\n");
+	print_to_builder(*builder, "\t\t return data.component_data_size_intel[data.component_data_size_intel.count-1];\n");
+	print_to_builder(*builder, "\t};\n");
+	print_to_builder(*builder, "\treturn ARCHETYPE_DATABASE[get_archetype_storage_index(t)].component_data_size_intel[intel_level];\n");
+	print_to_builder(*builder, "};\n");
     
     return builder_to_string(*builder);
 }
@@ -156,21 +164,21 @@ generate_archetype_serializers :: (metadata: []Archetype_Build_Metadata) -> stri
     print_to_builder(*builder, "serialize_entity_component_data :: (dest: *[..]u8, entity: ZEntity, world: *ZWorld, intel_level: u8, offset: *s64) {\n");
 		print_to_builder(*builder, "\tarchetype := get_archetype(entity.archetype);\n");
 		print_to_builder(*builder, "\tarchetype_data := get_archetype_data(archetype);\n");
-		print_to_builder(*builder, "\tarray_resize(dest, dest.count + archetype_data.component_data_size_intel[intel_level]); // Ensure we can fit the data\n");
+		print_to_builder(*builder, "\tarray_resize(dest, dest.count + get_archetype_data_size_intel(archetype, intel_level)); // Ensure we can fit the data\n");
 		print_to_builder(*builder, "\tif archetype == {;\n");
 			for archetype: metadata {
 				print_to_builder(*builder, "\t\tcase %; {\n", archetype.name);
 					for component: archetype.entity_components {
-						print_to_builder(*builder, "\t\t\t%_ptr, %_found := get_entity_component(world, entity, %);\n", component, component, component);
-						print_to_builder(*builder, "\t\t\tassert(%_found, \"Could not find component % in serialize_entity_component_data, this shouldn't happen\");\n", component, component);
-						print_to_builder(*builder, "\t\t\tserialize_component(dest, %_ptr, intel_level, offset);\n", component);
+						print_to_builder(*builder, "\t\t\t%_ptr, %_found := get_entity_component(world, entity, %);\n", to_lower_copy(component), to_lower_copy(component), component);
+						print_to_builder(*builder, "\t\t\tassert(%_found, \"Could not find component % in serialize_entity_component_data, this shouldn't happen\");\n", to_lower_copy(component), component);
+						print_to_builder(*builder, "\t\t\tserialize_component(dest, %_ptr, intel_level, offset);\n", to_lower_copy(component));
 					}
 					
 				print_to_builder(*builder, "\t\t}\n");
 			}
    	print_to_builder(*builder, "\t}\n");
 	print_to_builder(*builder, "}\n");
-	print_to_builder(*builder, "\n// Deserialize archetype component data given an archetype\n");
+	print_to_builder(*builder, "\n// Deserialize archetype component data to component storage given an archetype\n");
     print_to_builder(*builder, "deserialize_entity_component_data :: (entity: ZEntity, world: *ZWorld, src: []u8, intel_level: u8, offset: *s64) {\n");
 		print_to_builder(*builder, "\tarchetype := get_archetype(entity.archetype);\n");
 		print_to_builder(*builder, "\tarchetype_data := get_archetype_data(archetype);\n");
@@ -178,14 +186,21 @@ generate_archetype_serializers :: (metadata: []Archetype_Build_Metadata) -> stri
 			for archetype: metadata {
 				print_to_builder(*builder, "\t\tcase %; {\n", archetype.name);
 					for component: archetype.entity_components {
-						print_to_builder(*builder, "\t\t\t%_ptr, %_found := get_entity_component(world, entity, %);\n", component, component, component);
-						print_to_builder(*builder, "\t\t\tassert(%_found, \"Could not find component % in deserialize_entity_component_data, this shouldn't happen\");\n", component, component);
-						print_to_builder(*builder, "\t\t\tdeserialize_component(%_ptr, src, offset, intel_level);\n", component);
+						print_to_builder(*builder, "\t\t\t%_ptr, %_found := get_entity_component(world, entity, %);\n", to_lower_copy(component), to_lower_copy(component), component);
+						print_to_builder(*builder, "\t\t\tassert(%_found, \"Could not find component % in deserialize_entity_component_data, this shouldn't happen\");\n", to_lower_copy(component), component);
+						print_to_builder(*builder, "\t\t\tdeserialize_component(%_ptr, src, offset, intel_level);\n", to_lower_copy(component));
 					}
 					
 				print_to_builder(*builder, "\t\t}\n");
 			}
    	print_to_builder(*builder, "\t}\n");
+	print_to_builder(*builder, "}\n");
+	print_to_builder(*builder, "\n// Deserialize archetype component data to buffer given an archetype\n");
+    print_to_builder(*builder, "deserialize_entity_component_data :: (dest: *[..]u8, src: []u8, archetype_idx: u16, intel_level: u8, offset: *s64) {\n");
+		print_to_builder(*builder, "\tarchetype := get_archetype(archetype_idx);\n");
+		print_to_builder(*builder, "\tdata_size := get_archetype_data_size_intel(archetype, intel_level);\n");
+		print_to_builder(*builder, "\tarray_resize(dest, dest.count + data_size);\n");
+		print_to_builder(*builder, "\tdeserialize_from_buffer(dest.data, src, offset, data_size);\n");
 	print_to_builder(*builder, "}\n");
 
 	return builder_to_string(*builder);
