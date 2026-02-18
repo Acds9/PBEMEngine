@@ -169,7 +169,7 @@ imgui_tick :: () {
 			
 			if Button("Apply Order") {
 				create_order(*GAME_INSTANCE.replay_system.active_turn_file.timeline, 0, entity, .SET_THRUST, 0, *thrust);
-				//create_order(*current_orders, 0, entity, .SET_TORQUE, 0, *torque);
+				create_order(*GAME_INSTANCE.replay_system.active_turn_file.timeline, 0, entity, .SET_TORQUE, 0, *torque);
 				save_orders(get_active_game_world().name, 0);
 			}
 			

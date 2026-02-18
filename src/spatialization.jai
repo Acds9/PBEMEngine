@@ -41,10 +41,9 @@ LBVH_System :: struct {
 build_bvh :: (game_world: *Game_World) {
 	system := *game_world.scene.bvh_system;
 	compute_scene_bounds(game_world);
-	if system.morton_codes.count <= 1 {
-		return;
-	}
+	if system.morton_codes.count == 0 return;
 	generate_morton_array(game_world);
+	if system.morton_codes.count <= 1 return;  // Single leaf: bounds already set by generate_morton_array, no tree needed
 	build_tree_topology(game_world);
 	compute_bounding_boxes(game_world);
 }

@@ -43,7 +43,7 @@ generate_order_executors :: (proceedures: []*Code_Procedure_Header) -> string {
 						return "";
 					}
 					array_add(*argument_strings, "world");
-					continue arg; // ZWorld must always be the first argument, and we need to handle that one differently
+					continue arg;
 				}
 				if it_index == 1 {
 					if type_to_string(arg_type_info) != "*Order" {
@@ -51,20 +51,12 @@ generate_order_executors :: (proceedures: []*Code_Procedure_Header) -> string {
 						return "";
 					}
 					array_add(*argument_strings, "order");
-					continue arg; // ZWorld must always be the first argument, and we need to handle that one differently
+					continue arg;
 				}
-				if it_index == 2 {
-					if type_to_string(arg_type_info) != "[] u8" {
-						print("ERROR: %'s third argument was not []u8, this will not execute properly. Type was %. Order executor code generation aborted\n", proceedure.name, type_to_string(arg_type_info));
-						return "";
-					}
-					array_add(*argument_strings, "order_data");
-					continue arg; // ZWorld must always be the first argument, and we need to handle that one differently
-				}
-				print_to_builder(*builder, "\t\t\targ_% : %;\n", it_index-3, type_to_string(arg_type_info));
+				print_to_builder(*builder, "\t\t\targ_% : %;\n", it_index, type_to_string(arg_type_info));
 				print_to_builder(*builder, "\t\t\toffset = order.data_offset;\n"); 
-				print_to_builder(*builder, "\t\t\tdeserialize_from_buffer(*arg_%, order_data, *offset, size_of(%));\n", it_index-3, get_type(arg_type_info));
-				array_add(*argument_strings, tprint("arg_%", it_index-3));
+				print_to_builder(*builder, "\t\t\tdeserialize_from_buffer(*arg_%, order_data, *offset, size_of(%));\n", it_index, get_type(arg_type_info));
+				array_add(*argument_strings, tprint("arg_%", it_index));
 			}
 			final_args := join(..argument_strings, ", ", false, false);
 			
