@@ -18,6 +18,7 @@ SIMULATION_STATE :: enum u8 {
 Simulation_Instance :: struct {
 	state		: SIMULATION_STATE;
 	game		: string;
+	start_state_turn_file : Turn_File;
 	parameters	: Simulation_Parameters;
 	sim_state	: Simulation_State;
 	game_world	: Game_World;
@@ -84,6 +85,10 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		print("CALLED\n");
 		read_from_disk_orders(*order_files, get_order_directory(sim_entry.game)); // TODO: it's because this isn't laned, this stuff needs to either be multithreaded or run on single
 		load_orders_to_timeline(*sim_entry.order_timeline, *order_files);
+
+		// Load previous state by spawning entities
+		read_from_disk_turn(*sim_entry.start_state_turn_file, sim_entry.game, 0);
+		create_start_state_from_timeline(*sim_entry.start_state_turn_file.timeline, *sim_entry.game_world.world);
 	});
 	barrier_wait(context.lane_barrier);
 
@@ -106,7 +111,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	context.headless = false;
 	narrow(#code{
 		time_end := seconds_since_init();
-		print("Finished simulation of game: %, steps: %, time: % secsonds\n", sim_entry.game, sim_entry.parameters.step_end-sim_entry.parameters.step_start, time_end-time_start);
+		print("Finished simulation of game: %, steps: %, time: % seconds\n", sim_entry.game, sim_entry.parameters.step_end-sim_entry.parameters.step_start, time_end-time_start);
 		{
 			start_turn : Turn_File;
 			start_turn.game = sim_entry.game;
@@ -116,11 +121,14 @@ simulate :: (sim_entry: *Simulation_Instance) {
 			start_turn.step_resolution = sim_entry.parameters.step_resolution;
 
 			initialize_timeline(*start_turn.timeline, sim_entry.parameters.step_start,sim_entry.parameters.step_end);
-			checkpoint  := *start_turn.timeline.steps[0].step_data.checkpoint;
-			create_timeline_checkpoint(checkpoint, 0, *sim_entry.game_world.world);
+			create_timeline_checkpoint(*start_turn.timeline.steps[0], *sim_entry.game_world.world);
+
+			pos := get_entity_component(*sim_entry.game_world.world, .{0,0,1}, Position);
+			print("Entity % Position value is: %\n",  ZEntity.{0,0,1}, pos.value);
 
 			path := tprint("%/%", GAME_FOLDER_PATH, sim_entry.game);
 			turn_path := tprint("%/%/%_0.%", path, TURN_FOLDER_NAME, sim_entry.game, TURN_EXT);
+			file_delete(turn_path);
 			turn_buffer : [..]u8;
 			offset : s64;
 			serialize_turn_file(*turn_buffer, *start_turn);
@@ -133,6 +141,6 @@ simulate :: (sim_entry: *Simulation_Instance) {
 simulation_timeline_tick :: (timeline: *Turn_Timeline, step: u32, world: *ZWorld) {
 	timeline_step := *timeline.steps[step];
 	for *order: timeline_step.orders {
-		execute_order(order, world);
+		execute_order(world, order, timeline.order_data);
 	}
 }

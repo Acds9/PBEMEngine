@@ -41,7 +41,7 @@ serialize_frame :: (frame: *Frame_Data) {
 }*/
 
 setup_game_world :: (world: *ZWorld) {
-	create_entity_batch(world, Archetype_Ship, 3); 
+	create_entity_batch(world, Archetype_Ship, 1); 
 }
 
 create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, time_limit_seconds: u32, max_players: u32) {
@@ -96,8 +96,7 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 
 	initialize_timeline(*start_turn.timeline, 0, 0); // Start state, 1 step only
 
-	checkpoint  := *start_turn.timeline.steps[0].step_data.checkpoint;
-	create_timeline_checkpoint(checkpoint, 0, *game_world);
+	create_timeline_checkpoint(*start_turn.timeline.steps[0], *game_world);
 
 	turn_path := tprint("%/%/%_0.%", path, TURN_FOLDER_NAME, name, TURN_EXT);
 	turn_buffer : [..]u8;

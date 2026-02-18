@@ -1,19 +1,22 @@
-serialize_to_buffer_string :: (dest: *[..]u8, src: string) {
+serialize_to_buffer_string :: (dest: *[..]u8, src: string) -> s64 {
 	len := cast(s32) src.count;
-    serialize_to_buffer(dest, *len, size_of(s32)); 
+    offset := serialize_to_buffer(dest, *len, size_of(s32)); 
     serialize_to_buffer(dest, src.data, src.count);
+	return offset;
 }
 
-serialize_to_buffer :: (dest: *[..]u8, src: *void, count: s64) {
+serialize_to_buffer :: (dest: *[..]u8, src: *void, count: s64) -> s64 {
     offset := dest.count;
     array_resize(dest, offset + count);
     memcpy(dest.data + offset, src, count);
+	return offset;
 }
 
-serialize_to_buffer :: (dest: *[..]u8, src: *$T) {
+serialize_to_buffer :: (dest: *[..]u8, src: *$T) -> s64 {
     offset := dest.count;
     array_resize(dest, offset + size_of(T)); // TODO: we resize the array a lot this way, maybe should have a version that assumes the array already has room?
     memcpy(dest.data + offset, src, size_of(T));
+	return offset;
 }
 
 serialize_to_buffer :: (dest: *[..]u8, src: *void, offset: *s64, count: s64) {

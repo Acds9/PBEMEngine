@@ -152,6 +152,7 @@ imgui_tick :: () {
 	if player_controller.current_selection.count != 0 {
 		if Begin("Ship", flags = .AlwaysAutoResize) {
 			entity := player_controller.current_selection[0];
+			Text(tprint("Entity: %", entity));
 			archetype_data := get_archetype_data(entity.archetype);
 			Text(tprint("Type: %", archetype_data.name));
 			pos := get_entity_component(*get_active_game_world().world, entity, Position).value;
@@ -167,7 +168,7 @@ imgui_tick :: () {
 			VSliderFloat("Torque", .{40,150}, *torque, -1, 1);
 			
 			if Button("Apply Order") {
-				create_order(*current_orders, 0, entity, .SET_THRUST, 0, *thrust);
+				create_order(*GAME_INSTANCE.replay_system.active_turn_file.timeline, 0, entity, .SET_THRUST, 0, *thrust);
 				//create_order(*current_orders, 0, entity, .SET_TORQUE, 0, *torque);
 				save_orders(get_active_game_world().name, 0);
 			}
