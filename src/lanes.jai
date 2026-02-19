@@ -113,6 +113,16 @@ lane_range :: (num: u32) -> u32, u32 {
     return start, end;
 }
 
+parallel_for :: (arr: []$T, body: Code) #expand {
+	if arr.count {
+		start, end := lane_range(cast,no_check(u32) arr.count);
+		for `it_index: start..end {
+			`it := *arr[it_index];
+			#insert body;
+		}
+	}
+}
+
 narrow :: (body: Code) #expand {
 	if context.thread_index == 0 {
 		context.lane_narrow = true;
