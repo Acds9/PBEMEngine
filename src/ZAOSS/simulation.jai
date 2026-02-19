@@ -96,9 +96,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	sim_entry.state = .SIMULATING;
 	sim_entry.sim_state.current_step = sim_entry.parameters.step_start;
 	while sim_entry.sim_state.current_step < sim_entry.parameters.step_end {
-		narrow(#code{
-			simulation_timeline_tick(*sim_entry.order_timeline, sim_entry.sim_state.current_step, *sim_entry.game_world.world);
-		});
+		simulation_timeline_tick(*sim_entry.order_timeline, sim_entry.sim_state.current_step, *sim_entry.game_world.world); 
 		barrier_wait(context.lane_barrier);
 		scene_tick(*sim_entry.game_world, sim_entry.parameters.step_delta_time);
 		barrier_wait(context.lane_barrier);
@@ -140,7 +138,8 @@ simulate :: (sim_entry: *Simulation_Instance) {
 
 simulation_timeline_tick :: (timeline: *Turn_Timeline, step: u32, world: *ZWorld) {
 	timeline_step := *timeline.steps[step];
-	for *order: timeline_step.orders {
-		execute_order(world, order, timeline.order_data);
-	}
+
+	parallel_for(timeline_step.orders, #code{
+		execute_order(world, it, timeline.order_data);
+	});
 }
