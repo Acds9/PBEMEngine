@@ -108,7 +108,7 @@ generate_serialization_code :: (w: Workspace, structs: *[..]*Type_Info_Struct) {
 	print("Count: %\n", structs.count);
 	serialization_file_builder: String_Builder;
 	append(*serialization_file_builder, generate_struct_serializers(<<structs));
-
+	append(*serialization_file_builder, generate_struct_deserializers(<<structs));
 	write_entire_file(STRUCT_SERIALIZERS_PATH, builder_to_string(*serialization_file_builder));
 	add_build_file(STRUCT_SERIALIZERS_PATH, w);
 	print("Generated ZAOSS serializer file: %\n", STRUCT_SERIALIZERS_PATH);

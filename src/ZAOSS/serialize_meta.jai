@@ -86,3 +86,73 @@ generate_array_serialize :: (builder: *String_Builder, access: string, info: *Ty
         }
     }
 }
+
+generate_struct_deserializers :: (infos: []*Type_Info_Struct) -> string {
+    builder: String_Builder;
+    print_to_builder(*builder, "// Struct Deserializers\n");
+    for type: infos {
+        print_to_builder(*builder, "deserialize :: (dest: *%, src: []u8, offset: *s64){\n", type.name);
+        for *member: type.members {
+            if array_find(member.notes, "no_serialize") {
+                continue member;
+            }
+            if member.type.type == .ARRAY {
+                generate_array_deserialize(*builder, tprint("dest.%", member.name), cast(*Type_Info_Array)member.type, 0);
+                continue member;
+            }
+            if member.type.type == .STRUCT {
+                print_to_builder(*builder, "\tdeserialize(*dest.%, src, offset);\n", member.name);
+                continue member;
+            }
+            if member.type.type == .STRING {
+                print_to_builder(*builder, "\tdest.% = deserialize_from_buffer_string(src, offset);\n", member.name);
+                continue member;
+            }
+            print_to_builder(*builder, "\tdeserialize_from_buffer(*dest.%, src, offset);\n", member.name);
+        }
+        print_to_builder(*builder, "}\n");
+    }
+    return builder_to_string(*builder);
+}
+
+generate_array_deserialize :: (builder: *String_Builder, access: string, info: *Type_Info_Array, depth: s32) {
+    tab_string: string;
+    for 0..depth {
+        tab_string = tprint("% %", tab_string, "\t");
+    }
+
+    element := info.element_type;
+    iter := tprint("it_%", depth);
+
+    // Read count and allocate for non-fixed arrays
+    if info.array_type != .FIXED {
+        print_to_builder(builder, "%deserialize_from_buffer(*%.count, src, offset);\n", tab_string, access);
+        if info.array_type == .RESIZABLE {
+            print_to_builder(builder, "%array_resize(*%, %.count);\n", tab_string, access, access);
+        } else {
+            // View/slice — raw alloc
+            print_to_builder(builder, "% %.data = alloc(%.count * %);\n", tab_string, access, access, element.runtime_size);
+        }
+    }
+
+    if element.type == .ARRAY {
+        print_to_builder(builder, "%for *%: % {\n", tab_string, iter, access);
+            generate_array_deserialize(builder, tprint("%.*", iter), cast(*Type_Info_Array)element, depth + 1);
+        print_to_builder(builder, "%}\n", tab_string);
+    } else if element.type == .STRUCT {
+        print_to_builder(builder, "%for *%: % {\n", tab_string, iter, access);
+            print_to_builder(builder, "% \tdeserialize(%, src, offset);\n", tab_string, iter);
+        print_to_builder(builder, "%}\n", tab_string);
+    } else if element.type == .STRING {
+        print_to_builder(builder, "%for *%: % {\n", tab_string, iter, access);
+            print_to_builder(builder, "% \t%.* = deserialize_from_buffer_string(src, offset);\n", tab_string, iter);
+        print_to_builder(builder, "%}\n", tab_string);
+    } else {
+        // Leaf simple type — bulk copy
+        if info.array_type == .FIXED {
+            print_to_builder(builder, "%deserialize_from_buffer(%.data, src, offset, %*%);\n", tab_string, access, info.array_count, element.runtime_size);
+        } else {
+            print_to_builder(builder, "%deserialize_from_buffer(%.data, src, offset, %.count * %);\n", tab_string, access, access, element.runtime_size);
+        }
+    }
+}
