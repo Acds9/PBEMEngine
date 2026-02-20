@@ -6,5 +6,5 @@ Assorted list of footguns and other quirks its best to keep in mind:
 - x : [..]u8, y : [..]u8, y = x does NOT copy the data, just the header (pointer to start, length, whatever), use memcpy
 - sprint allocates with the context allocator and need to be free()d, tprint with a temporary allocator
 - defer free(*array) (and probably without defer too) will lock up with no error messages at least at compile time (e.g. code generation). Remember that it is free(array.data)
-- func :: (array: *[..]struct) passes a pointer to the HEADER, useful for resizing but you CANNOT do *array[index] to access a member by pointer, this just does pointer arithmetic, 
+- func :: (array: *[..]struct) passes a pointer to the HEADER, useful for resizing (THIS INCLUDES ADDING/REMOVING ELEMENTS) but you CANNOT do *array[index] to access a member by pointer, this just does pointer arithmetic, 
 	you need to do *((<<array)[index] or just pass by value (it's just the header) if resizing or altering the existing header isn't needed

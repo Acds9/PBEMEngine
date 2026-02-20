@@ -36,6 +36,25 @@ Turn_Timeline :: struct {
 	order_data		: [..]u8;
 }
 
+Smaller_Test :: struct {
+	o : u32;
+	t : [..]u64;
+} @serialize
+
+Some_Test_Struct :: struct {
+	test_int				: u32;
+	test_fixed_arr 			: [512]u32;
+	test_dyn_arr			: [..]u32;
+	test_slice				: []u32;
+	test_arr_struct_fixed 	: [8]Smaller_Test;
+	test_arr_struct_dyn		: [..]Smaller_Test; 
+	test_arr_struct_slice	: []Smaller_Test;
+	test_arr_2D_struct		: [..][..]Smaller_Test;
+	string_test				: [..]string;
+	string_test_2d			: [..][..]string;
+
+} @serialize
+
 initialize_timeline :: (timeline: *Turn_Timeline, step_start: u32, step_end: u32) {
 	timeline.step_start = step_start;
 	timeline.step_end = step_end;

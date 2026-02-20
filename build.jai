@@ -11,10 +11,12 @@ DEBUG_BUILD :: true;
 symbols: JaiSymbols.Symbols;
 
 ORDER_EXECUTORS_PATH :: "src/ZAOSS/generated/order_gen.jai";
+STRUCT_SERIALIZERS_PATH :: "src/ZAOSS/generated/serialization_gen.jai";
 
 build :: () {
 	file_delete("bin/PBEM.exe");
 	file_delete(ORDER_EXECUTORS_PATH);
+	file_delete(STRUCT_SERIALIZERS_PATH);
 
     w_final := compiler_create_workspace("Final Workspace");  
     if !w_final {
@@ -23,6 +25,7 @@ build :: () {
     }
 
 	#load "src/ZAOSS/orders_meta.jai";
+	#load "src/ZAOSS/serialize_meta.jai";
 	//  Build options
    	final_options := get_build_options(w_final);  
     final_options.backend = .X64;
@@ -45,6 +48,7 @@ build :: () {
     set_build_options(final_options, w_final);
     
 	order_executor_headers : [..]*Code_Procedure_Header;
+	structs_to_serialize : [..]*Type_Info_Struct;
     // Start compilation
     compiler_begin_intercept(w_final);  
     add_source_files(w_final);
@@ -57,10 +61,12 @@ build :: () {
             case .TYPECHECKED;
                 typechecked := cast(*Message_Typechecked)message;
                 gather_order_executors(typechecked, *order_executor_headers);
+				gather_structs_to_serialize(typechecked, *structs_to_serialize);
             case .PHASE;
                 phase := cast(*Message_Phase) message;
                 if phase.phase == .TYPECHECKED_ALL_WE_CAN && !generated {
                     generate_order_code(w_final, *order_executor_headers);
+					generate_serialization_code(w_final, *structs_to_serialize);
                     generated = true;
                 }
             case .COMPLETE;          
@@ -95,7 +101,17 @@ generate_order_code :: (w: Workspace, headers: *[..]*Code_Procedure_Header) {
 	
 	write_entire_file(ORDER_EXECUTORS_PATH, builder_to_string(*orders_file_builder));
 	add_build_file(ORDER_EXECUTORS_PATH, w);
-	print("Generated ZECS components file: %\n", ORDER_EXECUTORS_PATH);
+	print("Generated ZAOSS order file: %\n", ORDER_EXECUTORS_PATH);
+}
+
+generate_serialization_code :: (w: Workspace, structs: *[..]*Type_Info_Struct) {
+	print("Count: %\n", structs.count);
+	serialization_file_builder: String_Builder;
+	append(*serialization_file_builder, generate_struct_serializers(<<structs));
+
+	write_entire_file(STRUCT_SERIALIZERS_PATH, builder_to_string(*serialization_file_builder));
+	add_build_file(STRUCT_SERIALIZERS_PATH, w);
+	print("Generated ZAOSS serializer file: %\n", STRUCT_SERIALIZERS_PATH);
 }
 
 add_source_files :: (w: Workspace) {
