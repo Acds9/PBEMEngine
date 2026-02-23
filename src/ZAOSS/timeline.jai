@@ -1,188 +1,113 @@
-Timeline_Entity_Data :: struct {
+// STRUCTURE
+// A turn timeline spans from x to y steps in the game. Steps are NOT relative e.g. step 0 is the start of the whole game, not the start of this turn
+// Data is divided into streams. 
+// 	- Orders are orders given by players. 
+// 	- Snapshots are entity data which may be complete or partial to be loaded into the entity at that step. 
+//	- Events are things such as entity spawning
+// All of them store offset and size into the stream's data buffer which is where the data is stored in byte form
+// Use subslice or the provided utility functions to access it easily
+// Data sizes aren't needed for some (like orders) due to the compile-time known nature of them, but is included anyway because slices are pointer and size
+
+Entity_Snapshot :: struct {
 	entity			: ZEntity;
+	step			: u32;
 	intel_level		: u8;
-	component_data	: [..]u8; // Given the archetype and intel level, serialization and deserialization will always write and read the same structure, hence no need for counts etc
-}
+	data_offset		: s64;
+	data_size		: s64;
+} @serialize
 
-Timeline_Frame :: struct {
-	step			: u32;
-	entity_count	: u32;
-	entity_data		: [..]Timeline_Entity_Data;
-}
+Order_Stream :: struct {
+	cursor	: s64; @no_serialize
+	orders	: [..]Order;
+	data	: [..]u8;
+} @serialize
 
-Timeline_Checkpoint :: struct { // TODO: right now Frame and Checkpoint are identical, if they still are in the future, merge them
-	step			: u32;
-	entity_count	: u32;
-	entity_data		: [..]Timeline_Entity_Data; 
-}
+Snapshot_Stream :: struct {
+	cursor		: s64; @no_serialize
+	snapshots	: [..]Entity_Snapshot;
+	data		: [..]u8;
+} @serialize
 
-Timeline_Step :: struct {
-	index	: u32;
-
-	is_checkpoint	: bool;
-	Timeline_Step_Data :: union {
-		checkpoint	: Timeline_Checkpoint;
-		frame		: Timeline_Frame;
-	}
-	step_data	: Timeline_Step_Data;
-	orders		: [..]Order;
-}
+Event_Stream :: struct { // Not implemented yet
+	cursor	: s64; @no_serialize
+	events	: [..]u8;
+	data	: [..]u8;
+} @serialize
 
 Turn_Timeline :: struct {
 	step_start		: u32;
 	step_end		: u32; 
-
-	steps			: [..]Timeline_Step;
-	order_data		: [..]u8;
-}
-
-Smaller_Test :: struct {
-	o : u32;
-	t : [..]u64;
-} @serialize
-
-Some_Test_Struct :: struct {
-	test_int				: u32;
-	test_fixed_arr 			: [512]u32;
-	test_dyn_arr			: [..]u32;
-	test_slice				: []u32;
-	test_arr_struct_fixed 	: [8]Smaller_Test;
-	test_arr_struct_dyn		: [..]Smaller_Test; 
-	test_arr_struct_slice	: []Smaller_Test;
-	test_arr_2D_struct		: [..][..]Smaller_Test;
-	string_test				: [..]string;
-	string_test_2d			: [..][..]string;
-
+	
+	order_stream	: Order_Stream;
+	snapshot_stream	: Snapshot_Stream;
+	event_stream	: Event_Stream;
 } @serialize
 
 initialize_timeline :: (timeline: *Turn_Timeline, step_start: u32, step_end: u32) {
 	timeline.step_start = step_start;
 	timeline.step_end = step_end;
-	array_resize(*timeline.steps, (step_end+1)-step_start); // Inclusive
-	for *step: timeline.steps {
-		step.index = xx,no_check it_index;
-	}
 }
 
 create_start_state_from_timeline :: (timeline: *Turn_Timeline, world: *ZWorld) {
-	start_step := *timeline.steps[0];
-	assert(start_step.is_checkpoint, "ERROR: Malformed turn does not start on a checkpoint");
-	checkpoint := *start_step.step_data.checkpoint;
-	for *checkpoint.entity_data {
-		spawn_from_timeline_entity_data(it, world);
+	start_checkpoint := read_stream(*timeline.snapshot_stream, 0);
+	assert(start_checkpoint.count != 0, "ERROR: Malformed turn does not start on a checkpoint, step 0 has no entity snapshots");
+	for *start_checkpoint {
+		spawn_from_timeline_entity_data(it, *timeline.snapshot_stream, world);
 	}
 }
 
-compact_order_data :: (dest: *[..]u8, src: *Turn_Timeline) {
-	for *step: src.steps {
-		for *order: step.orders {
-			offset := order.data_offset;
-			count := order.data_count;
-			serialize_to_buffer(dest, src.order_data.data, *offset, xx count);
-		}
-	}
-}
-
-serialize_turn_timeline :: (dest: *[..]u8, src: *Turn_Timeline) {
-	serialize_to_buffer(dest, *src.step_start);
-	serialize_to_buffer(dest, *src.step_end);
-	serialize_to_buffer(dest, *src.steps.count);
-	for *src.steps {
-		serialize_timeline_step(dest, it);
-	}
-	compacted_order_data : [..]u8;
-	compact_order_data(*compacted_order_data, src);
-	serialize_to_buffer(dest, *compacted_order_data.count);
-	serialize_to_buffer(dest, compacted_order_data.data, compacted_order_data.count);
-}
-
-deserialize_turn_timeline :: (dest: *Turn_Timeline, src: []u8, offset: *s64) {
-	deserialize_from_buffer(*dest.step_start, src, offset);
-	deserialize_from_buffer(*dest.step_end, src, offset);
-	step_count : s64;
-	deserialize_from_buffer(*step_count, src, offset);
-	array_resize(*dest.steps, step_count);
-	for *dest.steps {
-		deserialize_timeline_step(it, src, offset);
-	}
-	data_size : s64;
-	deserialize_from_buffer(*data_size, src, offset);
-	array_resize(*dest.order_data, data_size);
-	deserialize_from_buffer(dest.order_data.data, src, offset, data_size);
-}
-
-serialize_timeline_step :: (dest: *[..]u8, src: *Timeline_Step) {
-	serialize_to_buffer(dest, *src.index);
-	serialize_to_buffer(dest, *src.is_checkpoint);
-	if src.is_checkpoint {
-		serialize_timeline_checkpoint(dest, *src.step_data.checkpoint);
-	} else {
-		serialize_timeline_frame(dest, *src.step_data.frame);
-	}
-	serialize_to_buffer(dest, *src.orders.count); 
+compact_order_data :: (src: *Order_Stream) {
+	temp_buffer : [..]u8;
 	for *order: src.orders {
-		serialize_order(dest, order);
+		serialize_to_buffer(*temp_buffer, src.data.data, *order.data_offset, xx order.data_count);
 	}
 }
 
-deserialize_timeline_step :: (dest: *Timeline_Step, src: []u8, offset: *s64) {
-	deserialize_from_buffer(*dest.index, src, offset);
-	deserialize_from_buffer(*dest.is_checkpoint, src, offset);
-	if dest.is_checkpoint {
-		deserialize_timeline_checkpoint(*dest.step_data.checkpoint, src, offset);
-	} else {
-		deserialize_timeline_frame(*dest.step_data.frame, src, offset);
+read_stream :: (stream: *Order_Stream, step: u32) -> []Order {
+    slice: []Order;
+    start: s64 = -1;
+    for stream.orders {
+        if start < 0 && it.step == step {
+            slice.data = stream.orders.data + it_index;
+            start = it_index;
+            continue;
+        }
+        if start >= 0 && it.step != step {
+            slice.count = it_index - start;
+            return slice;
+        }
+    }
+    if start >= 0  {
+		slice.count = stream.orders.count - start;
 	}
-	data_size : s64;
-	deserialize_from_buffer(*data_size, src, offset);
-	array_resize(*dest.orders, data_size);
-	for *dest.orders {
-		deserialize_order(it, src, offset);
-	}
+    return slice;
 }
 
-serialize_timeline_frame :: (dest: *[..]u8, src: *Timeline_Frame) {
-	serialize_to_buffer(dest, *src.step);
-	serialize_to_buffer(dest, *src.entity_count);
-	serialize_to_buffer(dest, *src.entity_data.count, size_of(s64));
-
-	for *src.entity_data {
-		serialize_timeline_entity_data(dest, it);
+read_stream :: (stream: *Snapshot_Stream, step: u32) -> []Entity_Snapshot {
+    slice: []Entity_Snapshot;
+    start: s64 = -1;
+    for stream.snapshots {
+        if start < 0 && it.step == step {
+            slice.data = stream.snapshots.data + it_index;
+            start = it_index;
+            continue;
+        }
+        if start >= 0 && it.step != step {
+            slice.count = it_index - start;
+            return slice;
+        }
+    }
+    if start >= 0  {
+		slice.count = stream.snapshots.count - start;
 	}
+    return slice;
 }
 
-deserialize_timeline_frame :: (dest: *Timeline_Frame, src: []u8, offset: *s64) {
-	deserialize_from_buffer(*dest.step, src, offset);
-	deserialize_from_buffer(*dest.entity_count, src, offset);
-
-	data_size : s64;
-	deserialize_from_buffer(*data_size, src, offset);
-	array_resize(*dest.entity_data, data_size);
-	for *dest.entity_data {
-		deserialize_timeline_entity_data(it, src, offset);
-	}
-}
-
-serialize_timeline_checkpoint :: (dest: *[..]u8, src: *Timeline_Checkpoint) {
-	serialize_to_buffer(dest, *src.step);
-	serialize_to_buffer(dest, *src.entity_count);
-	serialize_to_buffer(dest, *src.entity_data.count, size_of(s64)); // Data size
-
-	for *src.entity_data {
-		serialize_timeline_entity_data(dest, it);
-	}
-}
-
-deserialize_timeline_checkpoint :: (dest: *Timeline_Checkpoint, src: []u8, offset: *s64) {
-	deserialize_from_buffer(*dest.step, src, offset);
-	deserialize_from_buffer(*dest.entity_count, src, offset);
-
-	data_size : s64;
-	deserialize_from_buffer(*data_size, src, offset);
-	array_resize(*dest.entity_data, data_size);
-	for *dest.entity_data {
-		deserialize_timeline_entity_data(it, src, offset);
-	}
+read_entity_data :: (snapshot: *Entity_Snapshot, data: []u8) -> []u8 {
+	slice : []u8;
+	slice.data = data.data + snapshot.data_offset;
+	slice.count = data.count;
+	return slice;
 }
 
 serialize_entity :: (dest: *[..]u8, world: *ZWorld, intel_level: u8, entity: ZEntity) {
@@ -197,50 +122,50 @@ serialize_entity :: (dest: *[..]u8, world: *ZWorld, intel_level: u8, entity: ZEn
 	serialize_entity_component_data(dest, entity, world, intel_level, *offset);
 }
 
-create_timeline_entity_data :: (dest: *Timeline_Entity_Data, world: *ZWorld, src: ZEntity, intel_level: u8) {
-	dest.entity = src;
-	dest.intel_level = intel_level;
+create_timeline_entity_data :: (dest: *Snapshot_Stream, world: *ZWorld, src: ZEntity, step: u32, intel_level: u8) {
+	snapshots := *dest.snapshots;
+	array_resize(snapshots, snapshots.count+1);
+	snapshot : *Entity_Snapshot = *(<<snapshots)[snapshots.count-1];
+	snapshot.entity = src;
+	snapshot.step = step;
+	snapshot.intel_level = intel_level;
+	snapshot.data_offset = dest.data.count;
+	snapshot.data_size = get_archetype_data_size_intel(get_archetype(src.archetype), intel_level);
 	offset : s64;
-	serialize_entity_component_data(*dest.component_data, src, world, intel_level, *offset);
+	serialize_entity_component_data(*dest.data, src, world, intel_level, *offset);
 }
 
-spawn_from_timeline_entity_data :: (data: *Timeline_Entity_Data, world: *ZWorld) {
-	if !data.component_data.count {
+// entity and intel level indices must match e.g. src[5] must have its intel level at intel_levels[5]
+create_timeline_entity_data :: (dest: *Snapshot_Stream, world: *ZWorld, src: []ZEntity, step: u32, intel_levels: []u8) {
+	snapshots := *dest.snapshots;
+	array_resize(snapshots, src.count);
+	offset : s64;
+	// TODO: serialize_entity_component_data will resize the array for every addition, costly, need a variant that writes expecting an already sized array
+	for entity: src {
+		snapshot := *(<<snapshots)[snapshots.count-1];
+		snapshot.entity = entity;
+		snapshot.step = step;
+		snapshot.intel_level = intel_levels[it_index];
+		snapshot.data_offset = dest.data.count;
+		snapshot.data_size = get_archetype_data_size_intel(get_archetype(entity.archetype), snapshot.intel_level); // Called twice now but it should be a jumptable, doesn't matter
+		serialize_entity_component_data(*dest.data, entity, world, intel_levels[it_index], *offset);
+	}
+}
+
+spawn_from_timeline_entity_data :: (src: *Entity_Snapshot, stream: *Snapshot_Stream, world: *ZWorld) {
+	if src.data_offset < 0 || src.data_size < 0 {
 		return;
 	}
-	entity := create_entity(world, get_archetype(data.entity.archetype), data.entity.index, data.entity.gen);
+	entity := create_entity(world, get_archetype(src.entity.archetype), src.entity.index, src.entity.gen);
+	data_slice := subslice(stream.data, src.data_offset, src.data_size);
 	offset : s64;
-	deserialize_entity_component_data(entity, world, data.component_data, data.intel_level, *offset);
+	deserialize_entity_component_data(entity, world, data_slice, src.intel_level, *offset);
 }
 
-initialize_from_timeline_entity_data :: (data: *Timeline_Entity_Data, world: *ZWorld) {
-	offset : s64;
-	deserialize_entity_component_data(data.entity, world, data.component_data, data.intel_level, *offset);
-}
-
-serialize_timeline_entity_data :: (dest: *[..]u8, src: *Timeline_Entity_Data) {
-	serialize_to_buffer(dest, *src.entity.index);
-	serialize_to_buffer(dest, *src.entity.archetype);
-	serialize_to_buffer(dest, *src.entity.gen);
-	serialize_to_buffer(dest, *src.intel_level);
-	serialize_to_buffer(dest, src.component_data.data, src.component_data.count);
-}
-
-deserialize_timeline_entity_data :: (dest: *Timeline_Entity_Data, src: []u8, offset: *s64) {
-	deserialize_from_buffer(*dest.entity.index, src, offset); 
-	deserialize_from_buffer(*dest.entity.archetype, src, offset); 
-	deserialize_from_buffer(*dest.entity.gen, src, offset); 
-	deserialize_from_buffer(*dest.intel_level, src, offset); 
-	deserialize_entity_component_data(*dest.component_data, src, dest.entity.archetype, dest.intel_level, offset);
-}
-
-create_timeline_checkpoint :: (dest_step: *Timeline_Step, world: *ZWorld) {
-	dest_step.is_checkpoint = true;
-	dest := *dest_step.step_data.checkpoint;
-	dest.step = dest_step.index;
-	dest.entity_count = xx world.world_entities.count;
-	array_resize(*dest.entity_data, dest.entity_count);
-	for world.world_entities {
-		create_timeline_entity_data(*dest.entity_data[it_index], world, it, 255);
-	}
+create_timeline_checkpoint :: (dest: *Snapshot_Stream, world: *ZWorld, step: u32) {
+	// PLACEHOLDER
+	intel_levels : [..]u8;
+	array_resize(*intel_levels, world.world_entities.count);
+	//
+	create_timeline_entity_data(dest, world, world.world_entities, step, intel_levels);
 }

@@ -84,7 +84,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		order_files : [..]Order_File;
 		print("CALLED\n");
 		read_from_disk_orders(*order_files, get_order_directory(sim_entry.game)); // TODO: it's because this isn't laned, this stuff needs to either be multithreaded or run on single
-		load_orders_to_timeline(*sim_entry.order_timeline, *order_files);
+		load_orders_to_stream(*sim_entry.order_timeline.order_stream, *order_files);
 
 		// Load previous state by spawning entities
 		read_from_disk_turn(*sim_entry.start_state_turn_file, sim_entry.game, 0);
@@ -119,7 +119,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 			start_turn.step_resolution = sim_entry.parameters.step_resolution;
 
 			initialize_timeline(*start_turn.timeline, sim_entry.parameters.step_start,sim_entry.parameters.step_end);
-			create_timeline_checkpoint(*start_turn.timeline.steps[0], *sim_entry.game_world.world);
+			create_timeline_checkpoint(*start_turn.timeline.snapshot_stream, *sim_entry.game_world.world, 0);
 
 			pos := get_entity_component(*sim_entry.game_world.world, .{0,0,1}, Position);
 			print("Entity % Position value is: %\n",  ZEntity.{0,0,1}, pos.value);
@@ -129,7 +129,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 			file_delete(turn_path);
 			turn_buffer : [..]u8;
 			offset : s64;
-			serialize_turn_file(*turn_buffer, *start_turn);
+			serialize(*turn_buffer, *start_turn);
 			write_entire_file(turn_path, turn_buffer.data, turn_buffer.count);
 		}
 	});
@@ -137,9 +137,8 @@ simulate :: (sim_entry: *Simulation_Instance) {
 }
 
 simulation_timeline_tick :: (timeline: *Turn_Timeline, step: u32, world: *ZWorld) {
-	timeline_step := *timeline.steps[step];
-
-	parallel_for(timeline_step.orders, #code{
-		execute_order(world, it, timeline.order_data);
-	});
+	orders := read_stream(*timeline.order_stream, step);
+	for *orders {
+		execute_order(world, it, timeline.order_stream.data);
+	}
 }

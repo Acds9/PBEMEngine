@@ -14,11 +14,7 @@ file_list_ext :: (folder: string, extension: string, recursive: bool = false, fo
 	return filtered_files;
 }
 
-size_of_array :: (array: []$T) -> u32 {
-	return cast,no_check(u32)(size_of(T) * array.count);
-}
-
-array_contains :: (array: []$T, value: T) -> bool {
+array_contains :: (array: []$T, value: T) -> bool { // TODO: use array_find
 	for array {
 		if it == value 
 			return true;
@@ -39,11 +35,6 @@ string_to_byte_array :: (str: string) -> [..]u8 {
 		array_add(*bytes, it);
 	} 
 	return bytes;
-}
-
-warn :: (msg: string) {
-	print("WARNING: %\n", msg);
-	debug_break();
 }
 
 panic :: (msg: string) {
@@ -72,3 +63,12 @@ get_mip_levels :: (width: u32, height: u32) -> u32 {
 align_up :: (value: u64, alignment: u64) -> u64 {
     return (value + alignment - 1) & ~(alignment - 1);
 }
+
+subslice :: (src: [..]u8, offset: s64, count: s64) -> []u8 {
+	assert(src.count <= offset + count, tprint("ERROR: Attempted to subslice past the end of an array. Array count: %, Subslice range: % - %", src.count, offset, offset + count));
+	result : []u8;
+	result.data = src.data + offset;
+	result.count = count;
+	return result;
+}
+

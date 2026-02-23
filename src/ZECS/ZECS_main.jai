@@ -13,7 +13,7 @@ ZEntity :: struct {
 	index 		: u32;
 	gen			: u16;
 	archetype	: u16;
-}
+} @serialize
 
 entity_is_alive :: (world: *ZWorld, entity: ZEntity) -> bool {
 	arch_storage := *world.world_archetypes[entity.archetype];

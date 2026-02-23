@@ -41,7 +41,8 @@ generate_struct_serializers :: (infos: []*Type_Info_Struct) -> string {
 				continue member;
 			}
 			if member.type.type == .STRING {
-				print_to_builder(*builder, "\tserialize_to_buffer_string(dest, *src.%);\n", member.name);
+				print_to_builder(*builder, "\tserialize_to_buffer_string(dest, src.%);\n", member.name);
+				continue member;
 			}
 			// Not a struct or an array, so we just serialize like usual
 			print_to_builder(*builder, "\tserialize_to_buffer(dest, *src.%);\n", member.name);
@@ -126,11 +127,18 @@ generate_array_deserialize :: (builder: *String_Builder, access: string, info: *
 
     // Read count and allocate for non-fixed arrays
     if info.array_type != .FIXED {
-        print_to_builder(builder, "%deserialize_from_buffer(*%.count, src, offset);\n", tab_string, access);
         if info.array_type == .RESIZABLE {
-            print_to_builder(builder, "%array_resize(*%, %.count);\n", tab_string, access, access);
+            // Read count into a temp variable, NOT directly into .count as array_resize early-returns when old_count == new_count
+            // So writing to .count first would skip allocation entirely, .count will be correct but .data won't be
+			print_to_builder(builder, "%{\n", tab_string);
+			print_to_builder(builder, "%\tcount: s64;\n", tab_string);
+			print_to_builder(builder, "%\tdeserialize_from_buffer(*count, src, offset);\n", tab_string);
+            print_to_builder(builder, "%\tarray_resize(*%, count);\n", tab_string, access);
+			//print_to_builder(builder, "%\tprint(\"Found Orders: \%\\n\", count);\n", tab_string);
+			print_to_builder(builder, "%}\n", tab_string);
         } else {
-            // View/slice — raw alloc
+            // Slice
+            print_to_builder(builder, "%deserialize_from_buffer(*%.count, src, offset);\n", tab_string, access);
             print_to_builder(builder, "% %.data = alloc(%.count * %);\n", tab_string, access, access, element.runtime_size);
         }
     }

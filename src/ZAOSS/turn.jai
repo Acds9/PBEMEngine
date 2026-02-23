@@ -20,25 +20,12 @@ Manifest_File :: struct {
 	player_count	: u32;
 	max_players		: u32;
 	current_turn	: u32;
-}
+} @serialize
 
 Game_File :: struct {
 	name	: string; //Duplicated with Manifest_File for ease of use
 	player_list		: [..]u64;
-}
-/*
-serialize_frame :: (frame: *Frame_Data) {
-	world := *GAME_INSTANCE.world;
-	array_resize(*frame.entity_data, world.world_entities.count);
-	for entity: world.world_entities {
-		entity_data : *Entity_Data = *frame.entity_data[it_index];
-		entity_data.entity = entity;
-		entity_data.intel_level = 0;
-
-		position_component := get_entity_component(world, entity, Position);
-		serialize_component(position_component, *entity_data.component_data);
-	}
-}*/
+} @serialize
 
 setup_game_world :: (world: *ZWorld) {
 	create_entity_batch(world, Archetype_Ship, 1); 
@@ -57,7 +44,7 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 				player_count 	= 0, 
 				max_players 	= max_players, 
 				current_turn 	= 0};
-	serialize_manifest_file(*manifest_buffer, *manifest);
+	serialize(*manifest_buffer, *manifest);
 
 	game_buffer	: [..]u8;
 	defer free(game_buffer.data);
@@ -94,80 +81,22 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 	initialize_zworld(*game_world);
 	setup_game_world(*game_world);
 
-	initialize_timeline(*start_turn.timeline, 0, 0); // Start state, 1 step only
+	initialize_timeline(*start_turn.timeline, 0, 0);
 
-	create_timeline_checkpoint(*start_turn.timeline.steps[0], *game_world);
+	create_timeline_checkpoint(*start_turn.timeline.snapshot_stream, *game_world, 0);
 
 	turn_path := tprint("%/%/%_0.%", path, TURN_FOLDER_NAME, name, TURN_EXT);
 	turn_buffer : [..]u8;
 	offset : s64;
-	serialize_turn_file(*turn_buffer, *start_turn);
+	serialize(*turn_buffer, *start_turn);
 	write_entire_file(turn_path, turn_buffer.data, turn_buffer.count);
-}
-
-serialize_turn_file :: (dest: *[..]u8, src: *Turn_File) {
-	serialize_to_buffer_string(dest, src.game);
-	serialize_to_buffer(dest, *src.turn);
-	serialize_to_buffer(dest, *src.start_step);
-	serialize_to_buffer(dest, *src.end_step);
-	serialize_to_buffer(dest, *src.step_resolution);
-	serialize_turn_timeline(dest, *src.timeline);
-}
-
-deserialize_turn_file :: (dest: *Turn_File, src: []u8, offset: *s64) {
-	dest.game = deserialize_from_buffer_string(src, offset);
-    deserialize_from_buffer(*dest.turn, src, offset);
-    deserialize_from_buffer(*dest.start_step, src, offset);
-	deserialize_from_buffer(*dest.end_step, src, offset);
-    deserialize_from_buffer(*dest.step_resolution, src, offset);
-	deserialize_turn_timeline(*dest.timeline, src, offset);
-}
-
-serialize_manifest_file :: (dest: *[..]u8, src: *Manifest_File) {
-	serialize_to_buffer_string(dest, src.name);
-	serialize_to_buffer(dest, *src.game_id);
-	serialize_to_buffer(dest, *src.default_step_resolution);
-	serialize_to_buffer(dest, *src.default_turn_steps);
-	serialize_to_buffer(dest, *src.total_steps);
-	serialize_to_buffer(dest, *src.player_count); // Player Count
-	serialize_to_buffer(dest, *src.max_players);
-	serialize_to_buffer(dest, *src.current_turn); // Current Turn
-}
-
-deserialize_manifest_file :: (dest: *Manifest_File, src: []u8, offset: *s64) {
-	dest.name = deserialize_from_buffer_string(src, offset);
-    deserialize_from_buffer(*dest.game_id, src, offset);
-    deserialize_from_buffer(*dest.default_step_resolution, src, offset);
-	deserialize_from_buffer(*dest.default_turn_steps, src, offset);
-    deserialize_from_buffer(*dest.total_steps, src, offset);
-    deserialize_from_buffer(*dest.player_count, src, offset);
-    deserialize_from_buffer(*dest.max_players, src, offset);
-    deserialize_from_buffer(*dest.current_turn, src, offset);
-}
-
-serialize_game_file :: (dest: *[..]u8, src: *Game_File) {
-	serialize_to_buffer_string(dest, src.name);
-	serialize_to_buffer(dest, *src.player_list.count, size_of(s64));
-	for src.player_list {
-		serialize_to_buffer(dest, *it, size_of(u64));
-	}
-}
-
-deserialize_game_file :: (dest: *Game_File, src: []u8, offset: *s64) {
-	dest.name = deserialize_from_buffer_string(src, offset);
-    count : s64;
-	deserialize_from_buffer(*count, src, offset);
-	array_resize(*dest.player_list, count);
-	for *dest.player_list {
-		deserialize_from_buffer(it, src, offset);
-	}
 }
 
 write_to_disk_turn :: (src: *Turn_File, path: string) {
 	data_buffer : [..]u8;
 	defer free(data_buffer.data);
 
-	serialize_turn_file(*data_buffer, src);
+	serialize(*data_buffer, src);
 	write_entire_file(path, data_buffer.data, data_buffer.count);
 }
 
@@ -180,7 +109,7 @@ read_from_disk_turn :: (dest: *Turn_File, path: string) {
 	contents, success := read_entire_file(path);
     assert(success, "Could not read turn at path %\n", path);
 	offset : s64;
-    deserialize_turn_file(dest, xx contents, *offset);
+    deserialize(dest, xx contents, *offset);
 }
 
 read_from_disk_turn :: (dest: *Turn_File, game: string, turn: u32) {

@@ -115,6 +115,6 @@ read_manifest :: (path: string, manifest: *Manifest_File) -> bool {
 		return false;
 	}
 	offset : s64;
-    deserialize_manifest_file(manifest, xx contents, *offset);
+    deserialize(manifest, xx contents, *offset);
     return true;
 }

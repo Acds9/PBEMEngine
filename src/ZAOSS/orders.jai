@@ -4,55 +4,21 @@ Order :: struct {
 	type	: ORDER_TYPE;
 	step	: u32;
 	data_offset : s64;
-	data_count	: u32; // TODO: if orders are interpreted by executors and they are always the same, do we need count?
-}
+	data_count	: s64; // TODO: if orders are interpreted by executors and they are always the same, do we need count? NO
+}  @serialize
 
 Order_File :: struct {
 	game	: string;
 	turn	: u32;
-	timeline: Turn_Timeline;
-}
+	order_stream	: Order_Stream;
+}  @serialize
 
-create_order :: (timeline: *Turn_Timeline, owner: u64, entity: ZEntity, type: ORDER_TYPE, step: u32, data: *$T) {
+create_order :: (stream: *Order_Stream, owner: u64, entity: ZEntity, type: ORDER_TYPE, step: u32, data: *$T) {
 	order := Order.{owner = owner, entity = entity, type = type, step = step};
-	order.data_offset =  serialize_to_buffer(*timeline.order_data, data, size_of(T));
+	order.data_offset = serialize_to_buffer(*stream.data, data);
 	order.data_count = size_of(T);
-	timeline_step := *timeline.steps[step];
-	array_add(*timeline_step.orders, order);
+	array_add(*stream.orders, order);
 	print("Created order % for entity % with data % at step %\n", type, entity, <<data, step);
-}
-
-serialize_order :: (dest: *[..]u8, src: *Order) {
-	serialize_to_buffer(dest, *src.owner);
-	serialize_to_buffer(dest, *src.entity);
-	print("Serialized entity as %\n", src.entity);
-	serialize_to_buffer(dest, *src.type);
-	serialize_to_buffer(dest, *src.step);
-
-	serialize_to_buffer(dest, *src.data_offset);
-	serialize_to_buffer(dest, *src.data_count);
-}
-
-deserialize_order :: (dest: *Order, src: []u8, offset: *s64) {
-	deserialize_from_buffer(*dest.owner, src, offset);
-	deserialize_from_buffer(*dest.entity, src, offset);
-	print("Deserialized entity as %\n", dest.entity);
-	deserialize_from_buffer(*dest.type, src, offset);
-	deserialize_from_buffer(*dest.step, src, offset);
-	deserialize_from_buffer(*dest.data_offset, src, offset);
-	deserialize_from_buffer(*dest.data_count, src, offset);
-}
-
-serialize_order_file :: (dest: *[..]u8, src: *Order_File) {
-	serialize_to_buffer_string(dest, src.game);
-	serialize_to_buffer(dest, *src.turn);
-	serialize_turn_timeline(dest, *src.timeline);
-}
-
-deserialize_order_file :: (dest: *Order_File, src: []u8, offset: *s64) {
-	dest.game = deserialize_from_buffer_string(src, offset);
-	deserialize_from_buffer(*dest.turn, src, offset);
-	deserialize_turn_timeline(*dest.timeline, src, offset);
 }
 
 save_orders :: (game: string, turn: u32) {
@@ -62,40 +28,49 @@ save_orders :: (game: string, turn: u32) {
 		data_buffer : [..]u8;
 		defer free(data_buffer.data);
 
-		order_file : Order_File;
-		order_file.game = game;
-		order_file.turn = turn;
-		order_file.timeline = GAME_INSTANCE.replay_system.active_turn_file.timeline; // TODO: not great to copy, but probably doesn't matter
-		serialize_order_file(*data_buffer, *order_file);
+		serialize(*data_buffer, *GAME_INSTANCE.replay_system.order_file);
 		write_entire_file(order_path, data_buffer.data, data_buffer.count);
 	}
 }
 
-load_orders_to_timeline :: (dest: *Turn_Timeline, src: *[..]Order_File) {
-	step_bound_lower, step_bound_upper := dest.step_start, dest.step_end;
-	for *file: <<src {
-		base_offset := dest.order_data.count;
-		array_resize(*dest.order_data, base_offset + file.timeline.order_data.count);
-		memcpy(dest.order_data.data + base_offset, file.timeline.order_data.data, file.timeline.order_data.count);
-		for *step: file.timeline.steps {
-			for *order: step.orders {
-				if order.step < step_bound_lower || order.step > step_bound_upper {
-					continue; // Most basic filtering of invalid orders, will need more
-				}
-				timeline_step : *Timeline_Step = *dest.steps[order.step];
-				copied_order := <<order;
-				copied_order.data_offset += base_offset;
-				array_add(*timeline_step.orders, copied_order);
-			}
-		}
+load_orders_to_stream :: (dest: *Order_Stream, src: *[..]Order_File, reset: bool = true) {
+	if reset {
+		array_reset(*dest.orders);
+		array_reset(*dest.data);
 	}
+
+	// Calculate total sizes needed
+	total_orders : s64;
+	total_data : s64;
+	for *file: <<src {
+		total_orders += file.order_stream.orders.count;
+		total_data += file.order_stream.data.count;
+	}
+
+	order_offset := dest.orders.count;
+	data_offset := dest.data.count;
+	array_resize(*dest.orders, order_offset + total_orders);
+	array_resize(*dest.data, data_offset + total_data);
+
+	for *file: <<src {
+		for 0..file.order_stream.orders.count-1 {
+			dest.orders[order_offset + it] = file.order_stream.orders[it];
+			dest.orders[order_offset + it].data_offset += data_offset;
+		}
+		order_offset += file.order_stream.orders.count;
+
+		memcpy(dest.data.data + data_offset, file.order_stream.data.data, file.order_stream.data.count);
+		data_offset += file.order_stream.data.count;
+	}
+
+	quick_sort(dest.orders, (x) => x.step);
 }
 
 write_to_disk_order :: (src: *Order_File, path: string) {
 	data_buffer : [..]u8;
 	defer free(data_buffer.data);
 
-	serialize_order_file(*data_buffer, src);
+	serialize(*data_buffer, src);
 	write_entire_file(path, data_buffer.data, data_buffer.count);
 }
 
@@ -108,7 +83,7 @@ read_from_disk_order :: (dest: *Order_File, path: string) {
 	contents, success := read_entire_file(path);
     assert(success, "Could not read order at path %\n", path);
 	offset : s64;
-    deserialize_order_file(dest, xx contents, *offset);
+    deserialize(dest, xx contents, *offset);
 }
 
 read_from_disk_order :: (dest: *Order_File, game: string, turn: u32) {

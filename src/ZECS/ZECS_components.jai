@@ -24,12 +24,12 @@ Scale :: struct {
 Linear_Velocity :: struct{
 	using #as entity_component: Entity_Component;
 
-	value : Vector3; @required_intel_1
+	value : Vector3;
 }
 
 Rotational_Velocity :: struct {
 	using #as entity_component: Entity_Component;
-	value : Vector3; @test_note(5)
+	value : Vector3;
 }
 
 Thrust :: struct {
@@ -49,7 +49,7 @@ Entity_Representation_Flags :: struct {
 Mesh_Render_Proxy_EC :: struct {
 	using #as entity_component: Entity_Component;
 	value	: u32;
-} @no_ser
+} @no_ser // TODO: Fix no_ser now that we know how to, look in serialization_meta.jai
 
 Point_Light_Component :: struct {
 	using #as entity_component: Entity_Component;
