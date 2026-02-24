@@ -154,12 +154,14 @@ create_timeline_entity_data :: (dest: *Snapshot_Stream, world: *ZWorld, src: []Z
 
 spawn_from_timeline_entity_data :: (src: *Entity_Snapshot, stream: *Snapshot_Stream, world: *ZWorld) {
 	if src.data_offset < 0 || src.data_size < 0 {
+		ZLog.write_to_log(*ZLog.ZLOGGER, .ENTITY, .NONE, "Unable to create entity from data due to invalid data offset or data size");
 		return;
 	}
 	entity := create_entity(world, get_archetype(src.entity.archetype), src.entity.index, src.entity.gen);
 	data_slice := subslice(stream.data, src.data_offset, src.data_size);
 	offset : s64;
 	deserialize_entity_component_data(entity, world, data_slice, src.intel_level, *offset);
+	ZLog.write_to_log(*ZLog.ZLOGGER, .ENTITY, .NONE, tprint("Entity % created and intiialized from Entity Data", entity));
 }
 
 create_timeline_checkpoint :: (dest: *Snapshot_Stream, world: *ZWorld, step: u32) {

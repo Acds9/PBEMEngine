@@ -1,3 +1,5 @@
+ZLog :: #import "ZLog";
+
 Simulation_Parameters :: struct {
 	step_resolution		: u32;
 	step_start			: u32;
@@ -71,24 +73,33 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		print("WARNING: Attempted to simulate a non-pending request for game % whose current state is %, aborting.", sim_entry.game, sim_entry.state);
 		return;
 	}
-	
+	narrow(#code{
+		ZLog.start_logging_session(*ZLog.ZLOGGER, sim_entry.game, 0);
+		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .NONE, tprint("Initializing simulation for game %", sim_entry.game));
+	});
+
 	time_start := seconds_since_init();
 	sim_entry.game_world.name = sim_entry.game;
+	
 	narrow(#code{
 		// TODO: this needs to actually set up the scene from the game data, this is where we load in meshes, entities, whatever
 		// Also needs multilane where possible
 		initialize_zscene(*sim_entry.game_world.scene, VMA_ALLOCATOR, ZRENDERER.device);
+		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, "ZScene initialization successful");
 		initialize_zworld(*sim_entry.game_world.world);
+		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, "ZWorld initialization successful");
 
 		initialize_timeline(*sim_entry.order_timeline, sim_entry.parameters.step_start, sim_entry.parameters.step_end);
+		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, tprint("timeline initialized from step % to step %", sim_entry.parameters.step_start, sim_entry.parameters.step_end));
 		order_files : [..]Order_File;
-		print("CALLED\n");
 		read_from_disk_orders(*order_files, get_order_directory(sim_entry.game)); // TODO: it's because this isn't laned, this stuff needs to either be multithreaded or run on single
 		load_orders_to_stream(*sim_entry.order_timeline.order_stream, *order_files);
+		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Loaded % orders from disk to order stream", order_files.count));
 
 		// Load previous state by spawning entities
 		read_from_disk_turn(*sim_entry.start_state_turn_file, sim_entry.game, 0);
 		create_start_state_from_timeline(*sim_entry.start_state_turn_file.timeline, *sim_entry.game_world.world);
+		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, "Start state created from timeline");
 	});
 	barrier_wait(context.lane_barrier);
 
@@ -102,6 +113,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		barrier_wait(context.lane_barrier);
         game_tick(*sim_entry.game_world, sim_entry.parameters.step_delta_time);
 		barrier_wait(context.lane_barrier);
+		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Step % simulated", sim_entry.sim_state.current_step));
 		// TODO: lots of barriers here, are they all needed?
 		sim_entry.sim_state.current_step += 1;
 		// TODO: need to start serializing stuff that happens in the game, need orders first?
@@ -109,7 +121,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	context.headless = false;
 	narrow(#code{
 		time_end := seconds_since_init();
-		print("Finished simulation of game: %, steps: %, time: % seconds\n", sim_entry.game, sim_entry.parameters.step_end-sim_entry.parameters.step_start, time_end-time_start);
+		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Finished simulation of game: %, steps: %, time: % seconds\n", sim_entry.game, sim_entry.parameters.step_end-sim_entry.parameters.step_start, time_end-time_start));
 		{
 			start_turn : Turn_File;
 			start_turn.game = sim_entry.game;
@@ -122,7 +134,6 @@ simulate :: (sim_entry: *Simulation_Instance) {
 			create_timeline_checkpoint(*start_turn.timeline.snapshot_stream, *sim_entry.game_world.world, 0);
 
 			pos := get_entity_component(*sim_entry.game_world.world, .{0,0,1}, Position);
-			print("Entity % Position value is: %\n",  ZEntity.{0,0,1}, pos.value);
 
 			path := tprint("%/%", GAME_FOLDER_PATH, sim_entry.game);
 			turn_path := tprint("%/%/%_0.%", path, TURN_FOLDER_NAME, sim_entry.game, TURN_EXT);
@@ -132,6 +143,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 			serialize(*turn_buffer, *start_turn);
 			write_entire_file(turn_path, turn_buffer.data, turn_buffer.count);
 		}
+		ZLog.flush_log_buffers(*ZLog.ZLOGGER, true);
 	});
 	
 }
