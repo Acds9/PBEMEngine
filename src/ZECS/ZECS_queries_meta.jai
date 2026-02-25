@@ -40,6 +40,7 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 
 		if query.options & cast(u32)Query_Flags.VISUAL {
 			print_to_builder(*builder, "\tif context.headless {\n");
+				print_to_builder(*builder, "\tprint(\"WARNING: Attempted to run VISUAL-tagged query % in headless mode\\n\");\n", query.name);
 				print_to_builder(*builder, "\t\treturn;\n");
 			print_to_builder(*builder, "\t}\n");
 			print_to_builder(*builder, "\n");

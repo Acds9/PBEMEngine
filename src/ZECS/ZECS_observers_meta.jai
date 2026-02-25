@@ -25,6 +25,7 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 			
 			if observer.flags & cast(u32)Observer_Flags.VISUAL {
 				print_to_builder(*builder, "\tif context.headless {\n");
+					print_to_builder(*builder, "\tprint(\"WARNING: Attempted to run VISUAL-tagged observer % in headless mode\\n\");\n", observer.name);
 					print_to_builder(*builder, "\t\treturn;\n");
 				print_to_builder(*builder, "\t}\n");
 				print_to_builder(*builder, "\n");

@@ -121,6 +121,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	context.headless = false;
 	narrow(#code{
 		time_end := seconds_since_init();
+		print("Simulation Complete, time elapsed: %\n", time_end-time_start);
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Finished simulation of game: %, steps: %, time: % seconds\n", sim_entry.game, sim_entry.parameters.step_end-sim_entry.parameters.step_start, time_end-time_start));
 		{
 			start_turn : Turn_File;
@@ -143,9 +144,8 @@ simulate :: (sim_entry: *Simulation_Instance) {
 			serialize(*turn_buffer, *start_turn);
 			write_entire_file(turn_path, turn_buffer.data, turn_buffer.count);
 		}
-		ZLog.flush_log_buffers(*ZLog.ZLOGGER, true);
+		ZLog.flush_log_buffers(*ZLog.ZLOGGER);
 	});
-	
 }
 
 simulation_timeline_tick :: (timeline: *Turn_Timeline, step: u32, world: *ZWorld) {
