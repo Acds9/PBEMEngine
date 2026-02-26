@@ -86,7 +86,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		// Also needs multilane where possible
 		initialize_zscene(*sim_entry.game_world.scene, VMA_ALLOCATOR, ZRENDERER.device);
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, "ZScene initialization successful");
-		initialize_zworld(*sim_entry.game_world.world);
+		initialize_zworld(*sim_entry.game_world.world, .SIMULATION);
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, "ZWorld initialization successful");
 
 		initialize_timeline(*sim_entry.order_timeline, sim_entry.parameters.step_start, sim_entry.parameters.step_end);
@@ -103,7 +103,6 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	});
 	barrier_wait(context.lane_barrier);
 
-	context.headless = true;
 	sim_entry.state = .SIMULATING;
 	sim_entry.sim_state.current_step = sim_entry.parameters.step_start;
 	while sim_entry.sim_state.current_step < sim_entry.parameters.step_end {
@@ -118,7 +117,6 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		sim_entry.sim_state.current_step += 1;
 		// TODO: need to start serializing stuff that happens in the game, need orders first?
 	}
-	context.headless = false;
 	narrow(#code{
 		time_end := seconds_since_init();
 		print("Simulation Complete, time elapsed: %\n", time_end-time_start);

@@ -36,6 +36,7 @@ Query_Build_Metadata :: struct {
     archetype_components	: [..]string;
     tags					: u64; 
     options					: u32; // Should be called flags and be u8
+	world_types				: u8;
 	counter_index			: u32; // For ATOMIC_COUNTER query option
 }
 
@@ -44,7 +45,8 @@ Observer_Build_Metadata :: struct {
     entity_components		: [..]string;
     archetype_components	: [..]string;
     tags					: u64;
-    flags					: u8;
+    flags					: u32;
+	world_types				: u8;
 	priority				: u8;
 }
 
@@ -272,8 +274,22 @@ gather_queries :: (typechecked: *Message_Typechecked, queries: *[..]Query_Build_
 						}
     
 						// The "array" is just the raw bytes of the u64 enum value
-						flags_value := <<cast(*u8)any.value_pointer;
+						flags_value := <<cast(*u32)any.value_pointer;
 						query.options = flags_value;
+					}
+					else if (member.name == "WORLD_TYPES") {
+						any: Any;
+						any.type = member.type;
+    
+						if(member.offset_into_constant_storage >= 0) {
+							any.value_pointer = info.constant_storage.data + member.offset_into_constant_storage;
+						} else {
+							continue; // No valid offset
+						}
+    
+						// The "array" is just the raw bytes of the u64 enum value
+						type_value := <<cast(*u8)any.value_pointer;
+						query.world_types = type_value;
 					}
 				}
 			}
@@ -381,8 +397,22 @@ gather_observers :: (typechecked: *Message_Typechecked, observers: *[..]Observer
 						}
     
 						// The "array" is just the raw bytes of the u64 enum value
-						flags_value := <<cast(*u8)any.value_pointer;
+						flags_value := <<cast(*u32)any.value_pointer;
 						observer.flags = flags_value;
+					}
+					else if (member.name == "WORLD_TYPES") {
+						any: Any;
+						any.type = member.type;
+    
+						if(member.offset_into_constant_storage >= 0) {
+							any.value_pointer = info.constant_storage.data + member.offset_into_constant_storage;
+						} else {
+							continue; // No valid offset
+						}
+    
+						// The "array" is just the raw bytes of the u64 enum value
+						types_value := <<cast(*u8)any.value_pointer;
+						observer.world_types = types_value;
 					}
 					else if (member.name == "PRIORITY") {
 						any: Any;

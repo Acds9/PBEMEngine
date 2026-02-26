@@ -1,11 +1,16 @@
 #import "Flat_Pool";
+
+World_Type :: enum_flags u8 {
+	MENU;
+	REPLAY;
+	SIMULATION;
+}
+
 ZWorld :: struct {
 	world_archetypes 	: [MAX_ARCHETYPES]Archetype_Storage;
 	world_entities 		: [..]ZEntity;
 
-	// Memory
-	world_pool			: Flat_Pool;
-	allocator			: Allocator;
+	type				: World_Type;
 }
 
 MAX_ENTITIES_PER_ARCHETYPE :: 2048;

@@ -22,14 +22,6 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 
 		print_to_builder(*builder, "\n// Observer Executor for %\n", observer.name);
 		print_to_builder(*builder, "execute_% :: (game_world: *Game_World, entities: []ZEntity) {\n", observer.name);
-			
-			if observer.flags & cast(u32)Observer_Flags.VISUAL {
-				print_to_builder(*builder, "\tif context.headless {\n");
-					print_to_builder(*builder, "\tprint(\"WARNING: Attempted to run VISUAL-tagged observer % in headless mode\\n\");\n", observer.name);
-					print_to_builder(*builder, "\t\treturn;\n");
-				print_to_builder(*builder, "\t}\n");
-				print_to_builder(*builder, "\n");
-			}
 
 			print_to_builder(*builder, "\tworld := *game_world.world;\n");
 			print_to_builder(*builder, "\tarchetype := entities[0].archetype;\n");
@@ -73,9 +65,36 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 	}
 	print_to_builder(*builder, "\n// Observer Registration Function\n");
 	print_to_builder(*builder, "register_observers :: (world: *ZWorld) {\n");
-		for observer: observers {
-				print_to_builder(*builder, "\tregister_%(world);\n", observer.name);
-		}
+		print_to_builder(*builder, "\tif world.type & .MENU {\n");
+			for observer: observers {
+				if !(observer.flags & cast(u32)Observer_Flags.AUTOREGISTER) {
+					continue observer;
+				}
+				if observer.world_types & cast(u8)World_Type.MENU {
+					print_to_builder(*builder, "\t\tregister_%(world);\n", observer.name);
+				}
+			}
+		print_to_builder(*builder, "\t}\n");
+		print_to_builder(*builder, "\tif world.type & .REPLAY {\n");
+			for observer: observers {
+				if !(observer.flags & cast(u32)Observer_Flags.AUTOREGISTER) {
+					continue observer;
+				}
+				if observer.world_types & cast(u8)World_Type.REPLAY {
+					print_to_builder(*builder, "\t\tregister_%(world);\n", observer.name);
+				}
+			}
+		print_to_builder(*builder, "\t}\n");
+		print_to_builder(*builder, "\tif world.type & .SIMULATION {\n");
+			for observer: observers {
+				if !(observer.flags & cast(u32)Observer_Flags.AUTOREGISTER) {
+					continue observer;
+				}
+				if observer.world_types & cast(u8)World_Type.SIMULATION {
+					print_to_builder(*builder, "\t\tregister_%(world);\n", observer.name);
+				}
+			}
+		print_to_builder(*builder, "\t}\n");
 	print_to_builder(*builder, "}\n");
     return builder_to_string(*builder);
 }

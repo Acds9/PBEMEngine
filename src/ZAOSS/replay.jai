@@ -25,7 +25,7 @@ open_replay :: (game: string, turn: s32 = -1) {
 	}
 	read_from_disk_turn(*replay_system.active_turn_file, game, xx turn);
 	replay_system.replay_world.name = game;
-	initialize_zworld(*replay_system.replay_world.world);
+	initialize_zworld(*replay_system.replay_world.world, .REPLAY);
 	initialize_zscene(*replay_system.replay_world.scene, VMA_ALLOCATOR, ZRENDERER.device);
 	game_world_state = .REPLAY;
 	menu_state = .NONE;

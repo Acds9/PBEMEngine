@@ -78,7 +78,7 @@ game_init :: () -> bool {
 	using GAME_INSTANCE;
 
 	main_menu_world.name = "main_menu";
-	initialize_zworld(*main_menu_world.world);
+	initialize_zworld(*main_menu_world.world, .MENU);
 	
     // Renderer setup
     init_success, init_error := init_zrenderer(*ZRENDERER);

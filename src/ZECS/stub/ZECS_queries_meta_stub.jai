@@ -34,17 +34,21 @@ ZEntity :: struct
 	archetype	: u16;
 }
 
+
+World_Type :: enum_flags u8 {
+	MENU;
+	REPLAY;
+	SIMULATION;
+}
+
 ZWorld :: struct {
 	world_archetypes 	: [MAX_ARCHETYPES]Archetype_Storage;
 	world_entities 		: [..]ZEntity;
 
-	// Memory
-	world_pool			: Flat_Pool;
-	allocator			: Allocator;
-
 	observer_registry	: Observer_Registry;
 	observer_buffer		: Observer_Buffer;
 
+	type				: World_Type;
 }
 
 Observer_Registry :: struct {
@@ -92,8 +96,8 @@ ZScene :: struct {
 	device_debug_transforms		: *void;
 }
 
-Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_world: *Game_World) {};
-Observer_Point_Light_Spawn_Event :: (entity_idx: ZEntity, game_world: *Game_World) {};
+Observer_Ship_Spawn_Render_Mesh_Event :: (entity_idx: ZEntity, game_world: *Game_World) {};
+Observer_Light_Spawn_Render_Light_Event :: (entity_idx: ZEntity, game_world: *Game_World) {};
 
 serialize_to_buffer_string :: (dest: *[..]u8, src: string) {}
 

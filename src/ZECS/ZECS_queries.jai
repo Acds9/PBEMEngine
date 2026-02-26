@@ -1,7 +1,7 @@
 Query_Flags		:: enum_flags u32 {
 	NON_PARALLEL;
 	ATOMIC_COUNTER;
-	VISUAL;
+	RENDERING;
 }
 
 Query :: struct {
@@ -14,7 +14,8 @@ Query_Update_Render_Proxy :: struct {
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.SHIP;
 
-	QUERY_FLAGS				:: Query_Flags.VISUAL;
+	QUERY_FLAGS				:: Query_Flags.RENDERING;
+	WORLD_TYPES				:: World_Type.REPLAY;
 }
 
 Query_Debug_Draw_Point_Light :: struct {
@@ -24,7 +25,8 @@ Query_Debug_Draw_Point_Light :: struct {
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.LIGHT;
 
-	QUERY_FLAGS				:: Query_Flags.NON_PARALLEL | .VISUAL;
+	QUERY_FLAGS				:: Query_Flags.NON_PARALLEL | .RENDERING;
+	WORLD_TYPES				:: World_Type.REPLAY;
 }
 
 Query_Debug_Draw_AABB :: struct {
@@ -34,7 +36,8 @@ Query_Debug_Draw_AABB :: struct {
 	ARCHETYPE_COMPONENTS 	:: Type.[];
 	TAGS					:: ZTags.SHIP;
 
-	QUERY_FLAGS				:: Query_Flags.NON_PARALLEL | .VISUAL;
+	QUERY_FLAGS				:: Query_Flags.NON_PARALLEL | .RENDERING;
+	WORLD_TYPES				:: World_Type.REPLAY;
 }
 
 Query_Spatialize_Entities :: struct {
@@ -45,6 +48,7 @@ Query_Spatialize_Entities :: struct {
 	TAGS					:: ZTags.SHIP;
 
 	QUERY_FLAGS				:: Query_Flags.ATOMIC_COUNTER;
+	WORLD_TYPES				:: World_Type.SIMULATION;
 }
 
 Query_Update_Physics :: struct {
@@ -55,4 +59,5 @@ Query_Update_Physics :: struct {
 	TAGS					:: ZTags.SHIP;
 
 	QUERY_FLAGS				:: 0;
+	WORLD_TYPES				:: World_Type.SIMULATION;
 }

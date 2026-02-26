@@ -1,4 +1,4 @@
-Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_world: *Game_World) {
+Observer_Ship_Spawn_Render_Mesh_Event :: (entity_idx: ZEntity, game_world: *Game_World) {
 	world := *game_world.world;
 	mesh_rep := get_archetype_component(world, get_archetype(entity_idx.archetype), Mesh_Rep);
 	mesh, found := table_find(*ZRENDERER.mesh_map, mesh_rep.value);
@@ -10,7 +10,7 @@ Observer_Ship_Spawn_Event :: (entity_idx: ZEntity, game_world: *Game_World) {
 	add_scene_mesh(*game_world.scene, mesh, Matrix4.{_11=-1, _22=-1, _33=1, _44=1}, *mesh_instance_address.value);
 }
 
-Observer_Point_Light_Spawn_Event :: (entity_idx: ZEntity, game_world: *Game_World) {
+Observer_Light_Spawn_Render_Light_Event :: (entity_idx: ZEntity, game_world: *Game_World) {
 	world := *game_world.world;
 	scene := *game_world.scene;
 

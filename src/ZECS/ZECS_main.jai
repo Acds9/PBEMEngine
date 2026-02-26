@@ -30,15 +30,24 @@ entity_exists :: (world: *ZWorld, entity: ZEntity) -> bool {
 	return entity.index < arch_storage.num_entities;
 }
 
+World_Type :: enum_flags u8 {
+	MENU;
+	REPLAY;
+	SIMULATION;
+}
+
 ZWorld :: struct {
 	world_archetypes 	: [MAX_ARCHETYPES]Archetype_Storage;
 	world_entities 		: [..]ZEntity;
 
 	observer_registry	: Observer_Registry;
 	observer_buffer		: Observer_Buffer;
+
+	type				: World_Type;
 }
 
-initialize_zworld :: (world: *ZWorld) {
+initialize_zworld :: (world: *ZWorld, type: World_Type) {
+	world.type = type;
 	initialize_archetypes(world);
     register_observers(world);
 }
