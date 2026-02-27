@@ -14,5 +14,5 @@ order_executor_set_torque :: (world: *ZWorld, order: *Order, torque: float32) {
 		print("WARNING: Order executor attempted to fetch Rotational Velocity component in entity % of archetype %, but none was found\n", order.entity, archetype);
 		return;
 	}
-	torque_component.value.x = torque;
+	torque_component.value.z = torque;
 }

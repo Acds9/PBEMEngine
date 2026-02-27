@@ -70,7 +70,7 @@ get_simulation_entry :: (game: string) -> *Simulation_Instance {
 
 simulate :: (sim_entry: *Simulation_Instance) {
 	if sim_entry.state != .PENDING {
-		print("WARNING: Attempted to simulate a non-pending request for game % whose current state is %, aborting.", sim_entry.game, sim_entry.state);
+		print("WARNING: Attempted to simulate a non-pending request for game % whose current state is %, aborting.\n", sim_entry.game, sim_entry.state);
 		return;
 	}
 	narrow(#code{
@@ -106,16 +106,10 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	sim_entry.state = .SIMULATING;
 	sim_entry.sim_state.current_step = sim_entry.parameters.step_start;
 	while sim_entry.sim_state.current_step < sim_entry.parameters.step_end {
-		simulation_timeline_tick(*sim_entry.order_timeline, sim_entry.sim_state.current_step, *sim_entry.game_world.world); 
-		barrier_wait(context.lane_barrier);
-		scene_tick(*sim_entry.game_world, sim_entry.parameters.step_delta_time);
-		barrier_wait(context.lane_barrier);
-        game_tick(*sim_entry.game_world, sim_entry.parameters.step_delta_time);
+		simulation_tick(sim_entry);
 		barrier_wait(context.lane_barrier);
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Step % simulated", sim_entry.sim_state.current_step));
-		// TODO: lots of barriers here, are they all needed?
 		sim_entry.sim_state.current_step += 1;
-		// TODO: need to start serializing stuff that happens in the game, need orders first?
 	}
 	narrow(#code{
 		time_end := seconds_since_init();
@@ -144,6 +138,26 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		}
 		ZLog.flush_log_buffers(*ZLog.ZLOGGER);
 	});
+}
+
+// TODO: lots of barriers here, are they all needed?
+simulation_tick :: (using sim_instance: *Simulation_Instance) {
+	dT := parameters.step_delta_time;
+	simulation_timeline_tick(*order_timeline, sim_state.current_step, *game_world.world);
+	barrier_wait(context.lane_barrier);
+	scene_tick(*game_world, dT);
+	barrier_wait(context.lane_barrier);
+	
+	execute_Query_Update_Physics(*game_world.world, #code {
+		local_thrust := rotate(.{1,0,0}, rotation.value) * thrust.value*dT;
+		linear_velocity.value =  linear_velocity.value + local_thrust;
+		linear_velocity.value *= exp(-1 * dT);
+		position.value += linear_velocity.value*dT;
+		rotation.value = add_angular_delta(rotation.value, rotational_velocity.value, dT);
+	});
+
+	barrier_wait(context.lane_barrier);
+	flush_observers(*game_world.world);
 }
 
 simulation_timeline_tick :: (timeline: *Turn_Timeline, step: u32, world: *ZWorld) {

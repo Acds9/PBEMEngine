@@ -158,36 +158,6 @@ game_update_camera :: () {
     }
 }
 
-game_tick :: (using game_world: *Game_World, delta_time: float32) {
-	{
-		{
-			execute_Query_Update_Render_Proxy(*world, #code { // ERROR: Component are not default initialized, transform is 0
-				transform := Transform.{position.value, rotation.value, scale.value};
-				matrix := transform_to_matrix4(transform);
-				idx := mesh_render_proxy_ec.value;
-				
-				mesh_instance := render_get_mesh_instance(*scene, idx);
-				render_set_transform(*game_world.scene, idx, *matrix);
-			});
-		}
-		{
-			execute_Query_Update_Physics(*world, #code {
-				local_thrust := rotate(.{1,0,0}, rotation.value) * thrust.value*delta_time;
-				linear_velocity.value =  linear_velocity.value + local_thrust;
-				linear_velocity.value *= exp(-1 * delta_time);
-				position.value += linear_velocity.value*delta_time;
-				rotation.value = add_angular_delta(rotation.value, rotational_velocity.value, delta_time);
-			});
-		}
-	}
-	narrow(#code{
-		debug_tick();
-	});
-	barrier_wait(context.lane_barrier);
-
-	tick_world(*world, delta_time);
-}
-
 game_render :: (using game_world: *Game_World) {
     if !ZRENDERER.minimized {
         draw_frame(*ZRENDERER, *scene);
@@ -274,21 +244,24 @@ game_loop :: () {
 			imgui_begin_frame(.{xx,no_check ZRENDERER.draw_extent.width, xx,no_check ZRENDERER.draw_extent.height});
 			
 			process_input(*event);
-       		game_update_camera();
- 
 			player_controller_tick(*GAME_INSTANCE.player_controller, get_active_game_world());
+       		game_update_camera();
 
 			if GAME_INSTANCE.menu_state != .NONE {
 				draw_main_menu();
 			}
 			imgui_tick();
-
+			
 			game_render(get_active_game_world());
 		});
 		barrier_wait(context.lane_barrier);
-
-		scene_tick(get_active_game_world(), GAME_INSTANCE.delta_time);
-    	game_tick(get_active_game_world(), GAME_INSTANCE.delta_time);
+		if GAME_INSTANCE.game_world_state == .MAIN_MENU {
+			// Menu tick? Maybe later when we have a real UI system
+		} else if GAME_INSTANCE.game_world_state == .REPLAY {
+			tick_replay(get_active_game_world(), GAME_INSTANCE.delta_time);
+		}
+		
+		barrier_wait(context.lane_barrier);
     }
 }
 

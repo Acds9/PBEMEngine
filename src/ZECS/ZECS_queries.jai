@@ -48,7 +48,7 @@ Query_Spatialize_Entities :: struct {
 	TAGS					:: ZTags.SHIP;
 
 	QUERY_FLAGS				:: Query_Flags.ATOMIC_COUNTER;
-	WORLD_TYPES				:: World_Type.SIMULATION;
+	WORLD_TYPES				:: World_Type.SIMULATION | .REPLAY;
 }
 
 Query_Update_Physics :: struct {

@@ -25,7 +25,7 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 
 			print_to_builder(*builder, "\tworld := *game_world.world;\n");
 			print_to_builder(*builder, "\tarchetype := entities[0].archetype;\n");
-			print_to_builder(*builder, "\tarch_storage := *world.world_archetypes[entities[0].archetype];\n");
+			print_to_builder(*builder, "\tarch_storage := *world.world_archetypes[archetype];\n");
 			print_to_builder(*builder, "\tmin, max := lane_range(xx,no_check entities.count);\n");
 			print_to_builder(*builder, "\tfor min..max {\n");
 				print_to_builder(*builder, "\t\tentity := entities[it];\n");

@@ -33,3 +33,22 @@ open_replay :: (game: string, turn: s32 = -1) {
 	// TODO: need to validate timeline here
 	create_start_state_from_timeline(*replay_system.active_turn_file.timeline, *replay_system.replay_world.world);
 }
+
+tick_replay :: (using game_world: *Game_World, delta_time: float32) {
+	execute_Query_Update_Render_Proxy(*world, #code { 
+		transform := Transform.{position.value, rotation.value, scale.value};
+		matrix := transform_to_matrix4(transform);
+		idx := mesh_render_proxy_ec.value;
+				
+		mesh_instance := render_get_mesh_instance(*scene, idx);
+		render_set_transform(*game_world.scene, idx, *matrix);
+	});
+	narrow(#code{
+		debug_tick();
+	});
+	barrier_wait(context.lane_barrier);
+	scene_tick(game_world, delta_time);
+	barrier_wait(context.lane_barrier);
+	flush_observers(*game_world.world);
+	barrier_wait(context.lane_barrier);
+}

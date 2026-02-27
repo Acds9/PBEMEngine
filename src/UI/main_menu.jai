@@ -113,6 +113,7 @@ draw_main_menu :: () {
 				Text(manifest.name);
 				SameLine();
 				if Button("Simulate") {
+					print("Sim queued\n");
 					queue_simulation(manifest.name);
 					simulate_pending_sims();
 					break manifest;
