@@ -25,6 +25,13 @@ get_active_game_world :: () -> *Game_World {
 	return *GAME_INSTANCE.main_menu_world;
 }
 
+// Here instead of in game_world.jai due to the ghastly multi-phase build system
+// TODO: Build system really needs a full rewrite soon
+deinitialize :: (using self: *Game_World) { 
+	deinitialize(*world);
+	deinitialize(*scene);
+}
+
 Game_Instance :: struct {
 	game_world_state	: GAME_WORLD_STATE;
 	main_menu_world		: Game_World = .{"main_menu", .{}, .{}};
@@ -107,11 +114,25 @@ game_init :: () -> bool {
 
 window_handle_sdl_event :: (event: *SDL_Event) {
 	using GAME_INSTANCE;
-	if event.type == {
+	if event.type== {
 		case SDL_QUIT;
 			quit = true;
 		case SDL_KEYUP;
-			if event.key.keysym.sym == SDLK_ESCAPE quit = true;
+			if event.key.keysym.sym == SDLK_ESCAPE {
+				if game_world_state== {
+					case .REPLAY; {
+						quit_replay();
+					}
+					case .MAIN_MENU; {
+						if menu_state == .MAIN {
+							quit = true;
+						}
+						else {
+							menu_state = .MAIN;
+						}
+					}
+				}
+			} 
 		case SDL_WINDOWEVENT;
 			if event.window.event == SDL_WINDOWEVENT_MINIMIZED {
 				ZRENDERER.minimized = true;
@@ -174,9 +195,9 @@ game_render :: (using game_world: *Game_World) {
 game_shutdown :: () {
 	using GAME_INSTANCE;
     vkDeviceWaitIdle(ZRENDERER.device);
+	deinitialize(get_active_game_world());
     deinit_zrenderer(*ZRENDERER);
 	WakeAllConditionVariable(*GAME_INSTANCE.lane_system.barrier.cond); // Make sure to release any thread stuck on barrier
-    // Add world cleanup later
 }
 
 process_input :: (event: *SDL_Event) {

@@ -52,3 +52,16 @@ tick_replay :: (using game_world: *Game_World, delta_time: float32) {
 	flush_observers(*game_world.world);
 	barrier_wait(context.lane_barrier);
 }
+
+quit_replay :: () {
+	vkDeviceWaitIdle(ZRENDERER.device); // 
+	replay_system := *GAME_INSTANCE.replay_system;
+
+	deinitialize(get_active_game_world());
+	
+	replay_system.order_file = .{};
+	replay_system.current_step = 0;
+
+	GAME_INSTANCE.game_world_state = .MAIN_MENU;
+	GAME_INSTANCE.menu_state = .MAIN;
+}

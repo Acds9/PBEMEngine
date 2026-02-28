@@ -5,6 +5,14 @@ Allocated_Buffer :: struct {
 	base_address: VkDeviceAddress;
 }
 
+deinitialize :: (using self: *Allocated_Buffer) {
+	if buffer == VK_NULL_HANDLE {
+		return;
+	}
+	vmaDestroyBuffer(VMA_ALLOCATOR, buffer, allocation);
+	buffer = VK_NULL_HANDLE;
+}
+
 // Non uniform storage buffer, just an Allocated_Buffer with an offset for writing, not really meant for things to be removed from it
 Storage_Buffer :: struct {
 	using base	: Allocated_Buffer;
@@ -33,6 +41,10 @@ Storage_Buffer :: struct {
 	reset :: (using self: *Storage_Buffer) {
 		offset = 0;
 	}
+}
+
+deinitialize :: (using self: *Storage_Buffer) {
+	deinitialize(*base);
 }
 
 // Specializaiton for storage of identically sized chunks e.g. copies of the same struct
@@ -75,6 +87,12 @@ Uniform_Storage_Buffer :: struct {
 		array_reset(*generations);
 		count = 0;
 	}
+}
+
+deinitialize :: (using self: *Uniform_Storage_Buffer) {
+	deinitialize(*base);
+	array_free(free_list);
+	array_free(generations);
 }
 
 Staged_Uniform_Storage_Buffer :: struct {
@@ -167,6 +185,14 @@ Staged_Uniform_Storage_Buffer :: struct {
 	}
 }
 
+deinitialize :: (using self: *Staged_Uniform_Storage_Buffer) {
+	deinitialize(*staging_buffer);
+	deinitialize(*device_buffer);
+	array_free(free_list);
+	deinitialize(*visibility_staging);
+	deinitialize(*visibility_device);
+}
+
 Linear_Buffer :: struct {
     using parent: Storage_Buffer;
     element_size: u64;
@@ -186,6 +212,11 @@ Linear_Buffer :: struct {
 		offset = 0;
 	}
 }
+
+deinitialize :: (using self: *Linear_Buffer) {
+	deinitialize(*parent);
+}
+
 
 // Intended to be used as a bitfield
 Bitfield_Buffer :: struct {
@@ -209,6 +240,10 @@ Bitfield_Buffer :: struct {
         
         return (words[word_index] & (1 << bit_pos)) != 0;
 	}
+}
+
+deinitialize :: (using self: *Bitfield_Buffer) {
+	deinitialize(*base);
 }
 
 // Meant for writing straight into, e.g. draw command buffers
@@ -250,6 +285,11 @@ Staged_Array_Buffer :: struct {
     }
 }
 
+deinitialize :: (using self: *Staged_Array_Buffer) {
+	deinitialize(*staging_buffer);
+	deinitialize(*device_buffer);
+}
+
 // For single struct buffers that NEED low access latency of device memory
 Staged_Struct_Buffer :: struct {
 	staging_buffer  : Allocated_Buffer;
@@ -268,6 +308,11 @@ Staged_Struct_Buffer :: struct {
         copy.size = size;
         vkCmdCopyBuffer(cmd, staging_buffer.buffer, device_buffer.buffer, 1, *copy);
     }
+}
+
+deinitialize :: (using self: *Staged_Struct_Buffer) {
+	deinitialize(*staging_buffer);
+	deinitialize(*device_buffer);
 }
 
 create_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Allocated_Buffer {

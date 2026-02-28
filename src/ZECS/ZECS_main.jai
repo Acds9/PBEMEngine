@@ -52,6 +52,15 @@ initialize_zworld :: (world: *ZWorld, type: World_Type) {
     register_observers(world);
 }
 
+deinitialize :: (using world: *ZWorld) {
+	for *as: world_archetypes {
+		deinitialize(as);
+	}
+	array_free(world_entities);
+	deinitialize(*observer_registry);
+	deinitialize(*observer_buffer);
+}
+
 reset_world :: (world: *ZWorld) {
    
 }
@@ -280,9 +289,6 @@ initialize_archetype_storage :: (archetype: u16) -> Archetype_Storage {
 	return storage;
 }
 
-initialize_archetype_storage :: (archetype: Type) -> Archetype_Storage {
-	return initialize_archetype_storage(get_archetype_storage_index(archetype));
-}
 
 // Components
 
@@ -290,6 +296,11 @@ Entity_Component_Storage :: struct {
 	type			: Type;
 	data			: [..]u8;		// Raw data, this is the array where all the entity entity_components are stored linearly
 	stride			: u32;			// Size of one component in bytes
+}
+
+deinitialize :: (using entity_component_storage: *Entity_Component_Storage) {
+	array_free(data);
+	free(entity_component_storage);
 }
 
 array_view :: ($T: Type, storage: *Entity_Component_Storage, count: u32) -> []T {
@@ -318,6 +329,19 @@ Archetype_Storage :: struct {
 
 	// Autogenerate this from archetype data later
 	chunk_size				: u32 = DEFAULT_ENTITY_CHUNK_SIZE;
+}
+
+initialize_archetype_storage :: (archetype: Type) -> Archetype_Storage {
+	return initialize_archetype_storage(get_archetype_storage_index(archetype));
+}
+
+deinitialize :: (using archetype_storage: *Archetype_Storage) {
+	for *storage: entity_components {
+		deinitialize(storage);
+	}
+	array_free(archetype_components);
+	array_free(free_indices);
+	array_free(generations);
 }
 
 get_entity_component :: (world: *ZWorld, entity: ZEntity, $T: Type) -> *T, bool {

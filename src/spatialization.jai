@@ -38,6 +38,19 @@ LBVH_System :: struct {
 	}
 }
 
+deinitialize :: (using self: *LBVH_System) {
+	array_free(lane_bounds);
+	array_free(lane_entity_counts);
+	array_free(node_counters);
+
+	array_free(morton_codes);
+	array_free(morton_src);
+	array_free(morton_dst);
+
+	array_free(internal_nodes);
+	array_free(leaf_parents);
+}
+
 build_bvh :: (game_world: *Game_World) {
 	system := *game_world.scene.bvh_system;
 	compute_scene_bounds(game_world);

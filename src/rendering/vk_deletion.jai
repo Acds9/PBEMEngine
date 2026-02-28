@@ -32,11 +32,17 @@ Deletion_Queue :: struct {
 			vkDestroyFence(it.device, it.fence, null);
 		}
 		for <buffers {
+			if it.buffer == VK_NULL_HANDLE {
+				continue;
+			}
 			vmaDestroyBuffer(it.allocator, it.buffer, it.allocation);
 		}
 		for <samplers {
 			vkDestroySampler(it.device, it.sampler, null);
 		}
+		reset_deletion_queue(self);
+	}
+	reset_deletion_queue :: (using self: *Deletion_Queue) {
 		array_reset(*image_views);
 		array_reset(*images);
 		array_reset(*desc_layouts);

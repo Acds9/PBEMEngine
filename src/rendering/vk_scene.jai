@@ -34,13 +34,10 @@ ZScene :: struct {
 
 initialize_zscene :: (scene: *ZScene, allocator: VmaAllocator, device: VkDevice) {
 	scene.mesh_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MESH_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, true, device, "mesh_instances buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.mesh_instances);
 
 	scene.mesh_transforms = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, TRANSFORM_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, device, "mesh_transforms buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.mesh_transforms);
-	
+
 	scene.point_lights = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, LIGHT_BUFFER_SIZE, size_of(Point_Light), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, true, device, "point_lights buffer");
-	queue_deletion(*GLOBAL_DELETION_QUEUE, VMA_ALLOCATOR, *scene.point_lights);
 
 	lane_count := GAME_INSTANCE.lane_system.lane_count;
 	array_resize(*scene.mesh_add_queue, lane_count);
@@ -49,6 +46,29 @@ initialize_zscene :: (scene: *ZScene, allocator: VmaAllocator, device: VkDevice)
 	array_resize(*scene.light_remove_queue, lane_count);
 	
 	scene.bvh_system.init(*scene.bvh_system);
+}
+
+deinitialize :: (using scene: *ZScene) {
+	deinitialize(*mesh_instances);
+	deinitialize(*mesh_transforms);
+	deinitialize(*point_lights);
+	for *arr: mesh_add_queue {
+		array_free(<<arr);
+	}
+	array_free(mesh_add_queue);
+	for *arr: mesh_remove_queue {
+		array_free(<<arr);
+	}
+	array_free(mesh_remove_queue);
+	for *arr: light_add_queue {
+		array_free(<<arr);
+	}
+	array_free(light_add_queue);
+	for *arr: light_remove_queue {
+		array_free(<<arr);
+	}
+	array_free(light_remove_queue);
+	deinitialize(*bvh_system);
 }
 
 scene_tick :: (game_world: *Game_World, delta_time: float32) {
