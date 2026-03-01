@@ -25,8 +25,8 @@ open_replay :: (game: string, turn: s32 = -1) {
 	}
 	read_from_disk_turn(*replay_system.active_turn_file, game, xx turn);
 	replay_system.replay_world.name = game;
-	initialize_zworld(*replay_system.replay_world.world, .REPLAY);
-	initialize_zscene(*replay_system.replay_world.scene, VMA_ALLOCATOR, ZRENDERER.device);
+	replay_system.replay_world.world = create_world(.REPLAY);
+	replay_system.replay_world.scene = create_scene(VMA_ALLOCATOR, ZRENDERER.device);
 	game_world_state = .REPLAY;
 	menu_state = .NONE;
 	replay_system.order_file = .{replay_system.active_turn_file.game, replay_system.active_turn_file.turn, .{}};
@@ -57,7 +57,7 @@ quit_replay :: () {
 	vkDeviceWaitIdle(ZRENDERER.device); // 
 	replay_system := *GAME_INSTANCE.replay_system;
 
-	deinitialize(get_active_game_world());
+	destroy(get_active_game_world());
 	
 	replay_system.order_file = .{};
 	replay_system.current_step = 0;

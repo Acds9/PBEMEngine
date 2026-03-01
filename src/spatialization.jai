@@ -38,7 +38,7 @@ LBVH_System :: struct {
 	}
 }
 
-deinitialize :: (using self: *LBVH_System) {
+destroy :: (using self: *LBVH_System) {
 	array_free(lane_bounds);
 	array_free(lane_entity_counts);
 	array_free(node_counters);

@@ -46,23 +46,21 @@ ZWorld :: struct {
 	type				: World_Type;
 }
 
-initialize_zworld :: (world: *ZWorld, type: World_Type) {
+create_world :: (type: World_Type) -> ZWorld { // compiler NRVO will take care of not copying a bunch here
+	world : ZWorld; 
 	world.type = type;
-	initialize_archetypes(world);
-    register_observers(world);
+	initialize_archetypes(*world);
+    register_observers(*world);
+	return world;
 }
 
-deinitialize :: (using world: *ZWorld) {
+destroy :: (using world: *ZWorld) {
 	for *as: world_archetypes {
-		deinitialize(as);
+		destroy(as);
 	}
 	array_free(world_entities);
-	deinitialize(*observer_registry);
-	deinitialize(*observer_buffer);
-}
-
-reset_world :: (world: *ZWorld) {
-   
+	destroy(*observer_registry);
+	destroy(*observer_buffer);
 }
 
 init_archetype :: (world: *ZWorld, archetype: Type) {
@@ -298,9 +296,8 @@ Entity_Component_Storage :: struct {
 	stride			: u32;			// Size of one component in bytes
 }
 
-deinitialize :: (using entity_component_storage: *Entity_Component_Storage) {
+destroy :: (using entity_component_storage: *Entity_Component_Storage) {
 	array_free(data);
-	free(entity_component_storage);
 }
 
 array_view :: ($T: Type, storage: *Entity_Component_Storage, count: u32) -> []T {
@@ -335,10 +332,11 @@ initialize_archetype_storage :: (archetype: Type) -> Archetype_Storage {
 	return initialize_archetype_storage(get_archetype_storage_index(archetype));
 }
 
-deinitialize :: (using archetype_storage: *Archetype_Storage) {
+destroy :: (using archetype_storage: *Archetype_Storage) {
 	for *storage: entity_components {
-		deinitialize(storage);
+		destroy(storage);
 	}
+	array_free(entity_components);
 	array_free(archetype_components);
 	array_free(free_indices);
 	array_free(generations);

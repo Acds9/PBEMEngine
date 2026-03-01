@@ -72,3 +72,7 @@ subslice :: (src: [..]u8, offset: s64, count: s64) -> []u8 {
 	return result;
 }
 
+array_free_ptr :: (array: *[..]$T) {
+	array_free(<<array);
+
+}

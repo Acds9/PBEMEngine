@@ -32,7 +32,8 @@ ZScene :: struct {
 	bvh_system 			: LBVH_System;
 }
 
-initialize_zscene :: (scene: *ZScene, allocator: VmaAllocator, device: VkDevice) {
+create_scene :: (allocator: VmaAllocator, device: VkDevice) -> ZScene { // Like in create_world, compiler NRVO
+	scene : ZScene;
 	scene.mesh_instances = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, MESH_BUFFER_SIZE, size_of(Mesh_Instance), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, true, device, "mesh_instances buffer");
 
 	scene.mesh_transforms = make_staged_uniform_storage_buffer(VMA_ALLOCATOR, TRANSFORM_BUFFER_SIZE, size_of(Render_Transform), .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, device, "mesh_transforms buffer");
@@ -46,12 +47,13 @@ initialize_zscene :: (scene: *ZScene, allocator: VmaAllocator, device: VkDevice)
 	array_resize(*scene.light_remove_queue, lane_count);
 	
 	scene.bvh_system.init(*scene.bvh_system);
+	return scene;
 }
 
-deinitialize :: (using scene: *ZScene) {
-	deinitialize(*mesh_instances);
-	deinitialize(*mesh_transforms);
-	deinitialize(*point_lights);
+destroy :: (using scene: *ZScene) {
+	destroy(*mesh_instances);
+	destroy(*mesh_transforms);
+	destroy(*point_lights);
 	for *arr: mesh_add_queue {
 		array_free(<<arr);
 	}
@@ -68,7 +70,7 @@ deinitialize :: (using scene: *ZScene) {
 		array_free(<<arr);
 	}
 	array_free(light_remove_queue);
-	deinitialize(*bvh_system);
+	destroy(*bvh_system);
 }
 
 scene_tick :: (game_world: *Game_World, delta_time: float32) {

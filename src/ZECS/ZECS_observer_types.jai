@@ -3,13 +3,9 @@ Observer_Registry :: struct {
 	on_destroyed:	[MAX_ARCHETYPES][..]Observer_Entry;
 }
 
-deinitialize :: (using observer_registry: *Observer_Registry) {
-	for on_created {
-		array_free(it);
-	}
-	for on_destroyed {
-		array_free(it);
-	}
+destroy :: (using observer_registry: *Observer_Registry) {
+	for on_created  array_free(it);
+	for on_destroyed  array_free(it);
 }
 
 Observer_Buffer :: struct {
@@ -22,13 +18,9 @@ Observer_Buffer :: struct {
 	}
 }
 
-deinitialize :: (using observer_buffer: *Observer_Buffer) {
-	for created {
-		array_free(it);
-	}
-	for destroyed {
-		array_free(it);
-	}
+destroy :: (using observer_buffer: *Observer_Buffer) {
+	for created  array_free(it);
+	for destroyed  array_free(it);
 }
 
 Observer_Entry :: struct {

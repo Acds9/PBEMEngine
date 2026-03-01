@@ -27,9 +27,10 @@ get_active_game_world :: () -> *Game_World {
 
 // Here instead of in game_world.jai due to the ghastly multi-phase build system
 // TODO: Build system really needs a full rewrite soon
-deinitialize :: (using self: *Game_World) { 
-	deinitialize(*world);
-	deinitialize(*scene);
+destroy :: (using self: *Game_World) {
+	destroy(*world);
+	destroy(*scene);
+	memset(self, 0, size_of(Game_World));
 }
 
 Game_Instance :: struct {
@@ -85,7 +86,7 @@ game_init :: () -> bool {
 	using GAME_INSTANCE;
 
 	main_menu_world.name = "main_menu";
-	initialize_zworld(*main_menu_world.world, .MENU);
+	main_menu_world.world = create_world(.MENU);
 	
     // Renderer setup
     init_success, init_error := init_zrenderer(*ZRENDERER);
@@ -96,7 +97,7 @@ game_init :: () -> bool {
 	load_all_meshes(*ZRENDERER); // TODO: this is temporary
     
     // Scene setup
-    initialize_zscene(*main_menu_world.scene, VMA_ALLOCATOR, ZRENDERER.device);
+   	main_menu_world.scene = create_scene(VMA_ALLOCATOR, ZRENDERER.device);
 	
     // Input setup
     SDL_SetRelativeMouseMode(SDL_TRUE);
@@ -197,9 +198,9 @@ game_shutdown :: () {
 	WakeAllConditionVariable(*GAME_INSTANCE.lane_system.barrier.cond); // Make sure to release any thread stuck on barrier
     vkDeviceWaitIdle(ZRENDERER.device);
 	if game_world_state == .REPLAY {
-		deinitialize(*replay_system.replay_world);
+		destroy(*replay_system.replay_world);
 	}
-	deinitialize(*main_menu_world);
+	destroy(*main_menu_world);
     deinit_zrenderer(*ZRENDERER);
 }
 

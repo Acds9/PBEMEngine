@@ -76,7 +76,7 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 	start_turn.step_resolution = step_resolution;
 
 	game_world : ZWorld;
-	initialize_zworld(*game_world, .SIMULATION);
+	game_world = create_world(.SIMULATION);
 	setup_game_world(*game_world);
 
 	initialize_timeline(*start_turn.timeline, 0, 0);

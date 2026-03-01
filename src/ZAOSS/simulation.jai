@@ -84,9 +84,9 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	narrow(#code{
 		// TODO: this needs to actually set up the scene from the game data, this is where we load in meshes, entities, whatever
 		// Also needs multilane where possible
-		initialize_zscene(*sim_entry.game_world.scene, VMA_ALLOCATOR, ZRENDERER.device);
+		sim_entry.game_world.scene = create_scene(VMA_ALLOCATOR, ZRENDERER.device);
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, "ZScene initialization successful");
-		initialize_zworld(*sim_entry.game_world.world, .SIMULATION);
+		sim_entry.game_world.world = create_world(.SIMULATION);
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, "ZWorld initialization successful");
 
 		initialize_timeline(*sim_entry.order_timeline, sim_entry.parameters.step_start, sim_entry.parameters.step_end);
@@ -139,7 +139,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 			write_entire_file(turn_path, turn_buffer.data, turn_buffer.count);
 		}
 		ZLog.flush_log_buffers(*ZLog.ZLOGGER);
-		deinitialize(*sim_entry.game_world);
+		destroy(*sim_entry.game_world);
 	});
 }
 

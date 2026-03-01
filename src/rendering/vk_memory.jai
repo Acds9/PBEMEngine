@@ -5,7 +5,7 @@ Allocated_Buffer :: struct {
 	base_address: VkDeviceAddress;
 }
 
-deinitialize :: (using self: *Allocated_Buffer) {
+destroy :: (using self: *Allocated_Buffer) {
 	if buffer == VK_NULL_HANDLE {
 		return;
 	}
@@ -43,8 +43,8 @@ Storage_Buffer :: struct {
 	}
 }
 
-deinitialize :: (using self: *Storage_Buffer) {
-	deinitialize(*base);
+destroy :: (using self: *Storage_Buffer) {
+	destroy(*base);
 }
 
 // Specializaiton for storage of identically sized chunks e.g. copies of the same struct
@@ -89,8 +89,8 @@ Uniform_Storage_Buffer :: struct {
 	}
 }
 
-deinitialize :: (using self: *Uniform_Storage_Buffer) {
-	deinitialize(*base);
+destroy :: (using self: *Uniform_Storage_Buffer) {
+	destroy(*base);
 	array_free(free_list);
 	array_free(generations);
 }
@@ -185,12 +185,12 @@ Staged_Uniform_Storage_Buffer :: struct {
 	}
 }
 
-deinitialize :: (using self: *Staged_Uniform_Storage_Buffer) {
-	deinitialize(*staging_buffer);
-	deinitialize(*device_buffer);
+destroy :: (using self: *Staged_Uniform_Storage_Buffer) {
+	destroy(*staging_buffer);
+	destroy(*device_buffer);
 	array_free(free_list);
-	deinitialize(*visibility_staging);
-	deinitialize(*visibility_device);
+	destroy(*visibility_staging);
+	destroy(*visibility_device);
 }
 
 Linear_Buffer :: struct {
@@ -213,8 +213,8 @@ Linear_Buffer :: struct {
 	}
 }
 
-deinitialize :: (using self: *Linear_Buffer) {
-	deinitialize(*parent);
+destroy :: (using self: *Linear_Buffer) {
+	destroy(*parent);
 }
 
 
@@ -242,8 +242,8 @@ Bitfield_Buffer :: struct {
 	}
 }
 
-deinitialize :: (using self: *Bitfield_Buffer) {
-	deinitialize(*base);
+destroy :: (using self: *Bitfield_Buffer) {
+	destroy(*base);
 }
 
 // Meant for writing straight into, e.g. draw command buffers
@@ -285,9 +285,9 @@ Staged_Array_Buffer :: struct {
     }
 }
 
-deinitialize :: (using self: *Staged_Array_Buffer) {
-	deinitialize(*staging_buffer);
-	deinitialize(*device_buffer);
+destroy :: (using self: *Staged_Array_Buffer) {
+	destroy(*staging_buffer);
+	destroy(*device_buffer);
 }
 
 // For single struct buffers that NEED low access latency of device memory
@@ -310,9 +310,9 @@ Staged_Struct_Buffer :: struct {
     }
 }
 
-deinitialize :: (using self: *Staged_Struct_Buffer) {
-	deinitialize(*staging_buffer);
-	deinitialize(*device_buffer);
+destroy :: (using self: *Staged_Struct_Buffer) {
+	destroy(*staging_buffer);
+	destroy(*device_buffer);
 }
 
 create_buffer :: (allocator: VmaAllocator, alloc_size: u64, usage: VkBufferUsageFlags, memory_usage: VmaMemoryUsage, device: VkDevice = null, debug_name: string = "") -> Allocated_Buffer {
