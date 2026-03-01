@@ -112,8 +112,10 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		sim_entry.sim_state.current_step += 1;
 	}
 	narrow(#code{
+
 		time_end := seconds_since_init();
 		print("Simulation Complete, time elapsed: %\n", time_end-time_start);
+
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Finished simulation of game: %, steps: %, time: % seconds\n", sim_entry.game, sim_entry.parameters.step_end-sim_entry.parameters.step_start, time_end-time_start));
 		{
 			start_turn : Turn_File;
@@ -137,6 +139,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 			write_entire_file(turn_path, turn_buffer.data, turn_buffer.count);
 		}
 		ZLog.flush_log_buffers(*ZLog.ZLOGGER);
+		deinitialize(*sim_entry.game_world);
 	});
 }
 
