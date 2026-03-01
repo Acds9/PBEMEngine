@@ -276,6 +276,9 @@ game_loop :: () {
 			game_render(get_active_game_world());
 		});
 		barrier_wait(context.lane_barrier);
+		
+		simulate_pending_sims();
+		
 		if GAME_INSTANCE.game_world_state == .MAIN_MENU {
 			// Menu tick? Maybe later when we have a real UI system
 		} else if GAME_INSTANCE.game_world_state == .REPLAY {

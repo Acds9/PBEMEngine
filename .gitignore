@@ -31,3 +31,4 @@ claude_notes.txt
 
 # Logs
 *.zlog
+.claude/settings.local.json
