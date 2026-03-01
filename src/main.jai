@@ -196,9 +196,11 @@ game_shutdown :: () {
 	using GAME_INSTANCE;
 	WakeAllConditionVariable(*GAME_INSTANCE.lane_system.barrier.cond); // Make sure to release any thread stuck on barrier
     vkDeviceWaitIdle(ZRENDERER.device);
-	deinitialize(get_active_game_world());
+	if game_world_state == .REPLAY {
+		deinitialize(*replay_system.replay_world);
+	}
+	deinitialize(*main_menu_world);
     deinit_zrenderer(*ZRENDERER);
-	
 }
 
 process_input :: (event: *SDL_Event) {
