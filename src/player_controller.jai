@@ -2,7 +2,6 @@ Player_Controller :: struct {
 	previous_selection	: [..]ZEntity;
 	current_selection	: [..]ZEntity;
 	selection_dirty		: bool;
-
 }
 
 player_controller_on_selection_change :: (using pc: *Player_Controller) {
@@ -14,6 +13,7 @@ player_controller_on_selection_change :: (using pc: *Player_Controller) {
 player_controller_tick :: (using pc: *Player_Controller, game_world: *Game_World) {
 	if current_selection.count != 0 {
 		entity := current_selection[0];
+		
 		pos := get_entity_component(*game_world.world, entity, Position);
 		debug_draw_mesh(zr = *ZRENDERER, position = pos.value, scale = .{32,32,32});
 	}

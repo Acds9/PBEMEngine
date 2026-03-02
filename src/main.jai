@@ -8,25 +8,17 @@
 
 GAME_VERSION :: "0.0.1";
 
-GAME_WORLD_STATE :: enum u8 {
-	MAIN_MENU;
-	REPLAY;
-}
-
-get_active_game_world :: () -> *Game_World {
-	if GAME_INSTANCE.game_world_state == {
-		case .MAIN_MENU; {
-			return *GAME_INSTANCE.main_menu_world;
-		}
-		case .REPLAY; {
-			return *GAME_INSTANCE.replay_system.replay_world;
-		}
-	}
-	return *GAME_INSTANCE.main_menu_world;
-}
-
 // Here instead of in game_world.jai due to the ghastly multi-phase build system
 // TODO: Build system really needs a full rewrite soon
+create_game_world :: (name: string, type: World_Type) -> Game_World {
+	game_world : Game_World;
+	game_world.type = type;
+	game_world.name = name; 
+	game_world.world = create_world(type);
+	game_world.scene = create_scene(VMA_ALLOCATOR, ZRENDERER.device);
+	return game_world;
+}
+
 destroy :: (using self: *Game_World) {
 	destroy(*world);
 	destroy(*scene);
@@ -34,9 +26,7 @@ destroy :: (using self: *Game_World) {
 }
 
 Game_Instance :: struct {
-	game_world_state	: GAME_WORLD_STATE;
-	main_menu_world		: Game_World = .{"main_menu", .{}, .{}};
-	active_replay_world	: Game_World;
+	active_world		: Game_World;
     quit				: bool;
 
 	player_controller 	: Player_Controller;
@@ -84,9 +74,6 @@ mi_allocator :: Allocator.{
 
 game_init :: () -> bool {
 	using GAME_INSTANCE;
-
-	main_menu_world.name = "main_menu";
-	main_menu_world.world = create_world(.MENU);
 	
     // Renderer setup
     init_success, init_error := init_zrenderer(*ZRENDERER);
@@ -96,9 +83,8 @@ game_init :: () -> bool {
     }
 	load_all_meshes(*ZRENDERER); // TODO: this is temporary
     
-    // Scene setup
-   	main_menu_world.scene = create_scene(VMA_ALLOCATOR, ZRENDERER.device);
-	
+	enter_main_menu();
+
     // Input setup
     SDL_SetRelativeMouseMode(SDL_TRUE);
     SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1");
@@ -113,6 +99,13 @@ game_init :: () -> bool {
     return true;
 }
 
+enter_main_menu :: () {
+	using GAME_INSTANCE;
+	active_world = create_game_world("main_menu", .MAIN_MENU);
+
+	GAME_INSTANCE.menu_state = .MAIN;
+}
+
 window_handle_sdl_event :: (event: *SDL_Event) {
 	using GAME_INSTANCE;
 	if event.type== {
@@ -120,7 +113,7 @@ window_handle_sdl_event :: (event: *SDL_Event) {
 			quit = true;
 		case SDL_KEYUP;
 			if event.key.keysym.sym == SDLK_ESCAPE {
-				if game_world_state== {
+				if active_world.type== {
 					case .REPLAY; {
 						quit_replay();
 					}
@@ -197,10 +190,7 @@ game_shutdown :: () {
 	using GAME_INSTANCE;
 	WakeAllConditionVariable(*GAME_INSTANCE.lane_system.barrier.cond); // Make sure to release any thread stuck on barrier
     vkDeviceWaitIdle(ZRENDERER.device);
-	if game_world_state == .REPLAY {
-		destroy(*replay_system.replay_world);
-	}
-	destroy(*main_menu_world);
+	destroy(*GAME_INSTANCE.active_world); 
     deinit_zrenderer(*ZRENDERER);
 }
 
@@ -242,7 +232,7 @@ process_input :: (event: *SDL_Event) {
 			SDL_GetMouseState(*x, *y);
 			origin, dir := screen_to_ray(x, y, xx,no_check ZRENDERER.resolution.width, xx,no_check ZRENDERER.resolution.height, *ZRENDERER.camera.gpu_data.view_proj);
 			debug_draw_line(*ZRENDERER, origin, origin + dir*50000, .{1,0,0,1}, 500);
-			hit, entity := trace_ray(*get_active_game_world().scene.bvh_system, origin, dir);
+			hit, entity := trace_ray(*GAME_INSTANCE.active_world.scene.bvh_system, origin, dir);
 
 			if hit {
 				player_controller_set_selection(*GAME_INSTANCE.player_controller, entity);
@@ -269,7 +259,7 @@ game_loop :: () {
 			imgui_begin_frame(.{xx,no_check ZRENDERER.draw_extent.width, xx,no_check ZRENDERER.draw_extent.height});
 			
 			process_input(*event);
-			player_controller_tick(*GAME_INSTANCE.player_controller, get_active_game_world());
+			player_controller_tick(*GAME_INSTANCE.player_controller, *GAME_INSTANCE.active_world);
        		game_update_camera();
 
 			if GAME_INSTANCE.menu_state != .NONE {
@@ -277,16 +267,16 @@ game_loop :: () {
 			}
 			imgui_tick();
 			
-			game_render(get_active_game_world());
+			game_render(*GAME_INSTANCE.active_world);
 		});
 		barrier_wait(context.lane_barrier);
 		
 		simulate_pending_sims();
 		
-		if GAME_INSTANCE.game_world_state == .MAIN_MENU {
+		if GAME_INSTANCE.active_world.type == .MAIN_MENU {
 			// Menu tick? Maybe later when we have a real UI system
-		} else if GAME_INSTANCE.game_world_state == .REPLAY {
-			tick_replay(get_active_game_world(), GAME_INSTANCE.delta_time);
+		} else if GAME_INSTANCE.active_world.type == .REPLAY {
+			tick_replay(*GAME_INSTANCE.active_world, GAME_INSTANCE.delta_time);
 		}
 		
 		barrier_wait(context.lane_barrier);

@@ -30,12 +30,6 @@ entity_exists :: (world: *ZWorld, entity: ZEntity) -> bool {
 	return entity.index < arch_storage.num_entities;
 }
 
-World_Type :: enum_flags u8 {
-	MENU;
-	REPLAY;
-	SIMULATION;
-}
-
 ZWorld :: struct {
 	world_archetypes 	: [MAX_ARCHETYPES]Archetype_Storage;
 	world_entities 		: [..]ZEntity;
@@ -93,7 +87,7 @@ flush_observers :: (world: *ZWorld) {
 		arch_idx := cast,no_check(u16)it_index;
 		bound_observers := world.observer_registry.on_created[arch_idx];
 		for bound_observers {
-			it.proc(get_active_game_world(), <<entities);
+			it.proc(*GAME_INSTANCE.active_world, <<entities);
 		}
 	}
 	for *world.observer_buffer.destroyed {
@@ -103,7 +97,7 @@ flush_observers :: (world: *ZWorld) {
 		arch_idx := cast,no_check(u16)it_index;
 		bound_observers := world.observer_registry.on_destroyed[arch_idx];
 		for bound_observers {
-			it.proc(get_active_game_world(), <<entities);
+			it.proc(*GAME_INSTANCE.active_world, <<entities);
 		}
 	}
 	barrier_wait(context.lane_barrier); // Don't want thread 0 to reset before all threads are done 

@@ -39,7 +39,7 @@ generate_queries :: (queries: []Query_Build_Metadata) -> string {
 		print_to_builder(*builder, "execute_% :: (world: *ZWorld, $body: Code) #expand {\n", query.name); 
 	
 		print_to_builder(*builder, "\tif !(%.WORLD_TYPES & world.type) {\n", query.name);
-			print_to_builder(*builder, "\t\tprint(\"WARNING: Attempted to run % in a world that does not match its types, aborting\\n\");\n", query.name);
+			print_to_builder(*builder, "\t\tprint(\"WARNING: Attempted to run % in a world that does not match its types (it's types are: \%, but world type is: \%), aborting\\n\", %.WORLD_TYPES, world.type);\n", query.name, query.name);
 			print_to_builder(*builder, "\t\treturn;\n");
 		print_to_builder(*builder, "\t}\n");
 		print_to_builder(*builder, "\n");

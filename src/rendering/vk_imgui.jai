@@ -155,11 +155,11 @@ imgui_tick :: () {
 			Text(tprint("Entity: %", entity));
 			archetype_data := get_archetype_data(entity.archetype);
 			Text(tprint("Type: %", archetype_data.name));
-			pos := get_entity_component(*get_active_game_world().world, entity, Position).value;
+			pos := get_entity_component(*GAME_INSTANCE.active_world.world, entity, Position).value;
 			Text(tprint("Position: %", pos));
-			rot := get_entity_component(*get_active_game_world().world, entity, Rotation).value;
+			rot := get_entity_component(*GAME_INSTANCE.active_world.world, entity, Rotation).value;
 			Text(tprint("Rotation: %", rot));
-			scale := get_entity_component(*get_active_game_world().world, entity, Scale).value;
+			scale := get_entity_component(*GAME_INSTANCE.active_world.world, entity, Scale).value;
 			Text(tprint("Scale: %", scale));
 
 			
@@ -170,7 +170,7 @@ imgui_tick :: () {
 			if Button("Apply Order") {
 				create_order(*GAME_INSTANCE.replay_system.order_file.order_stream, 0, entity, .SET_THRUST, 0, *thrust);
 				create_order(*GAME_INSTANCE.replay_system.order_file.order_stream, 0, entity, .SET_TORQUE, 0, *torque);
-				save_orders(get_active_game_world().name, 0);
+				save_orders(GAME_INSTANCE.active_world.name, 0);
 			}
 			
 		}

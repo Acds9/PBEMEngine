@@ -9,8 +9,6 @@ Turn_File :: struct {
 }  @serialize
 
 Replay_System :: struct {
-	replay_world		: Game_World;
-
 	active_turn_file	: Turn_File;
 	order_file			: Order_File;
 	current_step		: u32;
@@ -24,14 +22,14 @@ open_replay :: (game: string, turn: s32 = -1) {
 
 	}
 	read_from_disk_turn(*replay_system.active_turn_file, game, xx turn);
-	replay_system.replay_world.name = game;
-	replay_system.replay_world.world = create_world(.REPLAY);
-	replay_system.replay_world.scene = create_scene(VMA_ALLOCATOR, ZRENDERER.device);
-	game_world_state = .REPLAY;
+	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
+	destroy(*active_world); // TODO: need some handy way to switch between worlds and destroy the old one
+	active_world = create_game_world(game, .REPLAY);
 	menu_state = .NONE;
+
 	replay_system.order_file = .{replay_system.active_turn_file.game, replay_system.active_turn_file.turn, .{}};
 	// TODO: need to validate timeline here
-	create_start_state_from_timeline(*replay_system.active_turn_file.timeline, *replay_system.replay_world.world);
+	create_start_state_from_timeline(*replay_system.active_turn_file.timeline, *active_world.world);
 }
 
 tick_replay :: (using game_world: *Game_World, delta_time: float32) {
@@ -57,11 +55,13 @@ quit_replay :: () {
 	vkDeviceWaitIdle(ZRENDERER.device); // 
 	replay_system := *GAME_INSTANCE.replay_system;
 
-	destroy(get_active_game_world());
-	
-	replay_system.order_file = .{};
+	player_controller_clear_selection(*GAME_INSTANCE.player_controller);
+	ZRENDERER.debug_system.reset(*ZRENDERER.debug_system);
+	destroy(*GAME_INSTANCE.active_world);
+	enter_main_menu();
+
+	replay_system.order_file = .{}; // TODO: maybe should just reset/recreate the replay system when we enter/exit a replay?
 	replay_system.current_step = 0;
 
-	GAME_INSTANCE.game_world_state = .MAIN_MENU;
 	GAME_INSTANCE.menu_state = .MAIN;
 }

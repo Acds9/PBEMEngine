@@ -65,12 +65,12 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 	}
 	print_to_builder(*builder, "\n// Observer Registration Function\n");
 	print_to_builder(*builder, "register_observers :: (world: *ZWorld) {\n");
-		print_to_builder(*builder, "\tif world.type & .MENU {\n");
+		print_to_builder(*builder, "\tif world.type & .MAIN_MENU {\n");
 			for observer: observers {
 				if !(observer.flags & cast(u32)Observer_Flags.AUTOREGISTER) {
 					continue observer;
 				}
-				if observer.world_types & cast(u8)World_Type.MENU {
+				if observer.world_types & cast(u8)World_Type.MAIN_MENU {
 					print_to_builder(*builder, "\t\tregister_%(world);\n", observer.name);
 				}
 			}

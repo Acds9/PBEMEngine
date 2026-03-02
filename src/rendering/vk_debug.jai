@@ -148,14 +148,14 @@ debug_tick :: () {
 	reset(*ZRENDERER.debug_system);
 
 	if light_radius_sphere {
-		execute_Query_Debug_Draw_Point_Light(*get_active_game_world().world, #code {
+		execute_Query_Debug_Draw_Point_Light(*GAME_INSTANCE.active_world.world, #code {
 			debug_draw_point(*ZRENDERER, position.value, 5, point_light_component.color); 
 			debug_draw_mesh(*ZRENDERER, position.value, ROTOR_IDENTITY, VECTOR_ONE * point_light_component.radius, .SPHERE, point_light_component.color);
 		});
 	}
 	if mesh_aabb {
-		execute_Query_Debug_Draw_AABB(*get_active_game_world().world, #code {
-			mesh_data 		:= cast,no_check(*Mesh_Instance) get_active_game_world().scene.mesh_instances.staging_buffer.info.pMappedData;
+		execute_Query_Debug_Draw_AABB(*GAME_INSTANCE.active_world.world, #code {
+			mesh_data 		:= cast,no_check(*Mesh_Instance) GAME_INSTANCE.active_world.scene.mesh_instances.staging_buffer.info.pMappedData;
 			mesh_instance 	:= *mesh_data[mesh_render_proxy_ec.value];
 			aabb_data 		:= cast,no_check(*AABB) ZRENDERER.geometry_pool.default_aabb_buffer.staging_buffer.info.pMappedData;
 			aabb			:= *aabb_data[mesh_instance.idx_aabb];
@@ -168,7 +168,7 @@ debug_tick :: () {
 		return e.x * e.y * e.z;
 	}
 	if bvh_bounds {
-		bvh := *get_active_game_world().scene.bvh_system;
+		bvh := *GAME_INSTANCE.active_world.scene.bvh_system;
 		for *node: bvh.internal_nodes {
 			t := volume(node.bounds) / volume(bvh.scene_bounds); 
    			color := Vector4.{1-t, 0, t, 1};  

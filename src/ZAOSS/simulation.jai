@@ -57,6 +57,9 @@ simulate_pending_sims :: () {
 			simulate(it);
 		}
 	}
+	narrow(#code{
+		array_reset(*GAME_INSTANCE.simulation_system.simulations);
+	});
 }
 
 get_simulation_entry :: (game: string) -> *Simulation_Instance {
@@ -79,15 +82,12 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	});
 
 	time_start := seconds_since_init();
-	sim_entry.game_world.name = sim_entry.game;
 	
 	narrow(#code{
 		// TODO: this needs to actually set up the scene from the game data, this is where we load in meshes, entities, whatever
 		// Also needs multilane where possible
-		sim_entry.game_world.scene = create_scene(VMA_ALLOCATOR, ZRENDERER.device);
-		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, "ZScene initialization successful");
-		sim_entry.game_world.world = create_world(.SIMULATION);
-		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, "ZWorld initialization successful");
+		sim_entry.game_world = create_game_world(tprint("sim_%", sim_entry.game), .SIMULATION);
+		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, "World initialization successful");
 
 		initialize_timeline(*sim_entry.order_timeline, sim_entry.parameters.step_start, sim_entry.parameters.step_end);
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, tprint("timeline initialized from step % to step %", sim_entry.parameters.step_start, sim_entry.parameters.step_end));
@@ -108,8 +108,11 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	while sim_entry.sim_state.current_step < sim_entry.parameters.step_end {
 		simulation_tick(sim_entry);
 		barrier_wait(context.lane_barrier);
-		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Step % simulated", sim_entry.sim_state.current_step));
-		sim_entry.sim_state.current_step += 1;
+		narrow(#code{
+			ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Step % simulated", sim_entry.sim_state.current_step));
+			sim_entry.sim_state.current_step += 1;
+		});
+		barrier_wait(context.lane_barrier);
 	}
 	narrow(#code{
 

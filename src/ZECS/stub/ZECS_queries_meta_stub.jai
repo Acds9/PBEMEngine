@@ -34,13 +34,6 @@ ZEntity :: struct
 	archetype	: u16;
 }
 
-
-World_Type :: enum_flags u8 {
-	MENU;
-	REPLAY;
-	SIMULATION;
-}
-
 ZWorld :: struct {
 	world_archetypes 	: [MAX_ARCHETYPES]Archetype_Storage;
 	world_entities 		: [..]ZEntity;
