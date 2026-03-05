@@ -65,7 +65,7 @@ align_up :: (value: u64, alignment: u64) -> u64 {
 }
 
 subslice :: (src: [..]u8, offset: s64, count: s64) -> []u8 {
-	assert(src.count <= offset + count, tprint("ERROR: Attempted to subslice past the end of an array. Array count: %, Subslice range: % - %", src.count, offset, offset + count));
+	assert(src.count >= (offset + count), tprint("ERROR: Attempted to subslice past the end of an array. Array count: %, Subslice range: % - %", src.count, offset, offset + count));
 	result : []u8;
 	result.data = src.data + offset;
 	result.count = count;

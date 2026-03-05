@@ -89,6 +89,7 @@ ImGui_System :: struct {
 	show_metrics		: bool;
 	show_rendering		: bool;
 	show_unit_selection	: bool;
+	show_timeline_controls : bool;
 }
 
 imgui_active :: () -> bool {
@@ -228,6 +229,43 @@ imgui_tick :: () {
 		}
 		End();
 	} 
+
+	if ZRENDERER.imgui_system.show_timeline_controls {
+		if Begin("Timeline") {
+			Text("Current Step: ");
+
+			if Button("Min") {
+				set_replay_step(0);
+			}
+			SameLine();
+			if Button("--") {
+				increment_replay_step(-10);
+			}
+			SameLine();
+			if Button("-") {
+				increment_replay_step(-1);
+			}
+			SameLine();
+			Text(tprint("%", GAME_INSTANCE.replay_system.current_step));
+			SameLine();
+			if Button("+") {
+				increment_replay_step(1);
+			}
+			SameLine();
+			if Button("++") {
+				increment_replay_step(10);
+			}
+			SameLine();
+			if Button("Max") {
+				set_replay_step(U32_MAX);
+			}
+			if Button("Play") {
+				GAME_INSTANCE.replay_system.autoplay = !GAME_INSTANCE.replay_system.autoplay;
+			}
+			
+		}
+		End();
+	}
 }
 
 imgui_populate_buffers :: (using self: *ImGui_System, zr: *ZRenderer) {

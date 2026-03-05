@@ -25,9 +25,11 @@ Simulation_Instance :: struct {
 	sim_state	: Simulation_State;
 	game_world	: Game_World;
 	order_timeline : Turn_Timeline; // This is the order-holding timeline that won't change, NOT the one replay is recorded to
+	master_timeline : Turn_Timeline; // This is where the master timeline is recorded to that the server will use for the server's ground truth replay
 }
 
 Simulation_System :: struct {
+	active_simulation : s32 = -1;
 	simulations	: [..]Simulation_Instance;
 }
 
@@ -54,21 +56,21 @@ queue_simulation :: (game: string) {
 simulate_pending_sims :: () {
 	for *GAME_INSTANCE.simulation_system.simulations {
 		if it.state == .PENDING {
+			GAME_INSTANCE.simulation_system.active_simulation = xx it_index;
 			simulate(it);
 		}
 	}
 	narrow(#code{
+		GAME_INSTANCE.simulation_system.active_simulation = -1;
 		array_reset(*GAME_INSTANCE.simulation_system.simulations);
 	});
 }
 
-get_simulation_entry :: (game: string) -> *Simulation_Instance {
-	for *GAME_INSTANCE.simulation_system.simulations {
-		if it.game == game {
-			return it;
-		}
+get_active_simulation :: (using self: *Simulation_System) -> *Simulation_Instance, bool {
+	if active_simulation < 0 {
+		return null, false;
 	}
-	return null;
+	return *simulations[active_simulation], true;
 }
 
 simulate :: (sim_entry: *Simulation_Instance) {
@@ -90,6 +92,7 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, "World initialization successful");
 
 		initialize_timeline(*sim_entry.order_timeline, sim_entry.parameters.step_start, sim_entry.parameters.step_end);
+		initialize_timeline(*sim_entry.master_timeline, sim_entry.parameters.step_start, sim_entry.parameters.step_end);
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .INITIALIZATION, tprint("timeline initialized from step % to step %", sim_entry.parameters.step_start, sim_entry.parameters.step_end));
 		order_files : [..]Order_File;
 		read_from_disk_orders(*order_files, get_order_directory(sim_entry.game)); // TODO: it's because this isn't laned, this stuff needs to either be multithreaded or run on single
@@ -108,14 +111,15 @@ simulate :: (sim_entry: *Simulation_Instance) {
 	while sim_entry.sim_state.current_step < sim_entry.parameters.step_end {
 		simulation_tick(sim_entry);
 		barrier_wait(context.lane_barrier);
+		
 		narrow(#code{
+			simulation_record(sim_entry);
 			ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Step % simulated", sim_entry.sim_state.current_step));
 			sim_entry.sim_state.current_step += 1;
 		});
 		barrier_wait(context.lane_barrier);
 	}
 	narrow(#code{
-
 		time_end := seconds_since_init();
 		print("Simulation Complete, time elapsed: %\n", time_end-time_start);
 
@@ -127,11 +131,8 @@ simulate :: (sim_entry: *Simulation_Instance) {
 			start_turn.start_step = 0;
 			start_turn.end_step = sim_entry.parameters.step_end;
 			start_turn.step_resolution = sim_entry.parameters.step_resolution;
-
-			initialize_timeline(*start_turn.timeline, sim_entry.parameters.step_start,sim_entry.parameters.step_end);
-			create_timeline_checkpoint(*start_turn.timeline.snapshot_stream, *sim_entry.game_world.world, 0);
-
-			pos := get_entity_component(*sim_entry.game_world.world, .{0,0,1}, Position);
+			start_turn.timeline = sim_entry.master_timeline;
+			//create_timeline_checkpoint(*start_turn.timeline.snapshot_stream, *sim_entry.game_world.world, 0);
 
 			path := tprint("%/%", GAME_FOLDER_PATH, sim_entry.game);
 			turn_path := tprint("%/%/%_0.%", path, TURN_FOLDER_NAME, sim_entry.game, TURN_EXT);
@@ -171,4 +172,8 @@ simulation_timeline_tick :: (timeline: *Turn_Timeline, step: u32, world: *ZWorld
 	for *orders {
 		execute_order(world, it, timeline.order_stream.data);
 	}
+}
+
+simulation_record :: (using sim_instance: *Simulation_Instance) {
+	create_timeline_checkpoint(*master_timeline.snapshot_stream, *game_world.world, sim_state.current_step);
 }

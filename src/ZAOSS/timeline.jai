@@ -49,8 +49,8 @@ initialize_timeline :: (timeline: *Turn_Timeline, step_start: u32, step_end: u32
 }
 
 create_start_state_from_timeline :: (timeline: *Turn_Timeline, world: *ZWorld) {
-	start_checkpoint := read_stream(*timeline.snapshot_stream, 0);
-	assert(start_checkpoint.count != 0, "ERROR: Malformed turn does not start on a checkpoint, step 0 has no entity snapshots");
+	start_checkpoint := read_stream(*timeline.snapshot_stream, timeline.step_start);
+	assert(start_checkpoint.count != 0, tprint("ERROR: Malformed turn does not start on a checkpoint, step % (first step) has no entity snapshots", timeline.step_start));
 	for *start_checkpoint {
 		spawn_from_timeline_entity_data(it, *timeline.snapshot_stream, world);
 	}
@@ -131,18 +131,19 @@ create_timeline_entity_data :: (dest: *Snapshot_Stream, world: *ZWorld, src: ZEn
 	snapshot.intel_level = intel_level;
 	snapshot.data_offset = dest.data.count;
 	snapshot.data_size = get_archetype_data_size_intel(get_archetype(src.archetype), intel_level);
-	offset : s64;
+	offset : s64 = dest.data.count;
 	serialize_entity_component_data(*dest.data, src, world, intel_level, *offset);
 }
 
 // entity and intel level indices must match e.g. src[5] must have its intel level at intel_levels[5]
 create_timeline_entity_data :: (dest: *Snapshot_Stream, world: *ZWorld, src: []ZEntity, step: u32, intel_levels: []u8) {
 	snapshots := *dest.snapshots;
-	array_resize(snapshots, src.count);
-	offset : s64;
+	base := snapshots.count;
+	array_resize(snapshots, base + src.count);
+	offset : s64 = dest.data.count;
 	// TODO: serialize_entity_component_data will resize the array for every addition, costly, need a variant that writes expecting an already sized array
 	for entity: src {
-		snapshot := *(<<snapshots)[snapshots.count-1];
+		snapshot := *(<<snapshots)[base + it_index];
 		snapshot.entity = entity;
 		snapshot.step = step;
 		snapshot.intel_level = intel_levels[it_index];

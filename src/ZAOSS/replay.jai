@@ -12,6 +12,44 @@ Replay_System :: struct {
 	active_turn_file	: Turn_File;
 	order_file			: Order_File;
 	current_step		: u32;
+
+	autoplay			: bool;
+	time				: float32;
+	play_rate			: float32 = 1;
+}
+
+set_replay_autoplay :: (is_autoplay: bool) {
+	using *GAME_INSTANCE.replay_system;
+	autoplay = is_autoplay;
+}
+
+set_replay_play_rate :: (rate: float32) {
+	using *GAME_INSTANCE.replay_system;
+	play_rate = rate;
+}
+
+set_replay_time :: (new_time: float32) {
+	using *GAME_INSTANCE.replay_system;
+	if new_time < 0 {
+		time = 0;
+		autoplay = false;
+		return;
+	}
+	per_step_time := 1/cast,no_check(float32)active_turn_file.step_resolution;
+	max_time : float32 = xx,no_check (active_turn_file.end_step * per_step_time);
+	if new_time > max_time {
+		time = max_time;
+		autoplay = false;
+		return;
+	}
+	time = new_time;
+	new_step : u32 = xx,no_check floor(time * cast,no_check(float32)active_turn_file.step_resolution);
+	set_replay_step(new_step);
+}
+
+increment_replay_time :: (dT: float32) {
+	using *GAME_INSTANCE.replay_system;
+	set_replay_time(time + dT*play_rate);
 }
 
 open_replay :: (game: string, turn: s32 = -1) {
@@ -30,6 +68,8 @@ open_replay :: (game: string, turn: s32 = -1) {
 	replay_system.order_file = .{replay_system.active_turn_file.game, replay_system.active_turn_file.turn, .{}};
 	// TODO: need to validate timeline here
 	create_start_state_from_timeline(*replay_system.active_turn_file.timeline, *active_world.world);
+
+	ZRENDERER.imgui_system.show_timeline_controls = true;
 }
 
 tick_replay :: (using game_world: *Game_World, delta_time: float32) {
@@ -43,6 +83,9 @@ tick_replay :: (using game_world: *Game_World, delta_time: float32) {
 	});
 	narrow(#code{
 		debug_tick();
+		if GAME_INSTANCE.replay_system.autoplay {
+			increment_replay_time(delta_time);
+		}
 	});
 	barrier_wait(context.lane_barrier);
 	scene_tick(game_world, delta_time);
@@ -64,4 +107,31 @@ quit_replay :: () {
 	replay_system.current_step = 0;
 
 	GAME_INSTANCE.menu_state = .MAIN;
+	ZRENDERER.imgui_system.show_timeline_controls = false;
+}
+
+set_replay_step :: (step: u32) {
+	using *GAME_INSTANCE.replay_system;
+
+	if step < xx,no_check active_turn_file.start_step {
+		current_step = active_turn_file.start_step;
+	} else if step > xx,no_check active_turn_file.end_step {
+		current_step = active_turn_file.end_step;
+	} else {
+		current_step = xx,no_check step;	
+	}
+
+	turn_timeline := *active_turn_file.timeline;
+	snapshots := read_stream(*turn_timeline.snapshot_stream, current_step);
+	for snapshots {
+		slice := subslice(turn_timeline.snapshot_stream.data, it.data_offset, it.data_size);
+		offset : s64;
+		deserialize_entity_component_data(it.entity, *GAME_INSTANCE.active_world.world, slice, it.intel_level, *offset);
+	}
+} 
+
+increment_replay_step :: (count: s32) {
+	using *GAME_INSTANCE.replay_system;
+	new_step : s32 = xx,no_check current_step + count;
+	set_replay_step(xx,no_check clamp(new_step, xx,no_check active_turn_file.start_step, xx,no_check active_turn_file.end_step));
 }
