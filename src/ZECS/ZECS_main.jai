@@ -18,11 +18,11 @@ ZEntity :: struct {
 entity_is_alive :: (world: *ZWorld, entity: ZEntity) -> bool {
 	arch_storage := *world.world_archetypes[entity.archetype];
 
-	return bit_test(arch_storage.alive_mask, entity.index);
+	return bit_test(*arch_storage.alive_mask, entity.index);
 }
 
 entity_is_alive :: (entity_idx: u32, storage: *Archetype_Storage) -> bool {
-	return bit_test(storage.alive_mask, entity_idx);
+	return bit_test(*storage.alive_mask, entity_idx);
 }
 
 entity_exists :: (world: *ZWorld, entity: ZEntity) -> bool {
