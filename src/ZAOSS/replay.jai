@@ -23,7 +23,7 @@ set_replay_autoplay :: (is_autoplay: bool) {
 	autoplay = is_autoplay;
 }
 
-set_replay_play_rate :: (rate: float32) {
+set_replay_play_rate :: (rate: float32) { // TODO: this won't work, just multiplying deltatime will skip steps
 	using *GAME_INSTANCE.replay_system;
 	play_rate = rate;
 }
@@ -121,13 +121,7 @@ set_replay_step :: (step: u32) {
 		current_step = xx,no_check step;	
 	}
 
-	turn_timeline := *active_turn_file.timeline;
-	snapshots := read_stream(*turn_timeline.snapshot_stream, current_step);
-	for snapshots {
-		slice := subslice(turn_timeline.snapshot_stream.data, it.data_offset, it.data_size);
-		offset : s64;
-		deserialize_entity_component_data(it.entity, *GAME_INSTANCE.active_world.world, slice, it.intel_level, *offset);
-	}
+	process_replay_step(current_step);
 } 
 
 increment_replay_step :: (count: s32) {
@@ -135,3 +129,23 @@ increment_replay_step :: (count: s32) {
 	new_step : s32 = xx,no_check current_step + count;
 	set_replay_step(xx,no_check clamp(new_step, xx,no_check active_turn_file.start_step, xx,no_check active_turn_file.end_step));
 }
+
+reprocess_replay_to_step :: (start_step: u32, target_step: u32) {
+	using *GAME_INSTANCE.replay_system;
+	for start_step..target_step {
+		process_replay_step(it);
+	}
+	current_step = target_step;
+}
+
+process_replay_step :: (step: u32) {
+	using *GAME_INSTANCE.replay_system;
+	turn_timeline := *active_turn_file.timeline;
+	snapshots := read_stream(*turn_timeline.snapshot_stream, step);
+	for snapshots {
+		slice := subslice(turn_timeline.snapshot_stream.data, it.data_offset, it.data_size);
+		offset : s64;
+		deserialize_entity_component_data(it.entity, *GAME_INSTANCE.active_world.world, slice, it.intel_level, *offset);
+	}
+}
+

@@ -1,5 +1,7 @@
 ZLog :: #import "ZLog";
 
+SNAPSHOT_FREQUENCY :: 10;
+
 Simulation_Parameters :: struct {
 	step_resolution		: u32;
 	step_start			: u32;
@@ -175,5 +177,7 @@ simulation_timeline_tick :: (timeline: *Turn_Timeline, step: u32, world: *ZWorld
 }
 
 simulation_record :: (using sim_instance: *Simulation_Instance) {
-	create_timeline_checkpoint(*master_timeline.snapshot_stream, *game_world.world, sim_state.current_step);
+	if !(sim_instance.sim_state.current_step % SNAPSHOT_FREQUENCY) {
+		create_timeline_checkpoint(*master_timeline.snapshot_stream, *game_world.world, sim_state.current_step);
+	}
 }
