@@ -1,4 +1,4 @@
-Turn_File :: struct {
+Turn_File :: struct @serialize {
 	game			: string;
 	turn			: u32;
 	start_step		: u32;
@@ -145,7 +145,7 @@ process_replay_step :: (step: u32) {
 	for snapshots {
 		slice := subslice(turn_timeline.snapshot_stream.data, it.data_offset, it.data_size);
 		offset : s64;
-		deserialize_entity_component_data(it.entity, *GAME_INSTANCE.active_world.world, slice, it.intel_level, *offset);
+		//deserialize_entity_component_data(it.entity, *GAME_INSTANCE.active_world.world, slice, it.intel_level, *offset);
 	}
 }
 

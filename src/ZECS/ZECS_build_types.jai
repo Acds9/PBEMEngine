@@ -2,25 +2,83 @@
 #import "String";
 #import "Sort";
 
-compare_build_metadata :: (a: Archetype_Build_Metadata, b: Archetype_Build_Metadata) -> s64 {
-	return compare_strings(a.name, b.name);
-}
+BUILD_WORLD_TYPE_MENU 		:: 1;
+BUILD_WORLD_TYPE_REPLAY 	:: 2;
+BUILD_WORLD_TYPE_SIMULATION :: 4;
 
 compare_build_metadata :: (a: Query_Build_Metadata, b: Query_Build_Metadata) -> s64 {
-	return compare_strings(a.name, b.name);
+	return compare_strings(a.type_data.name, b.type_data.name);
 }
 
 compare_build_metadata :: (a: Observer_Build_Metadata, b: Observer_Build_Metadata) -> s64 {
-	return compare_strings(a.name, b.name);
+	return compare_strings(a.type_data.name, b.type_data.name);
+}
+
+Build_Context :: struct {
+	entity_components    	: [..]*Type_Info_Struct;	// Sorted by name, index IS the bit index
+	archetype_components 	: [..]*Type_Info_Struct;	// Sorted by name
+	tags					: [..]*Type_Info_Struct;	// Sorted by name	
+
+	archetypes				: [..]Archetype_Build_Metadata; // Sorted by name
+
+	queries					: [..]Query_Build_Metadata; // Sorted by name
+
+	observers				: [..]Observer_Build_Metadata; // Sorted by name
 }
 
 Archetype_Build_Metadata :: struct {
-    name                : string;
-    entity_components   : [..]string;
-    arch_components     : [..]string;
+    type_data			: *Type_Info_Struct;
+    entity_components   : [..]*Type_Info_Struct;
+    archetype_components: [..]*Type_Info_Struct;
 	a_c_defaults		: [..]Archetype_Component_Default;
-    tags                : u64;  
+    tags                : u64;
     chunk_size          : u32 = 32;
+}
+
+lookup_ec_bit_index :: (build_context: *Build_Context, comp: *Type_Info_Struct) -> u32 {
+	for build_context.entity_components {
+		if it.name == comp.name return cast(u32) it_index;
+	}
+	assert(false, tprint("Entity component '%' not found in build_context", comp.name));
+	return 0;
+}
+
+lookup_ac_bit_index :: (build_context: *Build_Context, comp: *Type_Info_Struct) -> u32 {
+	for build_context.archetype_components {
+		if it.name == comp.name return cast(u32) it_index;
+	}
+	assert(false, tprint("Archetype component '%' not found in build_context", comp.name));
+	return 0;
+}
+
+// Computes a bitmask as [..]u64, matching the layout of Bit_Field(N).data
+compute_bitmask :: (total_bits: s64, set_bits: [..]u32) -> [..]u64 {
+	num_words := cast(s64) ((total_bits + 63) / 64);
+	if num_words < 1 num_words = 1;
+	mask: [..]u64;
+	array_resize(*mask, num_words);
+	for set_bits {
+		word   := it / 64;
+		offset := it % 64;
+		mask[word] |= (cast(u64)1 << offset);
+	}
+	return mask;
+}
+
+
+compare_type_info_structs :: (a_info: *Type_Info_Struct, b_info: *Type_Info_Struct) -> s64 {
+	a, b := a_info.name, b_info.name;
+	for 0..a.count-1 {
+		if it >= b.count return 1;
+		delta := cast(s64) a[it] - cast(s64) b[it];
+		if delta return delta;
+	}
+	if b.count > a.count return -1;
+	return 0;
+}
+
+compare_build_metadata :: (a: Archetype_Build_Metadata, b: Archetype_Build_Metadata) -> s64 {
+	return compare_strings(a.type_data.name, b.type_data.name);
 }
 
 Archetype_Component_Default :: struct {
@@ -31,9 +89,9 @@ Archetype_Component_Default :: struct {
 }
 
 Query_Build_Metadata :: struct {
-	name					: string;
-    entity_components		: [..]string;
-    archetype_components	: [..]string;
+	type_data				: *Type_Info_Struct;
+    entity_components		: [..]*Type_Info_Struct;
+    archetype_components	: [..]*Type_Info_Struct;
     tags					: u64; 
     options					: u32; // Should be called flags and be u8
 	world_types				: u8;
@@ -41,39 +99,44 @@ Query_Build_Metadata :: struct {
 }
 
 Observer_Build_Metadata :: struct {
-	name					: string;
-    entity_components		: [..]string;
-    archetype_components	: [..]string;
+	type_data				: *Type_Info_Struct;
+    entity_components		: [..]*Type_Info_Struct;
+    archetype_components	: [..]*Type_Info_Struct;
     tags					: u64;
     flags					: u32;
 	world_types				: u8;
 	priority				: u8;
 }
 
-gather_component_types :: (typechecked: *Message_Typechecked, entity_comps: *[..]*Type_Info_Struct, arch_comps: *[..]string, tags: *[..]string) -> bool {
+gather_component_types :: (typechecked: *Message_Typechecked, build_context: *Build_Context) -> bool {
 	x := typechecked.declarations;
     for typechecked.structs{
 		info : *Type_Info_Struct = xx,no_check it.expression.defined_type;
 
         if is_subclass_of(info, "Entity_Component") {
-            array_add(entity_comps, info);
+            array_add(*build_context.entity_components, info);
         } else if is_subclass_of(info, "Archetype_Component") {
-            array_add(arch_comps, info.name);
+            array_add(*build_context.archetype_components, info);
         } else if is_subclass_of(info, "Tag") {
-            array_add(tags, info.name);
+            array_add(*build_context.tags, info);
         }
     }
-	return entity_comps || arch_comps || tags;
+
+	quick_sort(build_context.entity_components, compare_type_info_structs);
+	quick_sort(build_context.archetype_components, compare_type_info_structs);
+	quick_sort(build_context.tags, compare_type_info_structs);
+
+	return build_context.entity_components.count || build_context.archetype_components.count || build_context.tags.count;
 }
 
-gather_archetypes :: (typechecked: *Message_Typechecked, metadata: *[..]Archetype_Build_Metadata) {
+gather_archetypes :: (typechecked: *Message_Typechecked, build_context: *Build_Context) {
 	for typechecked.structs {
         info := it.expression.defined_type;
-        
+      
         if is_subclass_of(info, "Archetype") && info.name != "Archetype" {
 			archetype : Archetype_Build_Metadata;
-			archetype.name = info.name;
-
+			archetype.type_data = info;
+			
 			for member: info.members {
 				if(member.flags & .CONSTANT) {
 					if(member.name == "ENTITY_COMPONENTS") {
@@ -103,8 +166,7 @@ gather_archetypes :: (typechecked: *Message_Typechecked, metadata: *[..]Archetyp
 							// Extract
 							type_ptr := (.*) cast(**Type_Info_Struct) item.value_pointer;
 							if type_ptr {
-								type := <<type_ptr;
-								array_add(*archetype.entity_components, type.name);
+								array_add(*archetype.entity_components, type_ptr);
 							}
 						}
 					}
@@ -134,8 +196,7 @@ gather_archetypes :: (typechecked: *Message_Typechecked, metadata: *[..]Archetyp
 							// Extract
 							type_ptr := (.*) cast(**Type_Info_Struct) item.value_pointer;
 							if type_ptr {
-								type := <<type_ptr;
-								array_add(*archetype.arch_components, type.name);
+								array_add(*archetype.archetype_components, type_ptr);
 							}
 						}
 					}
@@ -171,18 +232,18 @@ gather_archetypes :: (typechecked: *Message_Typechecked, metadata: *[..]Archetyp
 					}
 				}
 			}
-			array_add(metadata, archetype);
+			array_add(*build_context.archetypes, archetype);
         }
     }
 }
 
-gather_queries :: (typechecked: *Message_Typechecked, queries: *[..]Query_Build_Metadata) {
+gather_queries :: (typechecked: *Message_Typechecked, build_context: *Build_Context) {
 	for typechecked.structs {
 		info := it.expression.defined_type;
         
         if is_subclass_of(info, "Query") && info.name != "Query" {
 			query: Query_Build_Metadata;
-			query.name = info.name;
+			query.type_data = info;
 			
 			for member: info.members {
 				if(member.flags & .CONSTANT) {
@@ -213,8 +274,7 @@ gather_queries :: (typechecked: *Message_Typechecked, queries: *[..]Query_Build_
 							// Extract
 							type_ptr := (.*) cast(**Type_Info_Struct) item.value_pointer;
 							if type_ptr {
-								type := <<type_ptr;
-								array_add(*query.entity_components, type.name);
+								array_add(*query.entity_components, type_ptr);
 							}
 						}
 					}
@@ -244,8 +304,7 @@ gather_queries :: (typechecked: *Message_Typechecked, queries: *[..]Query_Build_
 							// Extract
 							type_ptr := (.*) cast(**Type_Info_Struct) item.value_pointer;
 							if type_ptr {
-								type := <<type_ptr;
-								array_add(*query.archetype_components, type.name);
+								array_add(*query.archetype_components, type_ptr);
 							}
 						}
 					}
@@ -293,19 +352,18 @@ gather_queries :: (typechecked: *Message_Typechecked, queries: *[..]Query_Build_
 					}
 				}
 			}
-			array_add(queries, query);
+			array_add(*build_context.queries, query);
 		}
 	}
 }
 
-gather_observers :: (typechecked: *Message_Typechecked, observers: *[..]Observer_Build_Metadata) {
-
+gather_observers :: (typechecked: *Message_Typechecked, ctx: *Build_Context) {
 	for typechecked.structs {
 		info := it.expression.defined_type;
         
         if is_subclass_of(info, "Observer") && info.name != "Observer" {
 			observer: Observer_Build_Metadata;
-			observer.name = info.name;
+			observer.type_data = info;
 			
 			for member: info.members {
 				if(member.flags & .CONSTANT) {
@@ -336,8 +394,7 @@ gather_observers :: (typechecked: *Message_Typechecked, observers: *[..]Observer
 							// Extract
 							type_ptr := (.*) cast(**Type_Info_Struct) item.value_pointer;
 							if type_ptr {
-								type := <<type_ptr;
-								array_add(*observer.entity_components, type.name);
+								array_add(*observer.entity_components, type_ptr);
 							}
 						}
 					}
@@ -367,8 +424,7 @@ gather_observers :: (typechecked: *Message_Typechecked, observers: *[..]Observer
 							// Extract
 							type_ptr := (.*) cast(**Type_Info_Struct) item.value_pointer;
 							if type_ptr {
-								type := <<type_ptr;
-								array_add(*observer.archetype_components, type.name);
+								array_add(*observer.archetype_components, type_ptr);
 							}
 						}
 					}
@@ -428,22 +484,9 @@ gather_observers :: (typechecked: *Message_Typechecked, observers: *[..]Observer
 						flags_value := <<cast(*u8)any.value_pointer;
 						observer.priority = flags_value;
 					} 
-					// How the fuck do we extract #code?
-					// Ok so first off it's of type Code, see code_type.jai
-					// See compiler.jai line 359, the code might not be in STRUCTS array
-					// It's likely a Code_Node of either type BODY or type CODE_DIRECTIVE
-					// Can be cast to Code_Directive_Code if so, which containts a *Code_Node, which likely points to the actual code, which is probably BODY?
-					// Can we get Code_Struct out of Code_Block?
-					// But that just brings us back to a bunch of Code_Blocks, so maybe not
-					// For the sake of mental sanity we skip this for now and use #insert
-					/*else if (member.name == "BODY") {	
-						print("Warning: Found BODY\n");
-						node := cast(*Code_Block)member.type;
-						print("Warning: %\n", <<node);
-					}*/
 				}
 			}
-			array_add(observers, observer);
+			array_add(*ctx.observers, observer);
 		}
 	}
 }

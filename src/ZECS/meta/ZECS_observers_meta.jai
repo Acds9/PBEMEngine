@@ -1,27 +1,30 @@
 #import "Basic";
-#load "ZECS_observers.jai";
 
-generate_observers :: (observers: []Observer_Build_Metadata) -> string {
+OBSERVER_FLAG_RENDERING    	:: 1;
+OBSERVER_FLAG_AUTOREGISTER  :: 2;
+
+generate_observers :: (ctx: *Build_Context) -> string {
 	builder: String_Builder;
-	for observer: observers {
-			// First we find the archetypes that match
+	observers := ctx.observers;
+	for *observer: observers {
+		observer_index := it_index;
+		// First we find the archetypes that match
 		matching_archetypes : [..]u16;
-		for arch: ARCHETYPE_DATABASE {
-			arch_entity_comp_strings := get_entity_component_strings(arch.entity_components);
-			arch_arch_comp_strings := get_archetype_component_strings(arch.archetype_components);
+		for *archetype: ctx.archetypes {
+			archetype_index : u16 = xx it_index;
 			for observer.entity_components {
-				if !(array_find(arch_entity_comp_strings, it)) continue arch;
+				if !(array_find(archetype.entity_components, it)) continue archetype;
 			}
 			for observer.archetype_components {
-				if !(array_find(arch_arch_comp_strings, it)) continue arch;
+				if !(array_find(archetype.archetype_components, it)) continue archetype;
 			}
-			if (observer.tags &cast,no_check(u64)arch.tags) != observer.tags continue arch;
-			array_add(*matching_archetypes, arch.index);
+			if (observer.tags &cast,no_check(u64)archetype.tags) != observer.tags continue archetype;
+			array_add(*matching_archetypes, archetype_index);
 		}
 		if !matching_archetypes continue observer;
 
-		print_to_builder(*builder, "\n// Observer Executor for %\n", observer.name);
-		print_to_builder(*builder, "execute_% :: (game_world: *Game_World, entities: []ZEntity) {\n", observer.name);
+		print_to_builder(*builder, "\n// Observer Executor for %\n", observer.type_data.name);
+		print_to_builder(*builder, "execute_% :: (game_world: *Game_World, entities: []ZEntity) {\n", observer.type_data.name);
 
 			print_to_builder(*builder, "\tworld := *game_world.world;\n");
 			print_to_builder(*builder, "\tarchetype := entities[0].archetype;\n");
@@ -31,24 +34,24 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 				print_to_builder(*builder, "\t\tentity := entities[it];\n");
 				
 				for e_c: observer.entity_components {
-					print_to_builder(*builder, "\t\t% := *get_entity_component(world, entity, %);\n", to_lower_copy(e_c), e_c);
+					print_to_builder(*builder, "\t\t% := *get_entity_component(world, entity, %);\n", to_lower_copy(e_c.name), e_c.name);
 				}
 				for a_c: observer.archetype_components {
-					print_to_builder(*builder, "\t\t% := *get_archetype_component(world, get_archetype(archetype), %);\n", to_lower_copy(a_c), a_c);
+					print_to_builder(*builder, "\t\t% := *get_archetype_component(world, get_archetype(archetype), %);\n", to_lower_copy(a_c.name), a_c.name);
 				}
 
-				print_to_builder(*builder, "\t\t%_Event(entity, game_world);\n", observer.name);
+				print_to_builder(*builder, "\t\t%_Event(entity, game_world);\n", observer.type_data.name);
 
 			print_to_builder(*builder, "\t}\n");
 
 		print_to_builder(*builder, "}\n");
 
-		print_to_builder(*builder, "\n// Observer Registerer for %\n", observer.name);
-		print_to_builder(*builder, "register_% :: (world: *ZWorld) {\n", observer.name);
+		print_to_builder(*builder, "\n// Observer Registerer for %\n", observer.type_data.name);
+		print_to_builder(*builder, "register_% :: (world: *ZWorld) {\n", observer.type_data.name);
 
 			print_to_builder(*builder, "\tMATCHING_ARCHETYPES		:: u16.%;\n", matching_archetypes);
 			print_to_builder(*builder, "\tfor arch_idx: MATCHING_ARCHETYPES {\n");
-				print_to_builder(*builder, "\t\tentry := Observer_Entry.{priority = %, proc = execute_%};\n", observer.priority, observer.name);
+				print_to_builder(*builder, "\t\tentry := Observer_Entry.{priority = %, proc = execute_%};\n", observer.priority, observer.type_data.name);
 				
 				print_to_builder(*builder, "\t\tfor *world.observer_registry.on_created[arch_idx] {\n");
 					print_to_builder(*builder, "\t\t\tif it.proc == entry.proc {\n");
@@ -67,31 +70,31 @@ generate_observers :: (observers: []Observer_Build_Metadata) -> string {
 	print_to_builder(*builder, "register_observers :: (world: *ZWorld) {\n");
 		print_to_builder(*builder, "\tif world.type & .MAIN_MENU {\n");
 			for observer: observers {
-				if !(observer.flags & cast(u32)Observer_Flags.AUTOREGISTER) {
+				if !(observer.flags & OBSERVER_FLAG_AUTOREGISTER) {
 					continue observer;
 				}
-				if observer.world_types & cast(u8)World_Type.MAIN_MENU {
-					print_to_builder(*builder, "\t\tregister_%(world);\n", observer.name);
+				if observer.world_types & BUILD_WORLD_TYPE_MENU {
+					print_to_builder(*builder, "\t\tregister_%(world);\n", observer.type_data.name);
 				}
 			}
 		print_to_builder(*builder, "\t}\n");
 		print_to_builder(*builder, "\tif world.type & .REPLAY {\n");
 			for observer: observers {
-				if !(observer.flags & cast(u32)Observer_Flags.AUTOREGISTER) {
+				if !(observer.flags & OBSERVER_FLAG_AUTOREGISTER) {
 					continue observer;
 				}
-				if observer.world_types & cast(u8)World_Type.REPLAY {
-					print_to_builder(*builder, "\t\tregister_%(world);\n", observer.name);
+				if observer.world_types & BUILD_WORLD_TYPE_REPLAY {
+					print_to_builder(*builder, "\t\tregister_%(world);\n", observer.type_data.name);
 				}
 			}
 		print_to_builder(*builder, "\t}\n");
 		print_to_builder(*builder, "\tif world.type & .SIMULATION {\n");
 			for observer: observers {
-				if !(observer.flags & cast(u32)Observer_Flags.AUTOREGISTER) {
+				if !(observer.flags & OBSERVER_FLAG_AUTOREGISTER) {
 					continue observer;
 				}
-				if observer.world_types & cast(u8)World_Type.SIMULATION {
-					print_to_builder(*builder, "\t\tregister_%(world);\n", observer.name);
+				if observer.world_types & BUILD_WORLD_TYPE_SIMULATION {
+					print_to_builder(*builder, "\t\tregister_%(world);\n", observer.type_data.name);
 				}
 			}
 		print_to_builder(*builder, "\t}\n");

@@ -1,3 +1,8 @@
+// Intel level is the SERVER-SIDE value that determines what a specific player knows about a specific entity
+// Intel levels are always per-entity per-player
+// When serializing the per-player turn files the server uses intel level to determine which components will be serialized 
+// Intel level is never sent to the player, instead a bitfield of known count (see timeline.jai) is serialized before the component data blob
+
 INTEL_LEVEL :: enum u8 {
 	NONE;
 	SIGNAL;

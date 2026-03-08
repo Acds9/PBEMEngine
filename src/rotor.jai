@@ -1,7 +1,7 @@
 QUAT_IDENTITY :: Quaternion.{0,0,0,1};
 ROTOR_IDENTITY :: Rotor.{1, 0, 0, 0};
 
-Rotor :: struct {
+Rotor :: struct @serialize {
 	scalar	: float;
 	xy		: float;
 	yz		: float;

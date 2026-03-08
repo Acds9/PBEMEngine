@@ -9,7 +9,7 @@ GAME_STATE :: enum u8 {
 	REPLAY;
 }
 
-Manifest_File :: struct {
+Manifest_File :: struct @serialize {
 	name			: string;
 	game_id			: u64;
 	default_step_resolution	: u32;
@@ -18,12 +18,12 @@ Manifest_File :: struct {
 	player_count	: u32;
 	max_players		: u32;
 	current_turn	: u32;
-} @serialize
+}
 
-Game_File :: struct {
+Game_File :: struct @serialize {
 	name	: string; //Duplicated with Manifest_File for ease of use
 	player_list		: [..]u64;
-} @serialize
+}
 
 setup_game_world :: (world: *ZWorld) {
 	create_entity_batch(world, Archetype_Ship, 1); 

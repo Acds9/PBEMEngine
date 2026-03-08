@@ -9,11 +9,11 @@ ENTITY_GENERATION_NONE		:: U16_MAX;
 ENTITY_ARCHETYPE_NONE		:: U16_MAX;
 ENTITY_NONE					:: ZEntity.{ENTITY_INDEX_NONE, ENTITY_GENERATION_NONE, ENTITY_ARCHETYPE_NONE};
 
-ZEntity :: struct {
+ZEntity :: struct @serialize {
 	index 		: u32;
 	gen			: u16;
 	archetype	: u16;
-} @serialize
+}
 
 entity_is_alive :: (world: *ZWorld, entity: ZEntity) -> bool {
 	arch_storage := *world.world_archetypes[entity.archetype];

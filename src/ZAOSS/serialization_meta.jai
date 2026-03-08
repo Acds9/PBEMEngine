@@ -1,22 +1,15 @@
-has_code_note :: (notes: []*Code_Note, note: string) -> bool {
-	for entry: notes {
-		if entry.text == note {
-			return true;
-		}
+has_serialize_note :: (info: *Type_Info_Struct) -> bool {
+	for info.notes {
+		if it == "serialize" return true;
 	}
 	return false;
 }
 
 gather_structs_to_serialize :: (typechecked: *Message_Typechecked, infos: *[..]*Type_Info_Struct) {
-	for typechecked.declarations {
-		decl := it.expression;
-		if !has_code_note(decl.notes, "serialize") continue;
-    
-		if decl.expression && decl.expression.kind == .STRUCT {
-			code_struct := cast(*Code_Struct) decl.expression;
-			info: *Type_Info_Struct = xx,no_check code_struct.defined_type;
-			array_add(infos, info);
-		}
+	for typechecked.structs {
+		info: *Type_Info_Struct = xx,no_check it.expression.defined_type;
+		if !has_serialize_note(info) continue;
+		array_add(infos, info);
 	}
 }
 
@@ -25,10 +18,13 @@ generate_struct_serializers :: (infos: []*Type_Info_Struct) -> string {
 
 	print_to_builder(*builder, "// Struct Serializers\n");
 	for type: infos {
-		print_to_builder(*builder, "serialize :: (dest: *[..]u8, src: *%){\n", type.name);
+		print_to_builder(*builder, "serialize :: (dest: *[..]u8, src: *%, offset: *s64 = null){\n", type.name);
 		for *member: type.members {
 			if array_find(member.notes, "no_serialize") {
 				continue member;
+			}
+			if member.flags & Type_Info_Struct_Member.Flags.CONSTANT || member.flags & Type_Info_Struct_Member.Flags.AS {
+						continue; // using #as will have entity_component as member, we don't want that
 			}
 			if member.type.type == .ARRAY {
 				generate_array_serialize(*builder, tprint("src.%", member.name), cast(*Type_Info_Array)member.type, 0);
@@ -36,8 +32,14 @@ generate_struct_serializers :: (infos: []*Type_Info_Struct) -> string {
 			}
 			if member.type.type == .STRUCT {
 				member_type_struct := cast(*Type_Info_Struct)member.type;
-				// Recursively call this function to serialize the struct member
-				print_to_builder(*builder, "\tserialize(dest, *src.%);\n", member.name); 
+				if has_serialize_note(member_type_struct) {
+					// Has @serialize note, use generated serializer
+					print_to_builder(*builder, "\tserialize(dest, *src.%, offset);\n", member.name);
+				} else {
+					// Foreign struct (Vector3, etc.), serialize as raw bytes
+					print_to_builder(*builder, "\tif offset serialize_to_buffer(dest, *src.%, offset, size_of(type_of(src.%)));\n", member.name, member.name);
+					print_to_builder(*builder, "\telse serialize_to_buffer(dest, *src.%);\n", member.name);
+				}
 				continue member;
 			}
 			if member.type.type == .STRING {
@@ -45,7 +47,8 @@ generate_struct_serializers :: (infos: []*Type_Info_Struct) -> string {
 				continue member;
 			}
 			// Not a struct or an array, so we just serialize like usual
-			print_to_builder(*builder, "\tserialize_to_buffer(dest, *src.%);\n", member.name);
+			print_to_builder(*builder, "\tif offset serialize_to_buffer(dest, *src.%, offset, size_of(type_of(src.%)));\n", member.name, member.name);
+			print_to_builder(*builder, "\telse serialize_to_buffer(dest, *src.%);\n", member.name);
 		}
 			//member_type := get_type(arg_type_info);
 		print_to_builder(*builder, "}\n");
@@ -60,30 +63,45 @@ generate_array_serialize :: (builder: *String_Builder, access: string, info: *Ty
 	}
 	// For non-fixed arrays
     if info.array_type != .FIXED {
-        print_to_builder(builder, "%serialize_to_buffer(dest, *%.count);\n", tab_string, access);
+        print_to_builder(builder, "%if offset serialize_to_buffer(dest, *%.count, offset, size_of(s64));\n", tab_string, access);
+        print_to_builder(builder, "%else serialize_to_buffer(dest, *%.count);\n", tab_string, access);
     }
-    
+
     element := info.element_type;
     iter := tprint("it_%", depth);
-    
+
     if element.type == .ARRAY {
 		print_to_builder(builder, "%for *%: % {\n", tab_string, iter, access);
 			generate_array_serialize(builder, tprint("%.*", iter), cast(*Type_Info_Array)element, depth + 1);
 		print_to_builder(builder, "%}\n", tab_string);
 	} else if element.type == .STRUCT {
-		print_to_builder(builder, "%for *%: % {\n", tab_string, iter, access);
-			print_to_builder(builder, "% \tserialize(dest, %);\n", tab_string, iter);
-		print_to_builder(builder, "%}\n", tab_string);
+		element_struct := cast(*Type_Info_Struct)element;
+		if has_serialize_note(element_struct) {
+			print_to_builder(builder, "%for *%: % {\n", tab_string, iter, access);
+				print_to_builder(builder, "% \tserialize(dest, %, offset);\n", tab_string, iter);
+			print_to_builder(builder, "%}\n", tab_string);
+		} else {
+			// Foreign struct, bulk copy like a primitive
+			if info.array_type == .FIXED {
+				print_to_builder(builder, "%if offset serialize_to_buffer(dest, %.data, offset, %*%);\n", tab_string, access, info.array_count, element.runtime_size);
+				print_to_builder(builder, "%else serialize_to_buffer(dest, %.data, %*%);\n", tab_string, access, info.array_count, element.runtime_size);
+			} else {
+				print_to_builder(builder, "%if offset serialize_to_buffer(dest, %.data, offset, %.count * %);\n", tab_string, access, access, element.runtime_size);
+				print_to_builder(builder, "%else serialize_to_buffer(dest, %.data, %.count * %);\n", tab_string, access, access, element.runtime_size);
+			}
+		}
 	} else {
         // Leaf simple type, bulk copy
         if info.array_type == .FIXED {
-            print_to_builder(builder, "%serialize_to_buffer(dest, %.data, %*%);\n", tab_string, access, info.array_count, element.runtime_size);
+            print_to_builder(builder, "%if offset serialize_to_buffer(dest, %.data, offset, %*%);\n", tab_string, access, info.array_count, element.runtime_size);
+            print_to_builder(builder, "%else serialize_to_buffer(dest, %.data, %*%);\n", tab_string, access, info.array_count, element.runtime_size);
 		} else if element.type == .STRING {
 			print_to_builder(builder, "%for str: % {\n", tab_string, access);
 				print_to_builder(builder, "% \tserialize_to_buffer_string(dest, str);\n", tab_string);
 			print_to_builder(builder, "%}\n", tab_string);
         } else {
-            print_to_builder(builder, "%serialize_to_buffer(dest, %.data, %.count * %);\n", tab_string, access, access, element.runtime_size);
+            print_to_builder(builder, "%if offset serialize_to_buffer(dest, %.data, offset, %.count * %);\n", tab_string, access, access, element.runtime_size);
+            print_to_builder(builder, "%else serialize_to_buffer(dest, %.data, %.count * %);\n", tab_string, access, access, element.runtime_size);
         }
     }
 }
@@ -97,12 +115,22 @@ generate_struct_deserializers :: (infos: []*Type_Info_Struct) -> string {
             if array_find(member.notes, "no_serialize") {
                 continue member;
             }
+			if member.flags & Type_Info_Struct_Member.Flags.CONSTANT || member.flags & Type_Info_Struct_Member.Flags.AS {
+						continue; // using #as will have entity_component as member, we don't want that
+			}
             if member.type.type == .ARRAY {
                 generate_array_deserialize(*builder, tprint("dest.%", member.name), cast(*Type_Info_Array)member.type, 0);
                 continue member;
             }
             if member.type.type == .STRUCT {
-                print_to_builder(*builder, "\tdeserialize(*dest.%, src, offset);\n", member.name);
+                member_type_struct := cast(*Type_Info_Struct)member.type;
+                if has_serialize_note(member_type_struct) {
+                    // Has @serialize note, use generated deserializer
+                    print_to_builder(*builder, "\tdeserialize(*dest.%, src, offset);\n", member.name);
+                } else {
+                    // Foreign struct (Vector3, etc.), deserialize as raw bytes
+                    print_to_builder(*builder, "\tdeserialize_from_buffer(*dest.%, src, offset);\n", member.name);
+                }
                 continue member;
             }
             if member.type.type == .STRING {
@@ -148,9 +176,19 @@ generate_array_deserialize :: (builder: *String_Builder, access: string, info: *
             generate_array_deserialize(builder, tprint("%.*", iter), cast(*Type_Info_Array)element, depth + 1);
         print_to_builder(builder, "%}\n", tab_string);
     } else if element.type == .STRUCT {
-        print_to_builder(builder, "%for *%: % {\n", tab_string, iter, access);
-            print_to_builder(builder, "% \tdeserialize(%, src, offset);\n", tab_string, iter);
-        print_to_builder(builder, "%}\n", tab_string);
+        element_struct := cast(*Type_Info_Struct)element;
+        if has_serialize_note(element_struct) {
+            print_to_builder(builder, "%for *%: % {\n", tab_string, iter, access);
+                print_to_builder(builder, "% \tdeserialize(%, src, offset);\n", tab_string, iter);
+            print_to_builder(builder, "%}\n", tab_string);
+        } else {
+            // Foreign struct, bulk copy like a primitive
+            if info.array_type == .FIXED {
+                print_to_builder(builder, "%deserialize_from_buffer(%.data, src, offset, %*%);\n", tab_string, access, info.array_count, element.runtime_size);
+            } else {
+                print_to_builder(builder, "%deserialize_from_buffer(%.data, src, offset, %.count * %);\n", tab_string, access, access, element.runtime_size);
+            }
+        }
     } else if element.type == .STRING {
         print_to_builder(builder, "%for *%: % {\n", tab_string, iter, access);
             print_to_builder(builder, "% \t%.* = deserialize_from_buffer_string(src, offset);\n", tab_string, iter);

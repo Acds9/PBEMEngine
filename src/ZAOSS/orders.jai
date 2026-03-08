@@ -1,17 +1,17 @@
-Order :: struct {
+Order :: struct @serialize {
 	owner	: u64;
 	entity	: ZEntity;
 	type	: ORDER_TYPE;
 	step	: u32;
 	data_offset : s64;
 	data_count	: s64; // TODO: if orders are interpreted by executors and they are always the same, do we need count? NO
-}  @serialize
+}
 
-Order_File :: struct {
+Order_File :: struct @serialize {
 	game	: string;
 	turn	: u32;
 	order_stream	: Order_Stream;
-}  @serialize
+}
 
 create_order :: (stream: *Order_Stream, owner: u64, entity: ZEntity, type: ORDER_TYPE, step: u32, data: *$T) {
 	order := Order.{owner = owner, entity = entity, type = type, step = step};

@@ -1,47 +1,49 @@
 // STRUCTURE
 // A turn timeline spans from x to y steps in the game. Steps are NOT relative e.g. step 0 is the start of the whole game, not the start of this turn
-// Data is divided into streams. 
-// 	- Orders are orders given by players. 
-// 	- Snapshots are entity data which may be complete or partial to be loaded into the entity at that step. 
+// Data is divided into streams.
+// 	- Orders are orders given by players.
+// 	- Snapshots are entity data which may be complete or partial to be loaded into the entity at that step. A snapshot may be just position, or a dozen components.
+//		- Snapshot data is stored as follows at data_offset in the stream data: [archetype component bitfield][ordered component data]
+//		- Archetypes are compile-time known and as such the bitfield representing the presence of their entity components are also known
 //	- Events are things such as entity spawning
 // All of them store offset and size into the stream's data buffer which is where the data is stored in byte form
 // Use subslice or the provided utility functions to access it easily
 // Data sizes aren't needed for some (like orders) due to the compile-time known nature of them, but is included anyway because slices are pointer and size
+//
 
-Entity_Snapshot :: struct {
+Entity_Snapshot :: struct @serialize {
 	entity			: ZEntity;
 	step			: u32;
-	intel_level		: u8;
 	data_offset		: s64;
 	data_size		: s64;
-} @serialize
+}
 
-Order_Stream :: struct {
+Order_Stream :: struct @serialize {
 	cursor	: s64; @no_serialize
 	orders	: [..]Order;
 	data	: [..]u8;
-} @serialize
+}
 
-Snapshot_Stream :: struct {
+Snapshot_Stream :: struct @serialize {
 	cursor		: s64; @no_serialize
 	snapshots	: [..]Entity_Snapshot;
 	data		: [..]u8;
-} @serialize
+}
 
-Event_Stream :: struct { // Not implemented yet
+Event_Stream :: struct @serialize { // Not implemented yet
 	cursor	: s64; @no_serialize
 	events	: [..]u8;
 	data	: [..]u8;
-} @serialize
+}
 
-Turn_Timeline :: struct {
+Turn_Timeline :: struct @serialize {
 	step_start		: u32;
-	step_end		: u32; 
-	
+	step_end		: u32;
+
 	order_stream	: Order_Stream;
 	snapshot_stream	: Snapshot_Stream;
 	event_stream	: Event_Stream;
-} @serialize
+}
 
 initialize_timeline :: (timeline: *Turn_Timeline, step_start: u32, step_end: u32) {
 	timeline.step_start = step_start;
@@ -128,7 +130,6 @@ create_timeline_entity_data :: (dest: *Snapshot_Stream, world: *ZWorld, src: ZEn
 	snapshot : *Entity_Snapshot = *(<<snapshots)[snapshots.count-1];
 	snapshot.entity = src;
 	snapshot.step = step;
-	snapshot.intel_level = intel_level;
 	snapshot.data_offset = dest.data.count;
 	snapshot.data_size = get_archetype_data_size_intel(get_archetype(src.archetype), intel_level);
 	offset : s64 = dest.data.count;
@@ -146,9 +147,8 @@ create_timeline_entity_data :: (dest: *Snapshot_Stream, world: *ZWorld, src: []Z
 		snapshot := *(<<snapshots)[base + it_index];
 		snapshot.entity = entity;
 		snapshot.step = step;
-		snapshot.intel_level = intel_levels[it_index];
 		snapshot.data_offset = dest.data.count;
-		snapshot.data_size = get_archetype_data_size_intel(get_archetype(entity.archetype), snapshot.intel_level); // Called twice now but it should be a jumptable, doesn't matter
+		//snapshot.data_size = get_archetype_data_size_intel(get_archetype(entity.archetype), snapshot.intel_level); // Called twice now but it should be a jumptable, doesn't matter
 		serialize_entity_component_data(*dest.data, entity, world, intel_levels[it_index], *offset);
 	}
 }
@@ -161,7 +161,7 @@ spawn_from_timeline_entity_data :: (src: *Entity_Snapshot, stream: *Snapshot_Str
 	entity := create_entity(world, get_archetype(src.entity.archetype), src.entity.index, src.entity.gen);
 	data_slice := subslice(stream.data, src.data_offset, src.data_size);
 	offset : s64;
-	deserialize_entity_component_data(entity, world, data_slice, src.intel_level, *offset);
+	//deserialize_entity_component_data(entity, world, data_slice, src.intel_level, *offset);
 	ZLog.write_to_log(*ZLog.ZLOGGER, .ENTITY, .NONE, tprint("Entity % created and intiialized from Entity Data", entity));
 }
 
