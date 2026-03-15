@@ -1,3 +1,6 @@
+# Note
+Now that the game is taking form, the source code has been moved to a private repo. The readme below will be updated periodically as new features are added. If you found this link via a CV or other application, more information is available on request via that same channel.
+
 # ZEngine
 
 ZEngine (placeholder name) is a custom game engine built in [Jai](https://en.wikipedia.org/wiki/Jai_(programming_language)) developed for a [WeGo turn-based](https://en.wikipedia.org/wiki/Timekeeping_in_games#Simultaneously_executed_and_clock-based_turns) space strategy game.
