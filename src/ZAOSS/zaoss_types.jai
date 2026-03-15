@@ -1,4 +1,0 @@
-ORDER_TYPE :: enum u32 {
-	SET_THRUST;
-	SET_TORQUE;
-}
