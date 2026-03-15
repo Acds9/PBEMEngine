@@ -29,6 +29,7 @@ Build_Context :: struct {
 Archetype_Build_Metadata :: struct {
     type_data			: *Type_Info_Struct;
     entity_components   : [..]*Type_Info_Struct;
+	serializeable_entity_components   : [..]*Type_Info_Struct;
     archetype_components: [..]*Type_Info_Struct;
 	a_c_defaults		: [..]Archetype_Component_Default;
     tags                : u64;
@@ -106,6 +107,24 @@ Observer_Build_Metadata :: struct {
     flags					: u32;
 	world_types				: u8;
 	priority				: u8;
+}
+
+get_note_intel_level :: (notes: []string) -> u8 {
+	for notes {
+		is_intel_note, _ := contains(it, "intel_level_");
+		if !is_intel_note {
+			continue;
+		}
+		found, note, level_string := split_from_right(it, "_");
+		if !found {
+			continue;
+		}
+		level, success := parse_int(*level_string, u8);
+		assert(success, tprint("Attempted to parse to string but failed in %", level_string));
+		already_exists := false;
+		return level;
+	}
+	return 0;
 }
 
 gather_component_types :: (typechecked: *Message_Typechecked, build_context: *Build_Context) -> bool {

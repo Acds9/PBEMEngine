@@ -19,9 +19,10 @@ Archetype_Ship :: struct{
 }; 
 
 init_archetype_Archetype_Ship :: (world: *ZWorld) {
-	storage := get_archetype_storage(world, Archetype_Ship);
-	<<storage = initialize_archetype_storage(Archetype_Ship);
-	mesh_rep_component := get_archetype_component(world, Archetype_Ship, Mesh_Rep);
+	archetype_index := get_archetype_index(Archetype_Ship);
+	storage := get_archetype_storage(world, archetype_index);
+	<<storage = initialize_archetype_storage(archetype_index);
+	mesh_rep_component := get_archetype_component(world, archetype_index, Mesh_Rep);
 	mesh_rep_component.value = "ion_frigate";
 	storage.initialized = true;
 }
@@ -37,7 +38,8 @@ Archetype_Point_Light :: struct{
 }; 
 
 init_archetype_Archetype_Point_Light :: (world: *ZWorld) {
-	storage := get_archetype_storage(world, Archetype_Point_Light);
-	<<storage = initialize_archetype_storage(Archetype_Point_Light);
+	archetype_index := get_archetype_index(Archetype_Point_Light);
+	storage := get_archetype_storage(world, archetype_index);
+	<<storage = initialize_archetype_storage(archetype_index);
 	storage.initialized = true;
 }

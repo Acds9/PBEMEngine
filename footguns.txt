@@ -9,3 +9,4 @@ Assorted list of footguns and other quirks its best to keep in mind:
 - func :: (array: *[..]struct) passes a pointer to the HEADER, useful for resizing (THIS INCLUDES ADDING/REMOVING ELEMENTS) but you CANNOT do *array[index] to access a member by pointer, this just does pointer arithmetic, 
 	you need to do *((<<array)[index] or just pass by value (it's just the header) if resizing or altering the existing header isn't needed
 - array_free takes by value, therefore the array header is never freed and is left dangling after the free. Either clear the array headers too, or don't reuse structs without considering this
+- cast(*x) n + m will only cast N (obviously) *without warnings* (because it's just pointer arithmetic), remember to always wrap in parenthesis

@@ -37,7 +37,7 @@ generate_observers :: (ctx: *Build_Context) -> string {
 					print_to_builder(*builder, "\t\t% := *get_entity_component(world, entity, %);\n", to_lower_copy(e_c.name), e_c.name);
 				}
 				for a_c: observer.archetype_components {
-					print_to_builder(*builder, "\t\t% := *get_archetype_component(world, get_archetype(archetype), %);\n", to_lower_copy(a_c.name), a_c.name);
+					print_to_builder(*builder, "\t\t% := *get_archetype_component(world, archetype, %);\n", to_lower_copy(a_c.name), a_c.name);
 				}
 
 				print_to_builder(*builder, "\t\t%_Event(entity, game_world);\n", observer.type_data.name);

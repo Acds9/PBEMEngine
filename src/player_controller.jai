@@ -44,7 +44,7 @@ player_controller_remove_selection :: (using pc: *Player_Controller, entities: [
 	defer array_free(remove_idx);
 	for entity: entities {
 		for selection: current_selection {
-			if selection.index == entity.index && selection.gen == entity.gen || selection.archetype == entity.archetype { // It ain't pretty but for the selection counts it will be fine
+			if selection.index == entity.index && selection.generation == entity.generation || selection.archetype == entity.archetype { // It ain't pretty but for the selection counts it will be fine
 				array_add(*remove_idx, xx,no_check it_index);
 			}
 		} 
@@ -57,7 +57,7 @@ player_controller_remove_selection :: (using pc: *Player_Controller, entities: [
 player_controller_remove_selection :: (using pc: *Player_Controller, entity: ZEntity) {
 	player_controller_on_selection_change(pc);
 	for selection: current_selection {
-		if selection.index == entity.index && selection.gen == entity.gen || selection.archetype == entity.archetype { // It ain't pretty but for the selection counts it will be fine
+		if selection.index == entity.index && selection.generation == entity.generation || selection.archetype == entity.archetype { // It ain't pretty but for the selection counts it will be fine
 			array_unordered_remove_by_index(*current_selection, xx,no_check it_index);
 			break;
 		}

@@ -51,7 +51,6 @@ generate_queries :: (ctx: *Build_Context) -> string {
 		print_to_builder(*builder, "\t`query_entity_count : u32;\n");
 		print_to_builder(*builder, "\t`current_entity : ZEntity;\n");
 		print_to_builder(*builder, "\t`query_archetype_index : u16;\n");
-		print_to_builder(*builder, "\talive_mask 		: *Bit_Field(MAX_ENTITIES_PER_ARCHETYPE);\n");
 		print_to_builder(*builder, "\t`iteration_idx : u32;\n");
 
 		print_to_builder(*builder, "\n");

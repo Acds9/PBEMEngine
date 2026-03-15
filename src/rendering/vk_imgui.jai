@@ -235,29 +235,29 @@ imgui_tick :: () {
 			Text("Current Step: ");
 
 			if Button("Min") {
-				set_replay_step(0);
+				set_replay_time(0);
 			}
 			SameLine();
 			if Button("--") {
-				increment_replay_step(-10);
+				increment_replay_time(-1);
 			}
 			SameLine();
 			if Button("-") {
-				increment_replay_step(-1);
+				increment_replay_time(-0.1);
 			}
 			SameLine();
-			Text(tprint("%", GAME_INSTANCE.replay_system.current_step));
+			Text(tprint("%", GAME_INSTANCE.replay_system.time));
 			SameLine();
 			if Button("+") {
-				increment_replay_step(1);
+				increment_replay_time(0.1);
 			}
 			SameLine();
 			if Button("++") {
-				increment_replay_step(10);
+				increment_replay_time(1);
 			}
 			SameLine();
 			if Button("Max") {
-				set_replay_step(U32_MAX);
+				set_replay_time(FLOAT32_MAX);
 			}
 			if Button("Play") {
 				GAME_INSTANCE.replay_system.autoplay = !GAME_INSTANCE.replay_system.autoplay;

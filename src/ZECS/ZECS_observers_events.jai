@@ -1,6 +1,6 @@
 Observer_Ship_Spawn_Render_Mesh_Event :: (entity_idx: ZEntity, game_world: *Game_World) {
 	world := *game_world.world;
-	mesh_rep := get_archetype_component(world, get_archetype(entity_idx.archetype), Mesh_Rep);
+	mesh_rep := get_archetype_component(world, entity_idx.archetype, Mesh_Rep);
 	mesh, found := table_find(*ZRENDERER.mesh_map, mesh_rep.value);
 	if !found {
 		print("WARNING: Could not find % mesh\n", mesh_rep.value);

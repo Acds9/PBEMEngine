@@ -16,6 +16,12 @@ Replay_System :: struct {
 	autoplay			: bool;
 	time				: float32;
 	play_rate			: float32 = 1;
+
+	start_time			: float32;
+	end_time			: float32;
+
+	replay_timeline		: Replay_Timeline;
+	seconds_per_step	: float32;
 }
 
 set_replay_autoplay :: (is_autoplay: bool) {
@@ -23,28 +29,28 @@ set_replay_autoplay :: (is_autoplay: bool) {
 	autoplay = is_autoplay;
 }
 
-set_replay_play_rate :: (rate: float32) { // TODO: this won't work, just multiplying deltatime will skip steps
+set_replay_play_rate :: (rate: float32) {
 	using *GAME_INSTANCE.replay_system;
 	play_rate = rate;
 }
-
+// TODO: The damn collisions aren't working again, no BVH crash so probably the AABB not loading properly. 
 set_replay_time :: (new_time: float32) {
 	using *GAME_INSTANCE.replay_system;
-	if new_time < 0 {
+	if new_time < start_time {
 		time = 0;
 		autoplay = false;
+		update_replay_timeline(*GAME_INSTANCE.replay_system);
 		return;
 	}
-	per_step_time := 1/cast,no_check(float32)active_turn_file.step_resolution;
-	max_time : float32 = xx,no_check (active_turn_file.end_step * per_step_time);
-	if new_time > max_time {
-		time = max_time;
+	if new_time > end_time {
+		time = end_time;
 		autoplay = false;
+		update_replay_timeline(*GAME_INSTANCE.replay_system);
 		return;
 	}
 	time = new_time;
-	new_step : u32 = xx,no_check floor(time * cast,no_check(float32)active_turn_file.step_resolution);
-	set_replay_step(new_step);
+	current_step = xx,no_check floor(time * seconds_per_step);
+	update_replay_timeline(*GAME_INSTANCE.replay_system);
 }
 
 increment_replay_time :: (dT: float32) {
@@ -65,9 +71,14 @@ open_replay :: (game: string, turn: s32 = -1) {
 	active_world = create_game_world(game, .REPLAY);
 	menu_state = .NONE;
 
+	replay_system.seconds_per_step = 1.0 / replay_system.active_turn_file.step_resolution;
+	replay_system.start_time = replay_system.active_turn_file.start_step * replay_system.seconds_per_step;
+	replay_system.end_time = replay_system.active_turn_file.end_step * replay_system.seconds_per_step;
+	
 	replay_system.order_file = .{replay_system.active_turn_file.game, replay_system.active_turn_file.turn, .{}};
 	// TODO: need to validate timeline here
-	create_start_state_from_timeline(*replay_system.active_turn_file.timeline, *active_world.world);
+	replay_system.replay_timeline = generate_replay_timeline(*replay_system.active_turn_file.timeline);
+	create_timeline_entities(*replay_system.active_turn_file.timeline, *active_world.world);
 
 	ZRENDERER.imgui_system.show_timeline_controls = true;
 }
@@ -109,43 +120,3 @@ quit_replay :: () {
 	GAME_INSTANCE.menu_state = .MAIN;
 	ZRENDERER.imgui_system.show_timeline_controls = false;
 }
-
-set_replay_step :: (step: u32) {
-	using *GAME_INSTANCE.replay_system;
-
-	if step < xx,no_check active_turn_file.start_step {
-		current_step = active_turn_file.start_step;
-	} else if step > xx,no_check active_turn_file.end_step {
-		current_step = active_turn_file.end_step;
-	} else {
-		current_step = xx,no_check step;	
-	}
-
-	process_replay_step(current_step);
-} 
-
-increment_replay_step :: (count: s32) {
-	using *GAME_INSTANCE.replay_system;
-	new_step : s32 = xx,no_check current_step + count;
-	set_replay_step(xx,no_check clamp(new_step, xx,no_check active_turn_file.start_step, xx,no_check active_turn_file.end_step));
-}
-
-reprocess_replay_to_step :: (start_step: u32, target_step: u32) {
-	using *GAME_INSTANCE.replay_system;
-	for start_step..target_step {
-		process_replay_step(it);
-	}
-	current_step = target_step;
-}
-
-process_replay_step :: (step: u32) {
-	using *GAME_INSTANCE.replay_system;
-	turn_timeline := *active_turn_file.timeline;
-	snapshots := read_stream(*turn_timeline.snapshot_stream, step);
-	for snapshots {
-		slice := subslice(turn_timeline.snapshot_stream.data, it.data_offset, it.data_size);
-		offset : s64;
-		//deserialize_entity_component_data(it.entity, *GAME_INSTANCE.active_world.world, slice, it.intel_level, *offset);
-	}
-}
-

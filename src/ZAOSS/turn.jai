@@ -26,7 +26,7 @@ Game_File :: struct @serialize {
 }
 
 setup_game_world :: (world: *ZWorld) {
-	create_entity_batch(world, Archetype_Ship, 1); 
+	create_entity_batch(world, get_archetype_index(Archetype_Ship), 1); 
 }
 
 create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, time_limit_seconds: u32, max_players: u32) {
@@ -81,8 +81,11 @@ create_game :: (name: string, step_resolution: u32, turn_duration_seconds: u32, 
 
 	initialize_timeline(*start_turn.timeline, 0, 0);
 
-	create_timeline_checkpoint(*start_turn.timeline.snapshot_stream, *game_world, 0);
+	new_game_record_system : Simulation_Record_System; // We just construct one for this use only
 
+	record_world_checkpoint(*new_game_record_system, *game_world);
+	flush_record_queue(*new_game_record_system, *game_world, 0, *start_turn.timeline);
+	
 	turn_path := tprint("%/%/%_0.%", path, TURN_FOLDER_NAME, name, TURN_EXT);
 	turn_buffer : [..]u8;
 	offset : s64;

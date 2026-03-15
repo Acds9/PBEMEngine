@@ -2,9 +2,14 @@
 
 Entity_Component :: struct{}
 
-Position :: struct @serialize {
+Position :: struct @serialize @intel_level_1 {
 	using #as entity_component: Entity_Component;
 	value : Vector3;
+
+	interpolate :: (dst: *void, a: *void, b: *void, t: float32) {
+		d := cast,no_check(*Position) dst;
+		d.value = lerp((cast,no_check(*Position)a).value, (cast,no_check(*Position)b).value, t);
+	}
 }
 
 Rotation :: struct @serialize {

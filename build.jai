@@ -32,7 +32,7 @@ build :: () {
 	file_delete(ZECS_COMPONENTS_GEN_PATH);
 	file_delete(ZECS_ARCHETYPES_GEN_PATH);
 
-	w := compiler_create_workspace("Target Program");
+	w := compiler_create_workspace("Final Workspace");
 	if !w {
 		print("Workspace creation failed.\n");
 		return;
@@ -141,7 +141,7 @@ generate_constants_code :: (w: Workspace) {
 
 generate_component_code :: (w: Workspace) {
 	components_file_builder: String_Builder;
-	append(*components_file_builder, generate_entity_component_serializers(*build_context));
+
 	append(*components_file_builder, generate_entity_component_switches(*build_context));
 	append(*components_file_builder, generate_archetype_component_switches(*build_context));
 
@@ -154,8 +154,8 @@ generate_archetype_code :: (w: Workspace) {
 	archetypes_file_builder: String_Builder;
 
 	append(*archetypes_file_builder, generate_archetype_database(*build_context));
-	append(*archetypes_file_builder, generate_archetype_index_lookup(*build_context));
-	append(*archetypes_file_builder, generate_index_archetype_lookup(*build_context));
+	append(*archetypes_file_builder, generate_index_to_archetype_lookup(*build_context));
+	append(*archetypes_file_builder, generate_archetype_to_index(*build_context));
 	append(*archetypes_file_builder, generate_component_storage_getter(*build_context));
 	append(*archetypes_file_builder, generate_archetype_component_index_getters(*build_context));
 	append(*archetypes_file_builder, generate_entity_component_initializers(*build_context));
@@ -202,4 +202,4 @@ main :: () {}
 #load "src/ZECS/meta/ZECS_archetypes_meta.jai";
 #load "src/ZECS/meta/ZECS_components_meta.jai";
 #load "src/ZECS/meta/ZECS_constants_meta.jai";
-#load "src/intel.jai";
+#load "src/intel_types.jai";

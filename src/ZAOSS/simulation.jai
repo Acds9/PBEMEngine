@@ -26,6 +26,7 @@ Simulation_Instance :: struct {
 	parameters	: Simulation_Parameters;
 	sim_state	: Simulation_State;
 	game_world	: Game_World;
+	record_system : Simulation_Record_System;
 	order_timeline : Turn_Timeline; // This is the order-holding timeline that won't change, NOT the one replay is recorded to
 	master_timeline : Turn_Timeline; // This is where the master timeline is recorded to that the server will use for the server's ground truth replay
 }
@@ -110,12 +111,17 @@ simulate :: (sim_entry: *Simulation_Instance) {
 
 	sim_entry.state = .SIMULATING;
 	sim_entry.sim_state.current_step = sim_entry.parameters.step_start;
+	diag_last_data_ptr : *u8;
+	diag_last_snapshots_ptr : *Entity_Snapshot;
 	while sim_entry.sim_state.current_step < sim_entry.parameters.step_end {
 		simulation_tick(sim_entry);
 		barrier_wait(context.lane_barrier);
-		
+
 		narrow(#code{
 			simulation_record(sim_entry);
+			flush_record_queue(*sim_entry.record_system, *sim_entry.game_world.world, sim_entry.sim_state.current_step, *sim_entry.master_timeline);
+			diag_last_data_ptr = sim_entry.master_timeline.snapshot_stream.data.data;
+			diag_last_snapshots_ptr = sim_entry.master_timeline.snapshot_stream.snapshots.data;
 			ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Step % simulated", sim_entry.sim_state.current_step));
 			sim_entry.sim_state.current_step += 1;
 		});
@@ -125,6 +131,41 @@ simulate :: (sim_entry: *Simulation_Instance) {
 		time_end := seconds_since_init();
 		print("Simulation Complete, time elapsed: %\n", time_end-time_start);
 
+		// DIAG: Check if pointers changed between last sim step and post-sim
+		current_data_ptr := sim_entry.master_timeline.snapshot_stream.data.data;
+		current_snap_ptr := sim_entry.master_timeline.snapshot_stream.snapshots.data;
+		if diag_last_data_ptr != current_data_ptr {
+			print("!!! DATA PTR CHANGED: sim loop had %, post-sim has %\n", diag_last_data_ptr, current_data_ptr);
+		} else {
+			print("DIAG: data ptr unchanged: %\n", current_data_ptr);
+		}
+		if diag_last_snapshots_ptr != current_snap_ptr {
+			print("!!! SNAPSHOTS PTR CHANGED: sim loop had %, post-sim has %\n", diag_last_snapshots_ptr, current_snap_ptr);
+		}
+		// DIAG: Check data content at offset 96 (first "bad" offset)
+		if sim_entry.master_timeline.snapshot_stream.data.count > 108 {
+			p96 := cast,no_check(*Position)(current_data_ptr + 96);
+			print("DIAG data at offset 96: % (should be step 80 position)\n", p96.value);
+			// Also check via last known pointer
+			if diag_last_data_ptr != current_data_ptr {
+				p96_old := cast,no_check(*Position)(diag_last_data_ptr + 96);
+				print("DIAG data at offset 96 via OLD ptr: %\n", p96_old.value);
+			}
+		}
+
+		print("POST-SIM data.data ptr: %, data.count: %, snapshots.count: %\n", sim_entry.master_timeline.snapshot_stream.data.data, sim_entry.master_timeline.snapshot_stream.data.count, sim_entry.master_timeline.snapshot_stream.snapshots.count);
+		// DIAG: Also check start_state_turn_file to see if post-sim data matches it
+		if sim_entry.start_state_turn_file.timeline.snapshot_stream.data.count >= 24 {
+			stf_data := sim_entry.start_state_turn_file.timeline.snapshot_stream.data;
+			stf_p0 := cast,no_check(*Position) stf_data.data;
+			stf_p1 := cast,no_check(*Position) (stf_data.data + 12);
+			print("DIAG START_STATE_TURN_FILE: data.data = %, count = %, data[0] = %, data[12] = %\n", stf_data.data, stf_data.count, stf_p0.value, stf_p1.value);
+		}
+		for sim_entry.master_timeline.snapshot_stream.snapshots {
+			pos := cast,no_check(*Position) (sim_entry.master_timeline.snapshot_stream.data.data + it.data_offset);
+			print("Step: %, Position: %, data_offset: %\n", it.step, pos.value, it.data_offset);
+		}
+		
 		ZLog.write_to_log(*ZLog.ZLOGGER, .SIMULATION, .ORDER, tprint("Finished simulation of game: %, steps: %, time: % seconds\n", sim_entry.game, sim_entry.parameters.step_end-sim_entry.parameters.step_start, time_end-time_start));
 		{
 			start_turn : Turn_File;
@@ -134,7 +175,6 @@ simulate :: (sim_entry: *Simulation_Instance) {
 			start_turn.end_step = sim_entry.parameters.step_end;
 			start_turn.step_resolution = sim_entry.parameters.step_resolution;
 			start_turn.timeline = sim_entry.master_timeline;
-			//create_timeline_checkpoint(*start_turn.timeline.snapshot_stream, *sim_entry.game_world.world, 0);
 
 			path := tprint("%/%", GAME_FOLDER_PATH, sim_entry.game);
 			turn_path := tprint("%/%/%_0.%", path, TURN_FOLDER_NAME, sim_entry.game, TURN_EXT);
@@ -178,6 +218,8 @@ simulation_timeline_tick :: (timeline: *Turn_Timeline, step: u32, world: *ZWorld
 
 simulation_record :: (using sim_instance: *Simulation_Instance) {
 	if !(sim_instance.sim_state.current_step % SNAPSHOT_FREQUENCY) {
-		create_timeline_checkpoint(*master_timeline.snapshot_stream, *game_world.world, sim_state.current_step);
+		for entity: game_world.world.world_entities {
+			record_snapshot(*record_system, entity, Position);
+		}
 	}
 }
